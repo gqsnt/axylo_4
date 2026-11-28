@@ -2,8 +2,7 @@ import type { DiagnosticSink } from '../core/contracts';
 import type { ValueFieldOptions, XFieldOptions } from '../public';
 import { report } from '../diagnostics';
 import { defaultMessages } from '../messages';
-import { borrowColumns } from './store-bytes';
-import { columnsTable, rowsTable, type Columns, type Table } from './table';
+import { borrowColumns, columnsTable, rowsTable, type Columns, type Table } from './table';
 
 export type AlignedChartType = 'line' | 'area' | 'bar' | 'histogram';
 export type ChartType = AlignedChartType | 'scatter' | 'donut';
@@ -152,6 +151,10 @@ export function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
+function optionIssue(sink: DiagnosticSink, field: string, detail: string, effect: 'none' | 'chart-error' = 'none'): void {
+  report(sink, 'AX150', effect, { field, count: 1, detail });
+}
+
 function unknownKeys(options: unknown, keys: readonly string[], sink: DiagnosticSink, path = ''): void {
   // Anything but an object has no keys to check.
   if (options === null || typeof options !== 'object') return;
@@ -194,7 +197,7 @@ function fieldName(input: unknown): string | null {
  */
 function resolveTickFormat<T>(format: T | undefined, path: string, unused: string | null, sink: DiagnosticSink): T | null {
   if (unused === null || format == null) return format ?? null;
-  report(sink, 'AX150', 'none', { field: path + 'tickFormat', count: 1, detail: unused });
+  optionIssue(sink, path + 'tickFormat', unused);
   return null;
 }
 
@@ -213,8 +216,7 @@ function baseField<T extends XFieldOptions | ValueFieldOptions>(
   };
 }
 
-function resolveX(input: unknown, type: ChartType, compact: boolean, sink: DiagnosticSink): ResolvedXField {
-  const unusedTicks = compact ? COMPACT_TICKS : type === 'donut' ? DONUT_TICKS : null;
+function resolveX(input: unknown, type: ChartType, unusedTicks: string | null, sink: DiagnosticSink): ResolvedXField {
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(input, type === 'scatter' ? getScatterXKeys() : getXKeys(), sink, 'x.');
   const declared = literal(options.type, xTypes, 'x.type', sink);
@@ -306,7 +308,7 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
     unknownKeys(options.messages, messageKeys ??= Object.keys(defaultMessages), sink, 'messages.');
   }
   if (compact && options.reference !== undefined) {
-    report(sink, 'AX150', 'none', { field: 'reference', count: 1, detail: 'Compact charts draw no references.' });
+    optionIssue(sink, 'reference', 'Compact charts draw no references.');
   } else if (!donut && Array.isArray(options.reference)) {
     options.reference.forEach((reference, row) => {
       unknownKeys(reference, referenceKeys, sink, 'reference[' + row + '].');
@@ -314,26 +316,29 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
   }
 
   const { table, valid: validTable } = retained ? { table: retained, valid: true } : resolveTable(options.data, sink);
-  const xInput = donut ? options.label : options.x;
+  const unusedTicks = compact ? COMPACT_TICKS : donut ? DONUT_TICKS : null;
+  const xRole = donut ? 'label' : 'x';
+  const yRole = donut ? 'value' : 'y';
+  const xInput = options[xRole];
   const distribution = histogram?.(options, compact, sink);
-  const x = distribution?.x ?? resolveX(xInput, type, compact, sink);
+  const x = distribution?.x ?? resolveX(xInput, type, unusedTicks, sink);
   const wide = !histogram && !donut && Array.isArray(options.y);
   const supported = !wide || type !== 'scatter';
-  const valueInputs = histogram ? [] : wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
+  const valueInputs = histogram ? [] : wide ? options.y as readonly unknown[] : [options[yRole]];
   // Only the first value field supplies the shared axis's tick formatter.
   const values = valueInputs.map((field, index) =>
-    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', compact ? COMPACT_TICKS : donut ? DONUT_TICKS
-      : index > 0 ? 'The y fields share one value axis, labelled by y[0].tickFormat.' : null, sink));
+    resolveValue(field, wide ? 'y[' + index + '].' : yRole + '.', unusedTicks ?? (index > 0
+      ? 'The y fields share one value axis, labelled by y[0].tickFormat.' : null), sink));
   const series = !histogram && !wide && !donut && typeof options.series === 'string' ? options.series : null;
   if (wide && options.series !== undefined) {
-    report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });
+    optionIssue(sink, 'series', 'Use a single y field when naming a series field.');
   }
   if (!supported) {
-    report(sink, 'AX150', 'chart-error', { field: 'y', count: 1, detail: 'Use a single y field for scatter charts.' });
+    optionIssue(sink, 'y', 'Use a single y field for scatter charts.', 'chart-error');
   }
 
-  const fields: [string | null, string][] = [[fieldName(xInput), donut ? 'label' : 'x']];
-  for (const input of valueInputs) fields.push([fieldName(input), donut ? 'value' : 'y']);
+  const fields: [string | null, string][] = [[fieldName(xInput), xRole]];
+  for (const input of valueInputs) fields.push([fieldName(input), yRole]);
   if (!histogram && values.length === 0) fields.push([null, 'y']);
   if (series !== null) fields.push([series, 'series']);
   const valid = checkFields(table, fields, sink) && validTable && supported;

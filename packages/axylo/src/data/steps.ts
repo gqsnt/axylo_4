@@ -15,7 +15,7 @@ export function stepDelta(axis: Axis, a: number, b: number): number {
 }
 
 export function supportsSteps(axis: Axis): boolean {
-  return axis.kind === 'number' || axis.kind === 'date' || axis.kind === 'time' || axis.kind === 'wall';
+  return axis.kind !== 'category';
 }
 
 export function stepMultiple(delta: number, step: number): number {

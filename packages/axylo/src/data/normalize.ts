@@ -6,10 +6,10 @@ import {
 import { report, type DiagnosticDetails } from '../diagnostics';
 import { MAX_DATE } from '../scale/zone';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
-import { denseSeries, denseSlots, fullStatistics } from './store-statistics';
+import { denseSeries, denseSlots, fullStatistics } from './series';
 import { Reports } from './reports';
 import { calendarIntervals, inferGaps, snapGap } from './steps';
-import { recordDiagnostics, StreamDiagnostics, type DiagnosticTrace } from './store-diagnostics';
+import { DiagnosticHistory, type DiagnosticTrace, type Sample } from './diagnostic-history';
 import type { Table } from './table';
 import { readValues, type ValueCounts, type Values } from './values';
 import { dateUnitOf, inferKind, nameOf, positionName, XParser, type DateUnit } from './x';
@@ -29,8 +29,8 @@ function sourceRows(table: Table): Int32Array {
   return rows;
 }
 
-export interface XData {
-  readonly parser: XParser;
+export interface XData<P extends XParser = XParser> {
+  readonly parser: P;
   readonly positions: Float64Array;
   readonly order: Int32Array | null;
   readonly dateUnits: Record<DateUnit, number> | null;
@@ -38,29 +38,52 @@ export interface XData {
   readonly regular?: boolean;
 }
 
-/** Read a position once, retaining the caller's row number for diagnostics on static and appended data. */
-export function readPosition(
-  parser: XParser, table: Table, row: number, series: string | null, omitted: number,
-  reports: Reports, dateUnits: XData['dateUnits'], start = 0, column?: ArrayLike<unknown>,
-): number {
-  if (series !== null && nameOf(table.read(row, series)) === null) return NaN;
-  const raw = column === undefined ? table.read(row, parser.field.field) : column[row];
-  if (Number.isNaN(raw) && table.isColumnRow(row)) return NaN;
-  const position = parser.read(raw, start + table.rowIndex(row), reports, omitted);
-  if (dateUnits && Number.isFinite(position)) dateUnits[dateUnitOf(raw)]++;
-  return position;
+// A typed prefix already proved finite and ordered is skipped. Both static data and a stream batch
+// parse the remaining rows with the same provenance, calendar precision and borrowing rules.
+export function scanPositions(parser: XParser, table: Table, options: Pick<ResolvedOptions, 'series' | 'values'>,
+  sink: DiagnosticSink, dateUnits: XData['dateUnits'], positions: Float64Array, i = 0,
+  highest = -Infinity, start = 0, scatter = false, late?: (row: number) => void, input?: ArrayLike<unknown>,
+) {
+  const reports = new Reports(parser.field.field, sink);
+  const { series, values } = options;
+  let ascending = true, ties = false, valid = i;
+  for (; i < table.length; i++) {
+    let position = NaN;
+    if (series === null || nameOf(table.read(i, series)) !== null) {
+      const raw = input === undefined ? table.read(i, parser.field.field) : input[i];
+      if (!Number.isNaN(raw) || !table.isColumnRow(i)) {
+        position = parser.read(raw, start + table.rowIndex(i), reports, values.length);
+        if (dateUnits && Number.isFinite(position)) dateUnits[dateUnitOf(raw)]++;
+      }
+    }
+    if (positions === input && !Object.is(input[i], position)) positions = positions.slice();
+    if (positions !== input) positions[i] = position;
+    if (!Number.isFinite(position)) continue;
+    valid++;
+    if (position > highest) highest = position;
+    else if (scatter && position === highest) ties = true;
+    else {
+      ascending = false;
+      if (position < highest) late?.(start + i);
+    }
+  }
+  reports.flush(sink);
+  return { positions, ascending, ties, valid };
 }
 
-export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, categories?: readonly string[]): XData {
+export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, categories?: readonly string[]): XData;
+export function readX<P extends XParser>(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink,
+  categories: readonly string[] | undefined, Parser: new (...args: ConstructorParameters<typeof XParser>) => P): XData<P>;
+export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink,
+  categories?: readonly string[], Parser = XParser): XData {
   const { x, table } = options;
   const kind = x.type ?? inferKind(table, x.field, options.series) ?? (categories ? 'category' : 'number');
-  const parser = new XParser(x, kind, env, type === 'scatter', categories);
+  const parser = new Parser(x, kind, env, type === 'scatter', categories);
   const dateUnits = kind === 'date' ? { day: 0, month: 0, year: 0 } : null;
   const input = table.columns?.[x.field];
-  let positions = input instanceof Float64Array && (kind === 'number' || kind === 'time')
+  const target = input instanceof Float64Array && (kind === 'number' || kind === 'time')
     ? input : new Float64Array(table.length);
-  let ascending = true;
-  let ties = false;
+  let prefixTies = false;
   const scatter = type === 'scatter';
   let last = -Infinity;
   let i = 0;
@@ -77,7 +100,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
     if (input.length === table.length && step > 0 && Number.isFinite(step) && first >= -limit && end <= limit &&
       (end <= -hintEnd || first > -hintStart) && (end < hintStart || first >= hintEnd) &&
       sameStep(input)) {
-      return { parser, positions, order: null, dateUnits, regular: true };
+      return { parser, positions: target, order: null, dateUnits, regular: true };
     }
     for (; i < table.length; i++) {
       const value = input[i]!;
@@ -85,27 +108,13 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
       if (!(abs <= limit) || abs >= hintStart && abs < hintEnd) break;
       if (!(value > last)) {
         if (!scatter || value !== last) break;
-        ties = true;
+        prefixTies = true;
       }
       last = value;
     }
   }
-  const reports = new Reports(x.field, sink);
-  let valid = i;
-  for (; i < table.length; i++) {
-    const value = readPosition(parser, table, i, options.series, options.values.length, reports, dateUnits, 0, input);
-    if (positions === input && !Object.is(positions[i], value)) positions = positions.slice();
-    if (positions !== input) positions[i] = value;
-    if (!Number.isFinite(value)) continue;
-    if (!(value > last)) {
-      if (scatter && value === last) ties = true;
-      else ascending = false;
-    }
-    last = value;
-    valid++;
-  }
-  reports.flush(sink);
-  if (ascending && valid === table.length) return { parser, positions, order: null, dateUnits, ties };
+  const { positions, ascending, ties, valid } = scanPositions(parser, table, options, sink, dateUnits, target, i, last, 0, scatter, undefined, input);
+  if (ascending && valid === table.length) return { parser, positions, order: null, dateUnits, ties: prefixTies || ties };
 
   const order = new Int32Array(valid);
   let next = 0;
@@ -123,20 +132,14 @@ export function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink
   let last = first;
   const zone = x.parser.timeZone ?? 'UTC';
   let matches = 3;
-  if (x.regular && order === null && zone === 'UTC') {
-    // readX proved every delta the same positive step, and in UTC the answer depends on the delta alone:
-    // one pair stands for all of them.
-    matches &= calendarIntervals(first, positions[1]!, zone);
+  // For a constant UTC delta one pair stands for the entire (already validated) column.
+  const stop = x.regular && order === null && zone === 'UTC' ? 2 : length;
+  for (let i = 1; i < stop; i++) {
+    const position = positions[order?.[i] ?? i]!;
+    if (position === last) continue;
+    matches &= calendarIntervals(last, position, zone);
     if (!matches) return;
-    last = positions[length - 1]!;
-  } else {
-    for (let i = 1; i < length; i++) {
-      const position = positions[order === null ? i : order[i]!]!;
-      if (position === last) continue;
-      matches &= calendarIntervals(last, position, zone);
-      if (!matches) return;
-      last = position;
-    }
+    last = position;
   }
   if (last === first) return;
   const rows: number[] = [];
@@ -170,44 +173,42 @@ function groupOf(key: string, label: string, value: ResolvedValueField, order: I
   return { key, label, value, order, gaps: null, drawable: true };
 }
 
-function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group[] {
-  const { table, series } = options;
-  if (series === null) return options.values.map(value => groupOf(value.field, value.label, value, x.order));
+export function seriesGroups(options: Pick<ResolvedOptions, 'values' | 'series'>, table: Table, positions: Float64Array,
+  order: Int32Array | null, sink: DiagnosticSink, start?: number): Group[] {
+  const { series } = options;
+  if (series === null) return options.values.map(value => groupOf(value.field, value.label, value, order));
 
   const indexes = new Map<string, number>();
   const counts: number[] = [];
-  const membership = new Int32Array(table.length).fill(-1);
+  // Group zero is implicit. A second group or an unplaced row is the first reason to store memberships.
+  let membership: Int32Array | undefined;
   const reports = new Reports(series, sink);
   for (let i = 0; i < table.length; i++) {
     const raw = table.read(i, series);
     const name = nameOf(raw);
+    let index = -1;
     if (name === null) {
-      if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
-      reportMissingName(reports, table.rowIndex(i), raw);
-      continue;
+      if (!Number.isNaN(raw) || !table.isColumnRow(i)) reportMissingName(reports, (start ?? 0) + table.rowIndex(i), raw);
+    } else if (Number.isFinite(positions[i])) {
+      index = indexes.get(name) ?? indexes.size;
+      if (index === counts.length) {
+        indexes.set(name, index);
+        counts.push(0);
+      }
+      counts[index]!++;
     }
-    if (!Number.isFinite(x.positions[i])) continue;
-    let index = indexes.get(name);
-    if (index === undefined) {
-      index = indexes.size;
-      indexes.set(name, index);
-      counts.push(0);
-    }
-    membership[i] = index;
-    counts[index] = counts[index]! + 1;
+    if (index !== 0) (membership ??= new Int32Array(table.length))[i] = index;
   }
   reports.flush(sink);
-
+  const value = options.values[0]!;
+  if (!membership && start !== undefined) return Array.from(indexes.keys(), name => groupOf(name, name, value, order));
   const orders = counts.map(count => new Int32Array(count));
   counts.fill(0);
-  for (let i = 0, n = x.order?.length ?? table.length; i < n; i++) {
-    const row = x.order?.[i] ?? i;
-    const index = membership[row]!;
-    if (index < 0) continue;
-    orders[index]![counts[index]!] = row;
-    counts[index] = counts[index]! + 1;
+  for (let i = 0, n = order?.length ?? table.length; i < n; i++) {
+    const row = order?.[i] ?? i;
+    const index = membership?.[row] ?? 0;
+    if (index >= 0) orders[index]![counts[index]!++] = row;
   }
-  const value = options.values[0]!;
   return Array.from(indexes, ([key, index]) => groupOf(key, key, value, orders[index]!));
 }
 
@@ -346,34 +347,51 @@ function alignedSeries(group: Group, axis: XColumn, x: XData, table: Table, valu
   }
   const length = axis.values.length;
   const slot = new Uint8Array(length);
-  const row = new Int32Array(length).fill(-1);
+  const row = new Int32Array(length);
   const y = new Float64Array(length);
-  const observations = order?.length ?? table.length;
-  let observed = 0;
+  projectSeries({ y, slot, row }, 0, axis.values, x.positions, order, order?.length ?? table.length, values, gaps, zero, table);
+  return { ...description, drawable, y, slot, row };
+}
+
+interface Projection {
+  readonly y: Float64Array;
+  slot: Uint8Array | null;
+  row: Int32Array | null;
+}
+
+// Both an aligned frame and its incremental tail join sorted observations and gaps onto the same x grid.
+// Stream columns that are implicit need a writer only when a slot first stops being the identity.
+export function projectSeries<T extends Projection>(
+  output: T, start: number, axis: Float64Array, positions: Float64Array, rows: ArrayLike<number> | null,
+  length: number, values: Values | undefined, gaps: Float64Array | null | undefined, zero: boolean,
+  source: Table | number, observed = 0, implicit?: {
+    setRow(series: T, target: number, row: number): void;
+  }, setSlot?: (series: T, target: number, state: number) => void,
+): void {
   let gap = 0;
-  for (let i = 0; i < length; i++) {
-    const position = axis.values[i]!;
-    const source = order?.[observed] ?? observed;
-    if (observed < observations && x.positions[source] === position) {
-      const state = values.slot ? values.slot[source]! : SLOT_VALUE;
-      if (zero && isImputable(state)) {
-        y[i] = 0;
-      } else {
-        slot[i] = state;
-        row[i] = table.rowIndex(source);
-        y[i] = values.y[source]!;
-      }
+  for (let i = 0; i < axis.length; i++) {
+    const target = start + i;
+    const position = axis[i]!;
+    const row = rows?.[observed] ?? observed;
+    let state: number, value: number, provenance = -1;
+    if (observed < length && positions[row] === position) {
+      state = values!.slot?.[row] ?? SLOT_VALUE;
+      value = values!.y[row]!;
+      if (zero && isImputable(state)) state = SLOT_VALUE;
+      else provenance = typeof source === 'number' ? source + row : source.rowIndex(row);
       observed++;
     } else {
-      const state = gaps?.[gap] === position ? SLOT_GAP : SLOT_NO_ROW;
-      if (state === SLOT_GAP) gap++;
-      if (!zero) {
-        slot[i] = state;
-        y[i] = NaN;
-      }
+      const expected = gaps?.[gap] === position;
+      if (expected) gap++;
+      state = zero ? SLOT_VALUE : expected ? SLOT_GAP : SLOT_NO_ROW;
+      value = zero ? 0 : NaN;
     }
+    output.y[target] = value;
+    if (output.row) output.row[target] = provenance;
+    else implicit!.setRow(output, target, provenance);
+    if (output.slot) output.slot[target] = state;
+    else if (state !== SLOT_VALUE) setSlot!(output, target, state);
   }
-  return { ...description, drawable, y, slot, row };
 }
 
 const maxAlignedSlots = 20_000_000;
@@ -403,7 +421,7 @@ export function alignedFrame(
     for (let i = 0; i < sorted.length; i++) sorted[i] = x.positions[x.order[i]!]!;
     observed = distinctPositions(sorted);
   }
-  const aligned = groups(options, x, sink);
+  const aligned = seriesGroups(options, table, x.positions, x.order, sink);
   if (!alignmentFits(aligned.length, observed.length, sink)) return empty();
   let positions = observed;
   // readX certifies strictly increasing regular numeric or time positions only for wide input.
@@ -456,7 +474,7 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   const { table } = options;
   const value = options.values[0]!;
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
-  const members = groups(options, x, sink);
+  const members = seriesGroups(options, table, x.positions, x.order, sink);
   const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.', undefined, false);
   let allValid = values.allValid;
   const slots = values.slot;
@@ -516,15 +534,18 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   };
 }
 
-function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: FrameVersion): DonutFrame {
+function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: FrameVersion,
+  index?: { positions: Float64Array; order: Int32Array | null }): DonutFrame {
   const { table, x } = options;
   const field = options.values[0]!;
   const labels: string[] = [];
-  const seen = new Set<string>();
+  const seen = index ? null : new Set<string>();
+  const ordinals = index ? new Map<string, number>() : null;
+  let repeated = false;
   const issues = new Reports(x.field, sink);
   const negatives = new Reports(field.field, sink);
   const rows = new Int32Array(table.length);
-  const included = new Uint8Array(table.length);
+  const included = index ? null : new Uint8Array(table.length);
   for (let i = 0; i < table.length; i++) {
     const raw = table.read(i, x.field);
     const name = nameOf(raw);
@@ -532,16 +553,25 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
       if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
       reportMissingName(issues, table.rowIndex(i), raw, true);
     } else {
-      if (seen.has(name)) issues.add('AX108', 'chart-error', table.rowIndex(i), name);
-      seen.add(name);
+      if (ordinals ? ordinals.has(name) : seen!.has(name)) {
+        repeated = true;
+        issues.add('AX108', 'chart-error', table.rowIndex(i), name);
+      }
+      if (index) {
+        const position = ordinals!.get(name) ?? ordinals!.size;
+        ordinals!.set(name, position);
+        index.positions[i] = position;
+      } else {
+        seen!.add(name);
+        included![i] = 1;
+      }
       rows[labels.length] = i;
       labels.push(name);
-      included[i] = 1;
     }
   }
   issues.flush(sink);
   const order = rows.subarray(0, labels.length);
-  const values = readValues(table, field, sink, true, 0, undefined, i => included[i] === 1);
+  const values = readValues(table, field, sink, true, 0, undefined, i => included ? included[i] === 1 : Number.isFinite(index!.positions[i]));
   // The donut frame always carries its own state column; it is one byte per category.
   const slots = values.slot ?? new Uint8Array(table.length);
   const provenance = table.columns && order.length === table.length && field.missing !== 'zero'
@@ -557,13 +587,18 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   }
   negatives.flush(sink);
   const allRows = order.length === table.length;
-  return {
+  const frame: DonutFrame = {
     ...base(table, version), shape: 'donut', labels,
     values: allRows && values.y instanceof Float64Array ? values.y : Float64Array.from(order, row => values.y[row]!),
     slot: allRows ? slots : Uint8Array.from(order, row => slots[row]!),
     row: provenance,
     valueLabel: field.label, unit: field.unit, valueScale: field.scale,
   };
+  if (index) {
+    // The source order is already category order until a label occurs a second time.
+    index.order = repeated ? order.sort((a, b) => index.positions[a]! - index.positions[b]!) : order;
+  }
+  return frame;
 }
 
 interface AlignedSeed {
@@ -571,7 +606,7 @@ interface AlignedSeed {
   readonly type: AlignedChartType;
   readonly x: XData;
   readonly counts: Map<string, ValueCounts>;
-  readonly diagnostics: StreamDiagnostics;
+  readonly diagnostics: DiagnosticHistory;
 }
 
 const alignedSeeds = new WeakMap<AlignedFrame, AlignedSeed>();
@@ -599,20 +634,27 @@ export function buildPoints(options: ResolvedOptions, env: DataEnvironment, sink
   return { frame: pointFrame(valid, x, sink, version), positions: x.positions, order: x.order };
 }
 
+export function buildDonut(options: ResolvedOptions, _env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion) {
+  const valid = usable(options);
+  const index = { positions: new Float64Array(valid.table.length).fill(NaN), order: null as Int32Array | null };
+  return { frame: donutFrame(valid, sink, version, index), ...index };
+}
+
 export function normalizePoints(options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame {
   return buildPoints(options, env, sink, version).frame;
 }
 
 export function normalizeAligned(type: AlignedChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
   const valid = usable(options);
-  const diagnostics = options.valid && options.series === null ? new StreamDiagnostics() : null;
-  const observe = diagnostics ? recordDiagnostics(sink, diagnostics) : sink;
+  const diagnostics = options.valid && options.series === null ? new DiagnosticHistory<Map<number, Sample>>(Map, sink) : null;
+  const observe = diagnostics ?? sink;
   const x = readX(type, valid, env, observe);
   reportCalendarDates(x, valid.table, sink);
   // Ascending wide axes can initialize the streaming indexes from normalized positions.
   const counts = diagnostics && x.order === null ? new Map<string, ValueCounts>() : undefined;
   const frame = alignedFrame(valid, x, observe, version, counts);
   if (counts && diagnostics && frame.series.length === options.values.length) {
+    diagnostics.sink = undefined;
     alignedSeeds.set(frame, { options, type, x, counts, diagnostics });
   }
   return frame;

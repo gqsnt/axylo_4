@@ -28,14 +28,14 @@ export function rowValue(row: unknown, field: string): unknown {
   return object && Object.hasOwn(object, field) ? object[field] : undefined;
 }
 
-export function rowsTable(rows: readonly unknown[]): Table {
-  const table: Table = {
+export function batchTable(rows: readonly unknown[], start = 0): Table {
+  return {
     length: rows.length,
     columns: null,
     read: (row, field) => rowValue(rows[row], field),
     rowAt: row => row >= 0 && row < rows.length && Number.isInteger(row) ? rows[row] : null,
     isColumnRow: () => false,
-    rowIndex: row => row,
+    rowIndex: row => start + row,
     hasField: field => rows.some(row => {
       const object = record(row);
       return object !== null && Object.hasOwn(object, field);
@@ -46,6 +46,10 @@ export function rowsTable(rows: readonly unknown[]): Table {
       return [...keys];
     },
   };
+}
+
+export function rowsTable(rows: readonly unknown[]): Table {
+  const table = batchTable(rows);
   origins.set(table, rows);
   return table;
 }
@@ -66,4 +70,18 @@ export function columnsTable(columns: Columns, length: number): Table {
   };
   origins.set(table, columns);
   return table;
+}
+
+/**
+ * Every buffer behind a typed column a caller has given any chart. A buffer the caller gave is never the
+ * library's, whichever frame or store is counted. Weak, so remembering one never keeps it alive.
+ */
+export const borrowedBuffers = new WeakSet<ArrayBufferLike>();
+
+/** Records the buffers of the caller's typed columns (called where the caller's data is read). */
+export function borrowColumns(columns: Readonly<Record<string, unknown>>): void {
+  for (const key of Object.keys(columns)) {
+    const column = columns[key];
+    if (ArrayBuffer.isView(column)) borrowedBuffers.add(column.buffer);
+  }
 }

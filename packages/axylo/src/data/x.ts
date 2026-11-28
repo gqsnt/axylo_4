@@ -1,5 +1,3 @@
-import { StoreMap } from './store-map';
-import { Labels } from './labels';
 import { MAX_DATE } from '../scale/zone';
 import type { DiagnosticInput, Environment, XColumn, XKind } from '../core/contracts';
 import { DiagnosticCollector, report, type DiagnosticCode } from '../diagnostics';
@@ -63,7 +61,7 @@ export function createXParser(axis: XAxisMeta, environment: Pick<Environment, 't
 }
 
 export function dateUnitOf(value: unknown): DateUnit {
-  if (typeof value === 'string' && calendar.test(value)) {
+  if (typeof value === 'string' && (value.length === 4 || value.length === 7) && calendar.test(value)) {
     if (value.length === 4) return 'year';
     if (value.length === 7) return 'month';
   }
@@ -95,7 +93,6 @@ function instant(value: string, kind: 'time' | 'wall'): number {
   return Date.parse(kind === 'wall' ? iso + 'Z' : iso);
 }
 
-const kinds = ['date', 'time', 'wall', 'number', 'category'] as const;
 export type KindVotes = Record<XKind, number>;
 
 export function countKinds(table: Table, field: string, series: string | null = null): KindVotes {
@@ -131,8 +128,7 @@ export function preferredKind(votes: KindVotes): XKind | null {
   if (category >= recognized) return 'category';
   // Use a fixed order for ties so reordering records cannot change which values are drawn.
   const highest = Math.max(date, time, wall, number);
-  for (const kind of kinds) if (votes[kind] === highest) return kind;
-  return null;
+  return date === highest ? 'date' : time === highest ? 'time' : wall === highest ? 'wall' : 'number';
 }
 
 export function inferKind(table: Table, field: string, series: string | null = null): XKind | null {
@@ -145,11 +141,20 @@ export function nameOf(value: unknown): string | null {
   return null;
 }
 
+// The static normalizer needs only append, lookup and snapshot. A store supplies its
+// windowed implementations so issued frames can outlive later category changes.
+interface CategoryNames {
+  readonly length: number;
+  push(name: string): void;
+  slice(): readonly string[];
+  view?(): readonly string[];
+}
+
 export class XParser {
   readonly timeZone: string | null;
-  private names: Labels | null;
-  private base = 0;
-  private index: StoreMap<string, number> | null;
+  protected base = 0;
+  protected names: CategoryNames | null = null;
+  protected index: { get(name: string): number | undefined; set(name: string, position: number): void } | null = null;
   dateUnit: DateUnit | null = null;
 
   constructor(
@@ -163,42 +168,12 @@ export class XParser {
       ? (field.timeZone === 'local' ? undefined : canonicalZone(field.timeZone)) ??
         canonicalZone(env.timeZone) ?? Intl.DateTimeFormat().resolvedOptions().timeZone
       : null;
-    this.names = kind === 'category' ? new Labels(categories) : null;
-    this.index = this.names ? new StoreMap(new Map(categories?.map((name, index) => [name, index]))) : null;
+    if (kind === 'category') this.loadCategories(categories ?? []);
   }
 
-  get categories(): readonly string[] | null {
-    return this.names?.view() ?? null;
-  }
-
-  get categoryCount(): number {
-    return this.names?.length ?? 0;
-  }
-
-  categoryName(position: number): string | undefined {
-    return this.names?.at(position - this.base);
-  }
-
-  fork(): XParser {
-    return Object.assign(Object.create(XParser.prototype) as XParser, this, {
-      names: this.names?.fork() ?? null,
-      index: this.index?.fork() ?? null,
-    });
-  }
-
-  copy(): XParser {
-    const copy = new XParser(this.field, this.kind, { timeZone: this.timeZone ?? 'UTC' }, this.scatter, this.names?.snapshot());
-    copy.dateUnit = this.dateUnit;
-    return copy;
-  }
-
-  commit(): void { this.index?.commit(); }
-
-  evictCategories(count: number): void {
-    if (!this.names) return;
-    for (let i = 0; i < count; i++) this.index!.delete(this.names.at(i));
-    this.base += count;
-    this.names.drop(count);
+  protected loadCategories(categories: readonly string[]): void {
+    this.names = [...categories];
+    this.index = new Map(categories.map((name, i) => [name, i]));
   }
 
   private parse(raw: unknown, row: number, reports: Reports): number {
@@ -220,7 +195,7 @@ export class XParser {
       if (name === null) return NaN;
       const known = this.index!.get(name);
       if (known !== undefined) return known;
-      const index = this.base + this.categoryCount;
+      const index = this.base + this.names!.length;
       this.names!.push(name);
       this.index!.set(name, index);
       return index;
@@ -263,15 +238,11 @@ export class XParser {
     return result;
   }
 
-  restore(categoryCount: number, dateUnit: DateUnit | null): void {
-    this.dateUnit = dateUnit;
-    if (!this.names) return;
-    while (this.categoryCount > categoryCount) this.index!.delete(this.names.pop()!);
-  }
+  get categories(): readonly string[] | null { return this.names?.slice() ?? null; }
 
   column(values: Float64Array, shareCategories = false): XColumn {
     return {
-      kind: this.kind, values, categories: shareCategories ? this.categories : this.names?.snapshot() ?? null,
+      kind: this.kind, values, categories: shareCategories && this.names?.view ? this.names.view() : this.names?.slice() ?? null,
       timeZone: this.timeZone, dateUnit: this.kind === 'date' ? this.dateUnit ?? 'day' : null,
       ordered: this.kind === 'category' && this.field.ordered,
     };
