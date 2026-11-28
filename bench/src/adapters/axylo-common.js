@@ -103,27 +103,57 @@ const clipRectOf = (svg, node) => {
   return rect ? { x: +rect.getAttribute('x'), y: +rect.getAttribute('y'), width: +rect.getAttribute('width'), height: +rect.getAttribute('height') } : null;
 };
 
-/** Scatter marker centres and the plot rectangle (probe runs): SVG circle paths, or Canvas arc() calls. */
+/**
+ * Scatter marker centres and the plot rectangle (probe runs): SVG circle paths, or Canvas arc() calls.
+ * Sparse circles start with an absolute arc (`A`); dense circles use relative arcs (`a`). Both start at (x + r, y).
+ */
 export function circleCenters(d) {
   const out = [];
-  const re = /M\s*(-?[\d.]+(?:e[-+]?\d+)?)[\s,]+(-?[\d.]+(?:e[-+]?\d+)?)\s*A\s*(-?[\d.]+)/g;
+  const re = /M\s*(-?[\d.]+(?:e[-+]?\d+)?)[\s,]+(-?[\d.]+(?:e[-+]?\d+)?)\s*[Aa]\s*(-?[\d.]+)/g;
   let m;
   while ((m = re.exec(d))) out.push(Number(m[1]) - Number(m[3]), Number(m[2]));
   return out;
+}
+// The scene may cull a dense circle whose radius-three disk other drawn disks already paint over (scene/lines.ts).
+// A reduced count is only admissible with proved geometry: every circle path is one real spelling with radius 3.
+const NUM = '(-?\\d+(?:\\.\\d+)?)';
+const SPARSE = new RegExp(`^M${NUM} ${NUM}A${NUM} ${NUM} 0 1 1 ${NUM} ${NUM}A${NUM} ${NUM} 0 1 1 ${NUM} ${NUM}Z?$`);
+const DENSE = new RegExp(`^M${NUM} ${NUM}a${NUM} ${NUM} 0 11${NUM} 0a${NUM} ${NUM} 0 11${NUM} 0$`);
+/** The circles' spelling (100: absolute hundredths, 10: relative tenths) when every circle has radius 3, else null. */
+export function circleSpelling(d) {
+  const circles = d.split(/(?=M)/).filter(Boolean);
+  let spelling = null;
+  for (const c of circles) {
+    const dense = DENSE.exec(c.trim()), sparse = dense ? null : SPARSE.exec(c.trim());
+    const m = dense ?? sparse;
+    if (!m) return null;
+    const v = m.slice(1).map(Number);
+    if (!v.every(Number.isFinite)) return null;
+    const ok = dense ? v[2] === 3 && v[3] === 3 && v[4] === -6 && v[5] === 3 && v[6] === 3 && v[7] === 6
+      : v[2] === 3 && v[3] === 3 && v[6] === 3 && v[7] === 3 && Math.abs(v[4] - (v[0] - 6)) < 1e-9 && v[5] === v[1] && v[8] === v[0] && v[9] === v[1];
+    const s = dense ? 10 : 100;
+    if (!ok || (spelling !== null && spelling !== s)) return null;
+    spelling = s;
+  }
+  return spelling;
 }
 function scatterPoints(el, capture) {
   const svg = el.querySelector('svg.axylo-svg');
   if (svg) {
     const centers = [];
-    let plot = null;
+    let plot = null, precision, proved = true;
     for (const p of svg.querySelectorAll('.axylo-scene path')) {
       const d = p.getAttribute('d') ?? '';
-      if (!d.includes('A')) continue;
+      if (!/[Aa]/.test(d)) continue;
+      const spelling = circleSpelling(d);
+      if (spelling === null || (precision !== undefined && precision !== spelling)) proved = false;
+      precision ??= spelling;
       for (const coordinate of circleCenters(d)) centers.push(coordinate);
       plot ??= clipRectOf(svg, p);
     }
-    return { plot, centers };
+    return proved && precision ? { plot, centers, cover: { radius: 3, precision } } : { plot, centers };
   }
+  // The Canvas capture cannot prove the arc radius it saw, so it keeps the exact count check.
   const scene = el.querySelector('.axylo-canvas canvas');
   if (!scene || !capture) return null;
   const c = capture.of(scene);

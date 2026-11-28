@@ -172,9 +172,126 @@ export function checkKept(col, kept, { window, seriesY }, label) {
   return reasons;
 }
 
+// Axylo culls dense opaque circles (scene/lines.ts, >= 2,000 points) only when another drawn disk already paints
+// over them. Its witnesses are unit pixel tiles that lie entirely inside one retained disk; a centre is dropped
+// only if the whole 7 x 7 tile block around it is witnessed, or it coincides with the previous retained centre.
+const DENSE_SCATTER = 2000;
+// The scene's marker radius; a readback claiming any other disk size is not evidence for its culling.
+const DISK_RADIUS = 3;
+// The scene stores centres as Float32 of origin + fraction * extent (scene/lines.ts scatterProject); y runs from
+// the plot bottom up. Rendered centres are that Float32 itself (Canvas), or it rounded to hundredths (absolute SVG
+// arcs) or tenths (relative dense SVG arcs). Identity is exact at one of those precisions — never a distance.
+// Mirrors cartesian/layout.ts: endpoints returned directly, interior start + fraction * (end - start).
+const sceneAxis = (start, end, D0, D1) => v => Math.fround(v === D0 ? start : v === D1 ? end : start + ((v - D0) / (D1 - D0)) * (end - start));
+const sceneX = (plot, X0, X1) => sceneAxis(plot.x, plot.x + plot.width, X0, X1);
+const sceneY = (plot, Y0, Y1) => sceneAxis(plot.y + plot.height, plot.y, Y0, Y1);
+// One identity per readback: raw Float32 (recording host), hundredths of x + r (absolute SVG arcs), or tenths of
+// x (dense relative SVG arcs). Rendered centres were recovered as start - r, so re-adding r only undoes that
+// subtraction's representation error before the scaled integer key.
+const PRECISIONS = new Set(['float32', 100, 10]);
+// Only x carries the + r start offset; absolute SVG y is the centre itself.
+const keyOf = (precision, v, isX = true) => precision === 'float32' ? v : precision === 100 ? Math.round((isX ? v + DISK_RADIUS : v) * 100) : Math.round(v * 10);
+// Beyond this magnitude Float32 steps exceed a pixel and grid loops stop advancing; finite alone is not enough.
+const COORD_LIMIT = 2 ** 24;
+const inRange = v => Number.isFinite(v) && Math.abs(v) < COORD_LIMIT;
+
+/**
+ * For a reduced dense readback: every drawn centre must be a datum, and every datum without a drawn centre must
+ * have its whole tile block inside drawn radius-three disks. Returns a diagnostic, or '' when all are covered.
+ */
+function uncoveredPoints(x, col, window, centers, plot, xDomain, yDomain, precision) {
+  const radius = DISK_RADIUS, cell = 2 * radius, grid = new Map();
+  // scene/lines.ts coveredCircles floors the minimum range endpoint before defining its unit-tile grid.
+  const left = Math.floor(plot.x), top = Math.floor(plot.y);
+  // Strings, not gx * 2^20 + gy: wide or negative grid indices would alias numeric keys.
+  const key = (gx, gy) => `${gx}|${gy}`;
+  // Distinct drawn centres only: coincident markers paint the same disk.
+  const drawn = new Map();
+  for (let j = 0; j + 1 < centers.length; j += 2) {
+    const cx = centers[j], cy = centers[j + 1];
+    const id = `${keyOf(precision, cx)}|${keyOf(precision, cy, false)}`;
+    if (!drawn.has(id)) drawn.set(id, j);
+    const k = key(Math.floor((cx - left) / cell), Math.floor((cy - top) / cell));
+    const list = grid.get(k);
+    if (!list) grid.set(k, [j]);
+    else if (!list.some(i => centers[i] === cx && centers[i + 1] === cy)) list.push(j);
+  }
+  const r2 = radius * radius;
+  const inside = (cx, cy, qx, qy) => (qx - cx) ** 2 + (qy - cy) ** 2 <= r2;
+  const tiles = new Map();
+  // A tile is witnessed when one drawn disk contains all four of its corners (a disk is convex). Cached per tile.
+  const witnessed = (c, r) => {
+    const k = key(c, r);
+    let w = tiles.get(k);
+    if (w !== undefined) return w;
+    w = false;
+    const ax = left + c, ay = top + r;
+    const gx = Math.floor((c + 0.5) / cell), gy = Math.floor((r + 0.5) / cell);
+    for (let a = gx - 1; a <= gx + 1 && !w; a++) for (let b = gy - 1; b <= gy + 1 && !w; b++) {
+      const list = grid.get(key(a, b));
+      if (list) for (const j of list) {
+        const cx = centers[j], cy = centers[j + 1];
+        if (inside(cx, cy, ax, ay) && inside(cx, cy, ax + 1, ay) && inside(cx, cy, ax, ay + 1) && inside(cx, cy, ax + 1, ay + 1)) { w = true; break; }
+      }
+    }
+    tiles.set(k, w);
+    return w;
+  };
+  const blockCovered = (fx, fy) => {
+    for (let r = fy - radius; r <= fy + radius; r++) for (let c = fx - radius; c <= fx + radius; c++) if (!witnessed(c, r)) return false;
+    return true;
+  };
+  const px = sceneX(plot, xDomain[0], xDomain[1]), py = sceneY(plot, yDomain[0], yDomain[1]);
+  const used = new Set(), seen = new Set();
+  let missing = 0, first = null;
+  for (let i = window[0]; i <= window[1]; i++) {
+    if (col[i] !== col[i]) continue;
+    const qx = px(x[i]), qy = py(col[i]);
+    if (!inRange(qx) || !inRange(qy)) return `point ${i} projects outside the practical coordinate range`;
+    const self = `${qx}|${qy}`;
+    if (seen.has(self)) continue;
+    seen.add(self);
+    const j = drawn.get(`${keyOf(precision, qx)}|${keyOf(precision, qy, false)}`);
+    if (j !== undefined) { used.add(j); continue; }
+    // The scene floors its Float32 centre relative to the plot origin, once.
+    if (!blockCovered(Math.floor(qx - left), Math.floor(qy - top))) { missing++; first ??= [qx, qy]; }
+  }
+  // Every drawn marker must be some datum's rendered centre (coincident copies share one witness).
+  let stray = 0;
+  for (let j = 0; j + 1 < centers.length; j += 2) {
+    if (!used.has(drawn.get(`${keyOf(precision, centers[j])}|${keyOf(precision, centers[j + 1], false)}`))) stray++;
+  }
+  const parts = [];
+  if (missing) parts.push(`${missing} points neither drawn nor inside drawn markers' disks (first at (${first[0].toFixed(1)}, ${first[1].toFixed(1)}) px)`);
+  if (stray) parts.push(`${stray} markers drawn where no visible point maps`);
+  return parts.join('; ');
+}
+
+// Reduced-count evidence must be well formed before any grid walk: whole pairs, finite centres, radius three.
+function coverEvidence(points) {
+  const { cover, centers, plot } = points;
+  if (!cover || cover.radius !== DISK_RADIUS) return 'no radius-three disk geometry proved for the reduced readback';
+  if (!PRECISIONS.has(cover.precision)) return 'no rendered centre precision for the reduced readback';
+  if (centers.length % 2 !== 0) return 'malformed centre pairs';
+  for (let j = 0; j < centers.length; j++) if (!Number.isFinite(centers[j])) return 'non-finite drawn centre';
+  for (let j = 0; j < centers.length; j++) if (!inRange(centers[j])) return 'drawn centre outside the practical coordinate range';
+  // SVG centres are decimals at the stated spelling; a centre off that grid was not written by that spelling, and
+  // rounding it in keyOf would silently snap it onto a datum.
+  if (cover.precision !== 'float32') {
+    for (let j = 0; j < centers.length; j++) {
+      const v = centers[j], isX = j % 2 === 0;
+      const scaled = cover.precision === 100 ? (isX ? v + DISK_RADIUS : v) * 100 : v * 10;
+      if (!(Math.abs(scaled - Math.round(scaled)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(scaled), 300))) return `drawn centre ${v} off the ${cover.precision === 100 ? 'hundredths' : 'tenths'} grid`;
+    }
+  }
+  if (![plot.x, plot.y, plot.width, plot.height, plot.x + plot.width, plot.y + plot.height].every(inRange)) return 'plot rectangle outside the practical coordinate range';
+  return '';
+}
+
 /**
  * Scatter point geometry (probe runs): the centres of the markers the chart drew, in CSS px of the plot container.
- * Every point is drawn (count), the drawn centres span where the data's extremes map (x and y), and a marker sits
+ * Every point is drawn (count) — or, for an Axylo readback of dense scatter, every point not drawn lies under drawn
+ * disks (see uncoveredPoints) —, the drawn centres span where the data's extremes map (x and y), and a marker sits
  * where the injected extreme maps. An empty renderer shell has no markers and fails.
  */
 export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, label, window = [0, col.length - 1]) {
@@ -188,7 +305,11 @@ export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, la
   const n = centers.length / 2;
   let finite = 0, xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
   for (let i = window[0]; i <= window[1]; i++) if (col[i] === col[i]) { finite++; xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]); ymin = Math.min(ymin, col[i]); ymax = Math.max(ymax, col[i]); }
-  if (n !== finite) reasons.push(`${label}: ${n} point markers drawn for ${finite} points`);
+  const cover = points.cover;
+  if (n < finite && finite >= DENSE_SCATTER && cover) {
+    const missed = coverEvidence(points) || uncoveredPoints(x, col, window, centers, plot, xDomain, yDomain, points.cover.precision);
+    if (missed) reasons.push(`${label}: ${n} point markers drawn for ${finite} points; ${missed}`);
+  } else if (n !== finite) reasons.push(`${label}: ${n} point markers drawn for ${finite} points`);
   let cx0 = Infinity, cx1 = -Infinity, cy0 = Infinity, cy1 = -Infinity, hit = false;
   const ex = px(extreme.x), ey = py(extreme.y);
   for (let i = 0; i + 1 < centers.length; i += 2) {

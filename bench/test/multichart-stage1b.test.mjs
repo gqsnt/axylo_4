@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 import fc from 'fast-check';
 import { workloadParams, tagOf } from '../run.mjs';
 import { expectedFor } from '../lib/driver.mjs';
-import { checkView } from '../src/admission.js';
+import { checkView, checkScatterPoints } from '../src/admission.js';
 import {
   barFixture, donutFixture, histogramFixture, callerColumnBytes, fixtureChecksum, workloadData, expectedView, heldColumns, zoomSteps,
 } from '../src/fixtures.js';
@@ -319,7 +319,19 @@ test('Axylo options produce the expected native chart and admitted rectangle geo
         verify(window);
       }
       if (kind === 'donut') assert.equal(rec.committed.view.total, fix.total);
-      if (kind === 'scatter') assert.equal(marks.find(m => m.type === 'points').xy.length, fix.x.length * 2);
+      if (kind === 'scatter') {
+        // Dense opaque circles may be culled where other drawn disks paint over them; the frame keeps every point.
+        assert.equal(rec.committed.lookup.count, fix.x.length);
+        const xy = marks.find(m => m.type === 'points').xy;
+        assert.ok(xy.length > 0 && xy.length <= fix.x.length * 2, `drawn ${xy.length / 2} of ${fix.x.length} centres`);
+        const d = handle.chart.__bench.describe();
+        // As drawn (raw Float32, the host's proved radius-three marks), and as the dense SVG encoder serialises them.
+        for (const [centers, precision] of [[Array.from(xy), 'float32'], [Array.from(xy, v => Math.round(v * 10) / 10), 10]]) {
+          const reasons = checkScatterPoints(fix.x, fix.ys[0], { plot: d.plot, centers, cover: { radius: 3, precision } },
+            d.xDomain, d.yDomain, fix.extreme, 'scatter');
+          assert.deepEqual(reasons, [], String(precision));
+        }
+      }
       if (kind === 'histogram' || kind === 'bar') {
         const d = handle.chart.__bench.describe();
         const round = x => Math.round(x * 100) / 100;
