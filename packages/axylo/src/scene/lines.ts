@@ -5,6 +5,7 @@ import {
 import { buildPath, buildPoints, emptyIndexes, simplifiedPath, unthinnedPath, type JoinedRuns, type LineInput, type LineSource } from '../simplify';
 import { affinePosition, affineProjection, exactProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
+const MARKER_SIZE = 6;
 const MARKER_SPACING = 12;
 const SPARSE_SPACING = 80;
 
@@ -136,7 +137,7 @@ function markerIndexes(
 }
 
 function pointMark(series: number, cue: SeriesCue, xy: Float32Array): PointMark {
-  return { type: 'points', series, xy, shape: cue.marker, size: 6, fill: seriesPaint(series) };
+  return { type: 'points', series, xy, shape: cue.marker, size: MARKER_SIZE, fill: seriesPaint(series) };
 }
 
 export function addLine(
@@ -172,35 +173,92 @@ export function addLine(
   if (markers.length) points.push(pointMark(series, cue, buildPoints(markers, input)));
 }
 
-export function scatterPoints(view: ScatterView, projection: XY): PointMark[] {
-  const result: PointMark[] = [];
-  const xProjection = exactProjection(projection.x);
-  const yProjection = exactProjection(projection.y);
-  for (let i = 0; i < view.frame.series.length; i++) {
-    if (!view.visible[i]) continue;
-    const { x, y } = view.frame.series[i]!;
-    const { start, end } = view.visiblePoints[i]!;
-    const xy = new Float32Array(2 * (end - start));
-    if (xProjection && yProjection) {
-      const { start: xStart, span: xSpan, origin: xOrigin, extent: xExtent } = xProjection;
-      const { start: yStart, span: ySpan, origin: yOrigin, extent: yExtent } = yProjection;
-      // Interior fractions fit in the packed coordinates. Endpoints, NaN and extrapolation use position.
-      for (let index = start, out = 0; index < end; index++) {
-        const xValue = x[index]!;
-        const yValue = y[index]!;
-        const xFraction = (xValue - xStart) / xSpan;
-        const yFraction = (yValue - yStart) / ySpan;
-        xy[out++] = xFraction > 0 && xFraction < 1 ? xOrigin + xFraction * xExtent : position(projection.x, xValue);
-        xy[out++] = yFraction > 0 && yFraction < 1 ? yOrigin + yFraction * yExtent : position(projection.y, yValue);
-      }
-    } else {
-      for (let index = start, out = 0; index < end; index++) {
-        xy[out++] = position(projection.x, x[index]!);
-        xy[out++] = position(projection.y, y[index]!);
+// A series is filled as one nonzero SVG path, even when its paint resolves to a translucent colour.
+// A retained radius-three disk witnesses each covered tile, independent of the paint.
+// Each byte stores eight unit tiles. Uint16 loads span a byte boundary even when
+// a witness or its bounding box straddles the last bit of a byte.
+function coveredCircles(xy: Float32Array, projection: XY): Float32Array {
+  const [x0, x1] = projection.x.range, [y0, y1] = projection.y.range;
+  const left = Math.floor(Math.min(x0, x1)), top = Math.floor(Math.min(y0, y1));
+  const width = Math.ceil(Math.max(x0, x1) - left), height = Math.ceil(Math.max(y0, y1) - top);
+  if (!(width > 8 && height > 8 && width * height <= 4_000_000 && Math.abs(left) + width + Math.abs(top) + height < 2 ** 24)) return xy;
+  const stride = (width >> 3) + 2;
+  const tiles = new DataView(new ArrayBuffer(stride * height));
+  const keep = new Uint8Array(xy.length / 2);
+  let interior = 0;
+  // The farthest tile corner includes half a tile, half an eighth-pixel bin
+  // and half the SVG encoder's tenth-pixel rounding step on each axis.
+  const masks = new Uint8Array(64 * 5);
+  const far = (tile: number, phase: number) => Math.abs(tile - 1.5 - (phase + 0.5) / 8) + 0.6125;
+  for (let q = 0; q < 64; q++) {
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+      if (far(c, q & 7) ** 2 + far(r, q >> 3) ** 2 <= 9) masks[q * 5 + r]! |= 1 << c;
+    }
+  }
+  // Spread the first witnesses across x-sorted input. Every centre is visited once.
+  for (let pass = 0; pass < 17; pass++) for (let i = pass; i < keep.length; i += 17) {
+    const x = xy[i * 2]! - left, y = xy[i * 2 + 1]! - top;
+    if (!(x >= 4 && x < width - 4 && y >= 4 && y < height - 4)) {
+      keep[i] = 1;
+      continue;
+    }
+    interior++;
+    const col = (x | 0) - 2, shift = col & 7;
+    const q = (((x * 8) & 7) + ((y * 8) & 7) * 8) * 5;
+    let row = ((y | 0) - 2) * stride + (col >> 3);
+    for (let r = 0; r < 5; r++, row += stride) {
+      const before = tiles.getUint16(row, true), mask = masks[q + r]! << shift;
+      if ((before & mask) !== mask) {
+        keep[i] = 1;
+        tiles.setUint16(row, before | mask, true);
       }
     }
-    result.push(pointMark(i, view.cues[i]!, xy));
   }
+  let out = 0;
+  for (let i = 0; i < keep.length; i++) {
+    const x = xy[2 * i]!, y = xy[2 * i + 1]!;
+    if (!keep[i] && interior > 2000) {
+      const col = Math.floor(x - left) - 3;
+      let row = (Math.floor(y - top) - 3) * stride + (col >> 3);
+      const mask = 127 << (col & 7);
+      let covered = mask;
+      for (let r = 0; r < 7; r++, row += stride) covered &= tiles.getUint16(row, true);
+      if (covered === mask || x === xy[out - 2] && y === xy[out - 1]) {
+        interior--;
+        continue;
+      }
+    }
+    xy[out++] = x;
+    xy[out++] = y;
+  }
+  return out < xy.length ? xy.slice(0, out) : xy;
+}
+
+export function scatterProject(scale: XY['x'], fallback: typeof position) {
+  const exact = exactProjection(scale);
+  return (value: number) => {
+    if (exact) {
+      const fraction = (value - exact.start) / exact.span;
+      if (fraction > 0 && fraction < 1) return exact.origin + fraction * exact.extent;
+    }
+    return fallback(scale, value);
+  };
+}
+
+export function scatterPoints(view: ScatterView, projection: XY): PointMark[] {
+  const result: PointMark[] = [];
+  const mapX = scatterProject(projection.x, position), mapY = scatterProject(projection.y, position);
+  view.frame.series.forEach(({ x, y }, i) => {
+    if (!view.visible[i]) return;
+    const { start, end } = view.visiblePoints[i]!;
+    const xy = new Float32Array(2 * (end - start));
+    for (let j = start, out = 0; j < end; j++) {
+      xy[out++] = mapX(x[j]!);
+      xy[out++] = mapY(y[j]!);
+    }
+    const cue = view.cues[i]!;
+    result.push(pointMark(i, cue, MARKER_SIZE === 6 && cue.marker === 'circle' && xy.length > 4000 ? coveredCircles(xy, projection) : xy));
+  });
   return result;
 }
 
