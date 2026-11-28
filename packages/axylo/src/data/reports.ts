@@ -1,9 +1,9 @@
 import type { DiagnosticEffect, DiagnosticSink } from '../core/contracts';
 import { report, type DiagnosticCode } from '../diagnostics';
-import type { DiagnosticTrace } from './store-diagnostics';
+import type { DiagnosticTrace } from './diagnostic-history';
 
 export class Reports {
-  private readonly entries = new Map<DiagnosticCode, {
+  #entries?: Map<DiagnosticCode, {
     effect: DiagnosticEffect;
     count: number;
     rows: number[];
@@ -11,17 +11,18 @@ export class Reports {
     detail?: string;
     outcome?: string;
     series: Set<string>;
-  }>();
+  }>;
 
   constructor(private readonly field: string, private readonly sink?: DiagnosticTrace) {}
 
   add(code: DiagnosticCode, effect: DiagnosticEffect, row: number, example?: unknown, detail?: string, options?: {
     amount?: number; series?: string; position?: string; outcome?: string;
   }): void {
-    let entry = this.entries.get(code);
+    const entries = this.#entries ??= new Map();
+    let entry = entries.get(code);
     if (!entry) {
       entry = { effect, count: 0, rows: [], examples: [], detail, outcome: options?.outcome, series: new Set() };
-      this.entries.set(code, entry);
+      entries.set(code, entry);
     }
     const amount = options?.amount ?? 1;
     const text = options?.position ?? (example === undefined ? undefined : typeof example === 'string' ? JSON.stringify(example)
@@ -34,7 +35,8 @@ export class Reports {
   }
 
   flush(sink: DiagnosticSink): void {
-    for (const [code, { effect, count, rows, examples, detail, outcome, series }] of this.entries) {
+    if (!this.#entries) return;
+    for (const [code, { effect, count, rows, examples, detail, outcome, series }] of this.#entries) {
       report(sink, code, effect, { field: this.field, count, rows, examples, detail, outcome, series: [...series] });
     }
   }

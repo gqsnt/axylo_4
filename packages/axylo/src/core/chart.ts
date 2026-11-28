@@ -17,6 +17,9 @@
  */
 import type { DatumRef, MarkRenderer, PlacedText, TextMeasurer, TextStyle } from './contracts';
 import type { SyncResolve } from './peer';
+import type { DeliveryConsole } from './delivery';
+import type { Composition } from './composition';
+import type { Span } from './stages';
 import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme, type ThemeResolution } from '../theme';
@@ -27,19 +30,17 @@ import {
 } from '../theme/resolve';
 import { createFigure, type Figure, type FigureModel } from '../dom/figure';
 import { shadowRootOf } from '../dom/attributes';
-import { createInteraction, type Committed, type ControlsState, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
-import type { DeliveryConsole } from './delivery';
 import {
-  createMeasurer, joinEnvironment, LanguageWatch, leaveEnvironment, noteFontLoad, observeFontProbe, observeGeometry, pageLanguage,
-  readTextStyle, resolveLocale, viewerTimeZone,
-  type EnvSubscriber, type FontProbeListener, type GeometryListener, type GeometryRegistration, type ProbeRegistration,
+  createMeasurer, drainUndo, watchLanguage, subscribeEnvironment, noteFontLoad, observeFontProbe, observeGeometry, pageLanguage,
+  readTextStyle, release, resolveLocale, viewerTimeZone,
+  type FontProbeListener, type GeometryListener, type GeometryRegistration, type ProbeRegistration,
 } from './environment';
+import { createInteraction, type Committed, type ControlsState, type Interaction } from '../dom/interaction';
 import {
   controllerFor, staticControllerFor, type ChartHandle, type Controller, type ControllerActions, type FrameRun, type Host, type Size,
 } from './controller';
-import type { Composition } from './composition';
-import type { Span } from './stages';
+import { finishPhases } from './frame-phases';
 
 export type { BenchHook, ChartHandle, ChartKind, DevHook, Stage } from './controller';
 
@@ -146,37 +147,14 @@ function runPhasedBatch(win: Window, doc: Document, batch: readonly ScheduledEnt
   } finally {
     if (activeThemeBatches.get(doc) === themeBatch) activeThemeBatches.delete(doc);
   }
-  const each = (fn: keyof FrameRun): void => {
-    for (const run of runs) run[fn]();
-  };
-  const any = (fn: 'phase3LayoutCheck' | 'phase4PassWrite' | 'phase4PassMeasure'): boolean => {
-    let hit = false;
-    for (const run of runs) if (run[fn]()) hit = true;
-    return hit;
-  };
-  const readout = (): void => {
-    if (any('phase3LayoutCheck')) {
-      each('phase3StripMount');
-      try { each('phase3StripRead'); } finally { each('phase3StripRemove'); }
-    }
-    each('phase3ReadoutDecide');
-    each('phase4StripWrite');
-    each('phase4StripMeasure');
-    each('phase4Init');
-  };
-  each('phase2');
-  // Measured first: that layout brings style up to date for the theme's reads, which then start no style pass
-  // of their own. A late theme probe that moved a figure has it measured again; the others measure nothing.
-  each('phase3Measure');
-  each('phase3Theme');
-  each('phase3Probe');
-  each('phase3Measure');
-  readout();
-  for (let pass = 0; pass < 4 && any('phase4PassWrite'); pass++) {
-    if (any('phase4PassMeasure')) readout();
-  }
-  each('phase5');
-  each('after');
+  finishPhases(runs, advanceBatch);
+}
+
+/** Notify the whole batch even when its first chart already requested another pass. */
+function advanceBatch(runs: readonly FrameRun[], step: keyof FrameRun): boolean {
+  let active = false;
+  for (const run of runs) if (run[step]()) active = true;
+  return active;
 }
 
 /** Suffixes of the ids a chart gives its elements (figure, interaction, table). */
@@ -196,50 +174,8 @@ function allocateId(doc: Document, tree: Document | ShadowRoot): string {
   }
 }
 
-/** Setup steps, in order; release undoes the ones done, from the last. */
-const STEP_RENDERER = 1;
-const STEP_TEXT = 2;
-const STEP_FIGURE = 3;
-const STEP_INTERACTION = 4;
-const STEP_WATCHERS = 5;
-const STEP_PROBE = 6;
-const STEP_GEOMETRY = 7;
-
-/** The interaction layer's way into the chart, made before the controller exists. */
-class HostActions implements ControllerActions {
-  constructor(private readonly host: BrowserHost) {}
-  zoom(window: Span | null): void { this.host.controller?.actions.zoom(window); }
-  toggle(seriesKey: string): void { this.host.controller?.actions.toggle(seriesKey); }
-  pause(paused: boolean): void { this.host.controller?.actions.pause(paused); }
-  select(ref: DatumRef): void { this.host.controller?.actions.select(ref); }
-  hover(ref: DatumRef | null): void { this.host.controller?.actions.hover(ref); }
-}
-
-/** A compact chart's interaction layer: made only if the chart is updated to full mode. */
-class LazyInteraction implements Interaction {
-  #real: Interaction | null = null;
-  private attached = false;
-  constructor(private readonly host: BrowserHost) {}
-  #ensure(): Interaction {
-    let real = this.#real;
-    if (!real) {
-      real = this.#real = this.host.makeInteraction();
-      if (!this.attached) real.detach();
-    }
-    return real;
-  }
-  prepare(state: ControlsState): boolean { return !state.interactive && !this.#real ? false : this.#ensure().prepare(state); }
-  commit(state: Committed | null): void { if ((state && state.interactive) || this.#real) this.#ensure().commit(state); }
-  clear(): void { this.#real?.clear(); }
-  // A compact chart shows no cursor of its own, so none of a peer's either until it is made full.
-  sync(resolve: SyncResolve | null, origin: object): void { this.#real?.sync?.(resolve, origin); }
-  attach(): void { this.attached = true; this.#real?.attach(); }
-  detach(): void { this.attached = false; this.#real?.detach(); }
-  destroy(): void { this.#real?.destroy(); this.#real = null; }
-}
-
 /** One per chart: everything the controller needs from the page, and the page's observers of the chart. */
-class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeListener {
+class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeListener, ControllerActions, Interaction {
   readonly id: string;
   readonly targetId: string | null;
   readonly console: DeliveryConsole | null;
@@ -251,15 +187,16 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   readonly measurer: TextMeasurer;
 
   controller: Controller | null = null;
-  readonly #composition: Composition;
   readonly #root: HTMLElement;
+  readonly #composition: Composition;
   readonly #win: Window & typeof globalThis;
   readonly #isDonut: boolean;
   readonly #parts: Figure;
   /** The plot and the figure: what the size observers watch. */
   readonly #geometryTargets: readonly Element[];
-  /** How many setup steps succeeded (STEP_*). */
-  #built: number = 0;
+  /** Only an initially compact chart uses the host as its lazy interaction layer. */
+  #lazyInteraction: Interaction | null = null;
+  #lazyAttached = false;
   #disposed: boolean = false;
   #tree: Document | ShadowRoot;
 
@@ -268,12 +205,8 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   #textHidden: boolean = false;
 
   /** Watchers that the document holds; released while the target is out of the document. */
-  #watching: boolean = false;
-  #watchedBefore: boolean = false;
-  #stopTheme: (() => void) | null = null;
-  #environment: EnvSubscriber | null = null;
-  #language: LanguageWatch | null = null;
-  #interactionAttached: boolean = false;
+  #watchers: (() => void)[] | null = null;
+  #watchedBefore = false;
 
   /**
    * Deferred font-load probe until first non-empty text render so compact/donut charts skip it. The probe
@@ -297,16 +230,13 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   /** The next shared delivery is the first since the targets were observed there. */
   #firstDelivery: boolean = false;
   /**
-   * The border boxes the last measure() read, in layout pixels (what a ResizeObserver reports); `comparable`
+   * The border boxes the last measure() read, in layout pixels (what a ResizeObserver reports), kept
    * only while they are known to be that: the plot's mapping is the identity (no scale on it or above it) and
    * the figure's box agrees with its integer layout size, so no transform makes a viewport size pass for a
    * layout one. Otherwise every delivery is a resize.
    */
-  #comparable: boolean = false;
-  #figureWidth: number = 0;
-  #figureHeight: number = 0;
-  #plotWidth: number = 0;
-  #plotHeight: number = 0;
+  #figureBox: DOMRect | null = null;
+  #plotBox: DOMRect | null = null;
   /** A frame or a zoom microtask the controller asked for and that has not run yet. */
   #framePending: number = 0;
   #microtasksPending: number = 0;
@@ -317,8 +247,8 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     composition: Composition, root: HTMLElement, doc: Document, win: Window & typeof globalThis, input: unknown,
     overrides: ChartEnvironmentOverrides, makeController: typeof controllerFor,
   ) {
-    this.#composition = composition;
     this.#root = root;
+    this.#composition = composition;
     this.page = doc;
     this.#win = win;
     this.targetId = root.id || null;
@@ -331,20 +261,15 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       const eagerText = !initialCompact && !this.#isDonut;
 
       const renderer = this.renderer = svgRendererWith(composition.svg, doc);
-      this.#built = STEP_RENDERER;
       const textLayer = this.#textLayer = eagerText ? createTextLayer(doc) : null;
       this.#textMounted = eagerText;
-      this.#built = STEP_TEXT;
       const parts = this.#parts = createFigure(root, this.id, { marks: renderer.element, text: textLayer?.element ?? null }, { compact: initialCompact });
-      this.#built = STEP_FIGURE;
       this.figure = this.#isDonut ? parts : this;
       this.text = this;
       // Compact charts never need the interaction layer unless updated to full mode; defer its closures and state.
-      this.interaction = initialCompact ? new LazyInteraction(this) : this.makeInteraction();
-      this.#built = STEP_INTERACTION;
+      this.interaction = initialCompact ? this : this.#makeInteraction();
       this.measurer = createMeasurer(doc);
       this.#geometryTargets = [parts.plot, parts.figure];
-      this.#built = STEP_GEOMETRY;
 
       this.controller = makeController(composition, input, this);
       if (root.isConnected) {
@@ -358,40 +283,61 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       const created = this.controller as Controller | null;
       this.controller = null;
       try { created?.handle.destroy(); } catch { /* releasing the rest matters more */ }
-      this.#release();
+      this.dispose();
       throw error;
     }
   }
 
-  makeInteraction(): Interaction {
-    return createInteraction(this.#composition.interaction, this.#parts, this.renderer, new HostActions(this));
+  #makeInteraction(): Interaction {
+    return createInteraction(this.#composition.interaction, this.#parts, this.renderer, this);
   }
+
+  zoom(window: Span | null): void { this.controller?.actions.zoom(window); }
+  toggle(seriesKey: string): void { this.controller?.actions.toggle(seriesKey); }
+  pause(paused: boolean): void { this.controller?.actions.pause(paused); }
+  select(ref: DatumRef): void { this.controller?.actions.select(ref); }
+  hover(ref: DatumRef | null): void { this.controller?.actions.hover(ref); }
+
+  #interactionFor(state: ControlsState | null): Interaction | null {
+    let real = this.#lazyInteraction;
+    if (!real && state?.interactive) {
+      real = this.#lazyInteraction = this.#makeInteraction();
+      if (!this.#lazyAttached) real.detach();
+    }
+    return real;
+  }
+
+  prepare(state: ControlsState): boolean { return this.#interactionFor(state)?.prepare(state) ?? false; }
+  commit(state: Committed | null): void { this.#interactionFor(state)?.commit(state); }
+  clear(): void { this.#lazyInteraction?.clear(); }
+  sync(resolve: SyncResolve | null, origin: object): void { this.#lazyInteraction?.sync?.(resolve, origin); }
+  attach(): void { this.#lazyAttached = true; this.#lazyInteraction?.attach(); }
+  detach(): void { this.#lazyAttached = false; this.#lazyInteraction?.detach(); }
+  destroy(): void { this.#lazyInteraction?.destroy(); this.#lazyInteraction = null; }
 
   #styleRoot(): Document | ShadowRoot {
     return shadowRootOf(this.#root) ?? this.page;
   }
 
   /** Undoes every setup step done, from the last; one that throws does not stop the others. Idempotent. */
-  #release(): void {
-    for (let step = this.#built; step > 0; step = this.#built) {
-      this.#built = step - 1;
-      try {
-        switch (step) {
-          case STEP_GEOMETRY:
-            this.#disposed = true;
-            if (this.#switchFrame !== 0) { const frame = this.#switchFrame; this.#switchFrame = 0; this.#win.cancelAnimationFrame(frame); }
-            this.#stopDetached();
-            this.#leaveShared();
-            break;
-          case STEP_PROBE: this.#disposed = true; this.#stopProbe(); break;
-          case STEP_WATCHERS: this.#unwatch(); break;
-          case STEP_INTERACTION: this.interaction.destroy(); break;
-          case STEP_FIGURE: this.#parts.destroy(); break;
-          case STEP_TEXT: this.#textLayer?.destroy(); this.#textLayer = null; break;
-          case STEP_RENDERER: this.renderer.destroy(); break;
-        }
-      } catch { /* keep releasing */ }
+  dispose(): void {
+    if (this.#disposed) return;
+    this.#disposed = true;
+    if (this.#switchFrame !== 0) {
+      const frame = this.#switchFrame;
+      this.#switchFrame = 0;
+      release(() => this.#win.cancelAnimationFrame(frame));
     }
+    release(() => this.#stopDetached());
+    release(() => this.#leaveShared());
+    release(() => this.#stopProbe());
+    release(() => this.#unwatch());
+    // A constructor that failed partway only owns the layers it finished creating.
+    release(() => this.interaction?.destroy());
+    release(() => this.#parts?.destroy());
+    release(() => this.#textLayer?.destroy());
+    this.#textLayer = null;
+    release(() => this.renderer?.destroy());
   }
 
   // ── watchers ──────────────────────────────────────────────────────────────────────────────────
@@ -400,24 +346,22 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     const c = this.controller;
     if (!c) return;
     const current = this.#styleRoot();
-    if (this.#watching && current === this.#tree) return;
+    if (this.#watchers && current === this.#tree) return;
     this.#unwatch();
     this.#tree = current;
     // A detached chart's stylesheet may have been removed before its first attachment.
     ensureStyles(current);
     if (this.#watchedBefore) { noteFontLoad(this.page); c.invalidate.page(); }
     this.#watchedBefore = true;
-    this.#watching = true;
+    const watchers: (() => void)[] = [];
+    this.#watchers = watchers;
     try {
       const invalidate = c.invalidate;
-      this.#stopTheme = watchTheme(this.#root, () => invalidate.theme());
-      joinEnvironment(this.#win, invalidate);
-      this.#environment = invalidate;
-      const language = new LanguageWatch(this.#root, invalidate);
-      language.start();
-      this.#language = language;
+      watchers.push(watchTheme(this.#root, () => invalidate.theme()));
+      watchers.push(subscribeEnvironment(this.#win, invalidate));
+      watchers.push(watchLanguage(this.#root, () => invalidate.language()));
       this.interaction.attach();
-      this.#interactionAttached = true;
+      watchers.push(() => this.interaction.detach());
     } catch (error) {
       this.#unwatch();
       throw error;
@@ -426,21 +370,10 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
 
   /** Stops the watchers in reverse order of starting; one that throws does not stop the others. */
   #unwatch(): void {
-    if (!this.#watching) return;
-    this.#watching = false;
-    if (this.#interactionAttached) {
-      this.#interactionAttached = false;
-      try { this.interaction.detach(); } catch { /* keep releasing */ }
-    }
-    const language = this.#language;
-    this.#language = null;
-    if (language) try { language.stop(); } catch { /* keep releasing */ }
-    const environment = this.#environment;
-    this.#environment = null;
-    if (environment) try { leaveEnvironment(this.#win, environment); } catch { /* keep releasing */ }
-    const theme = this.#stopTheme;
-    this.#stopTheme = null;
-    if (theme) try { theme(); } catch { /* keep releasing */ }
+    const watchers = this.#watchers;
+    if (!watchers) return;
+    this.#watchers = null;
+    drainUndo(watchers);
   }
 
   // ── font probe ────────────────────────────────────────────────────────────────────────────────
@@ -514,7 +447,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
    * delivery) is a resize.
    */
   #alreadyMeasured(entries: readonly ResizeObserverEntry[]): boolean {
-    if (!this.#comparable || this.#framePending !== 0 || this.#microtasksPending !== 0 || !this.#watching || this.#styleRoot() !== this.#tree) return false;
+    if (!this.#figureBox || this.#framePending !== 0 || this.#microtasksPending !== 0 || !this.#watchers || this.#styleRoot() !== this.#tree) return false;
     const plot = this.#geometryTargets[0], figure = this.#geometryTargets[1];
     let seen = false;
     for (let i = 0; i < entries.length; i++) {
@@ -524,7 +457,8 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       if (!isPlot && target !== figure) continue;
       const box = entry.borderBoxSize?.[0];
       if (!box) return false;
-      if (box.inlineSize !== (isPlot ? this.#plotWidth : this.#figureWidth) || box.blockSize !== (isPlot ? this.#plotHeight : this.#figureHeight)) return false;
+      const measured = isPlot ? this.#plotBox! : this.#figureBox;
+      if (box.inlineSize !== measured.width || box.blockSize !== measured.height) return false;
       seen = true;
     }
     return seen;
@@ -584,7 +518,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       this.#switchFrame = 0;
       if (this.#disposed || !this.controller) return;
       if (this.#root.isConnected) {
-        if (this.#detachedObserver && !this.#watching) return;
+        if (this.#detachedObserver && !this.#watchers) return;
         this.#joinShared();
         this.#stopDetached();
         this.#observeProbe();
@@ -668,7 +602,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 
   measure(): Size | null {
-    this.#comparable = false;
+    this.#plotBox = this.#figureBox = null;
     if (!this.#root.isConnected) return null;
     const parts = this.#parts;
     const figureElement = parts.figure;
@@ -683,11 +617,8 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     const stage = stageElement === plotElement ? plot : stageElement.getBoundingClientRect();
     if (kx === 1 && ky === 1 && Math.abs(box.width - figureElement.offsetWidth) < 1 &&
         Math.abs(box.height - figureElement.offsetHeight) < 1) {
-      this.#figureWidth = box.width;
-      this.#figureHeight = box.height;
-      this.#plotWidth = plot.width;
-      this.#plotHeight = plot.height;
-      this.#comparable = true;
+      this.#figureBox = box;
+      this.#plotBox = plot;
     }
     return { width: plot.width / kx, height: plot.height / ky - overflow, room: { width: stage.width / kx, height: stage.height / ky } };
   }
@@ -764,9 +695,6 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     if (this.#textLayer) this.#textLayer.element.style.visibility = v;
   }
 
-  dispose(): void {
-    this.#release();
-  }
 }
 
 function openChart(

@@ -15,8 +15,9 @@
  * handle exposes a counter per stage (`__dev.stages()`) so tests can assert what reran.
  */
 import type { DatumRef, DiagnosticInput, Frame, Layout, Lookup, PaintBindings, ReaderModel, ResolvedTheme,
-  Scene, TextStyle, TooltipModel, View, XKind,
+  Scene, TextStyle, TooltipModel, View,
 } from './contracts';
+import type { Committed, ControlsState } from '../dom/interaction';
 import type { ChartEvents, Diagnostic, Messages, Title, XValue } from '../public';
 import type { PreparedFrame } from '../data';
 import { resolveFields, type ChartType } from '../data/options';
@@ -26,37 +27,36 @@ import { rowsTable, type Table } from '../data/table';
 import { readerWith } from '../reader';
 import { chartTypeName, ENGLISH_TAG, fill } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
-import { OptionsStore, sameValue, type OptionRecord } from './options';
+import { applyPatch, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations } from './delivery';
 import type { AxisContext } from './axes';
 import { zoomApplies } from './focus';
 import {
-  completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
+  completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, stringOption,
   titleOf, toPublic, viewKeyFor, viewStateFor, type Span,
 } from './stages';
 import { sameKey, type Composition } from './composition';
-import { sameTextStyle } from './environment';
+import { release, sameTextStyle } from './environment';
 import { attachHooks, StageCounter, type ChartHandle, type Stage } from './instrument';
 import { COMPOSITIONS } from '../kinds';
 import type {
   Accepted, Candidate, ChartKind, Controller, ControllerActions, ControllerCore, Disclosure, Display, Drawn,
   FrameRun, Held, Host, Invalidate, PlotLayout, Preparation, PresentationStage, ReaderEntry, ReadoutMode, Size, StreamSessionHandle, Viewed,
 } from './controller-types';
+import { advanceOne, finishPhases, FrameHandle } from './frame-phases';
 // Keep the extracted stages next to their caller in the bundle so gzip sees their shared names.
 import {
-  COMPACT_TEXT_STYLE, EMPTY_DIAGNOSTICS, EMPTY_DISCLOSURE, INHERIT_LANGUAGE, ALL_ENGLISH,
-  STEP_PHASE1, STEP_PHASE2, STEP_THEME, STEP_MEASURE, STEP_PROBE, STEP_LAYOUT_CHECK, STEP_STRIP_MOUNT, STEP_STRIP_READ,
-  STEP_READOUT, STEP_STRIP_WRITE, STEP_STRIP_MEASURE, STEP_INIT, STEP_PASS_WRITE, STEP_PASS_MEASURE, STEP_PUBLISH,
-  FrameHandle, acquireFrame, hiddenIn, readoutSteps, releaseFrame, reservedStrip, sameDisclosure, sameLayoutSize, type FrameDriver, type FrameState,
+  PassAction, StripAction, COMPACT_TEXT_STYLE, EMPTY_DIAGNOSTICS, EMPTY_DISCLOSURE, INHERIT_LANGUAGE, ALL_ENGLISH,
+  acquireFrame, hiddenIn, releaseFrame, reservedStrip, sameDisclosure, sameLayoutSize, type FrameDriver, type FrameState,
 } from './frame-state';
 import {
-  buildFormatSpec, canRecoverFields, controlsStateFor, dataFindings, displayState, englishMarker, figureModelFor,
-  followsLatest, followingZoom, FormatterEnvironment, formattersKeyOf, internalFailure, isWall, joinedDiagnostics, lazyLookup,
-  messagesFor, messagesOf, presentationDiagnostics, readerInputsMatch, readyText, renamed, sameFormatInputs, sameReading,
+  axisKind, buildFormatSpec, canRecoverFields, dataFindings, displayState, englishMarker, figureModelFor,
+  followsLatest, followingZoom, FormatterEnvironment, formattersKeyOf, internalFailure, joinedDiagnostics, lazyLookup,
+  messagesFor, messagesOf, pointForDatum, positionWindow, presentationDiagnostics, readerInputsMatch, renamed, sameFormatInputs,
   sameSeriesKeys, stateDiagnostics, streamOptions, themeKeys, zoomable, zoomPayload,
 } from './controller-helpers';
 import { openStreamSession, type StreamFactory } from './controller-stream';
-import { ChartActions, ChartInvalidate, ControllerProbe, DeadHost, Handle } from './controller-wrappers';
+import { ControllerProbe, DeadHost, Handle } from './controller-wrappers';
 
 export type { ChartKind, Controller, ControllerActions, FrameRun, Host, Invalidate, Size } from './controller-types';
 export type { BenchHook, ChartHandle, DevHook, Stage } from './instrument';
@@ -143,7 +143,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   // Preserve a stable viewer zone once needed, without asking Intl for charts with an explicit zone.
   #viewerZone: string | undefined;
   // ── synchronous phase ──────────────────────────────────────────────────────────────────────────
-  #options: OptionsStore;
+  #options: OptionRecord;
   #accepted: Accepted | null = null;
   // The wrappers read through getters so the controller can keep its own accesses private.
   get accepted(): Accepted | null { return this.#accepted; }
@@ -195,7 +195,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   #size: Size | null = null;
   #sizeDirty = true;
   /** The readout strip is reserved under the plot (decision 0004 revision 2, rule 5). */
-  #readoutMode: boolean = false;
+  get #hasStrip(): boolean { return this.#readoutKind === 'strip'; }
   /** The strip's height as last measured (two 24 px lines until then). */
   #stripHeight: number = 0;
   /** The text style the strip's height was measured for; null after resize or font changes. */
@@ -206,13 +206,14 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   /** L8 fallback: what the fallback's own DOM adds to the plot size, measured when it was entered. */
   #fallback: { width: number; height: number } | null = null;
   #textStyle: TextStyle | null = null;
-  textStyleDirty: boolean = true;
-  fontEpoch: number = 0;
-  pixelRatio: number;
-  themeDirty: boolean = true;
+  #textStyleDirty: boolean = true;
+  #fontEpoch: number = 0;
+  #pixelRatio: number;
+  get currentRatio(): number { return this.#pixelRatio; }
+  #themeDirty: boolean = true;
   #themeSeries: readonly string[] | null = null;
   #themeColors: unknown;
-  theme: { bindings: PaintBindings; theme: ResolvedTheme } | null = null;
+  #theme: { bindings: PaintBindings; theme: ResolvedTheme } | null = null;
   #themeRevision: number = 0;
   /** The display state last shown, for announcing changes once (spec L7). */
   #announced: Display['kind'] | null = null;
@@ -234,9 +235,6 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   #englishMemo: { readonly source: unknown; readonly english: (key: keyof Messages) => string | null } | null = null;
   /** What the late theme probe reported, written by one callback made once per chart. */
   #probeWrote: boolean = true;
-  /** The interaction layer's and the page watchers' ways in, made when first asked for (a sparkline has no interaction layer). */
-  #actionsMade?: ChartActions;
-  #invalidateMade?: ChartInvalidate;
   /** Callbacks the host keeps (the frame request, the formatters' error report, the late theme probe), each made once when first needed. */
   #frameCallback?: (time?: number) => void;
   /**
@@ -260,11 +258,11 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     this.stages = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__) ? new StageCounter() : null;
     // Development and benchmark builds make it now: making one installs their delivery hook.
     this.#deliveryMade = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__) ? this.#newDelivery() : null;
-    this.#options = new OptionsStore(input);
-    this.pixelRatio = this.host.devicePixelRatio();
+    this.#options = applyPatch({}, input).next;
+    this.#pixelRatio = this.host.devicePixelRatio();
     // ── create ─────────────────────────────────────────────────────────────────────────────────────
     try {
-      this.update(input);
+      this.#update(input, true);
     } catch (error) {
       // A strict create that is rejected leaves nothing behind.
       this.destroy();
@@ -285,11 +283,11 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   get actions(): ControllerActions {
-    return this.#actionsMade ??= new ChartActions(this);
+    return this;
   }
 
   get invalidate(): Invalidate {
-    return this.#invalidateMade ??= new ChartInvalidate(this);
+    return this;
   }
 
   /** The data environment the stages read the viewer's zone from: asked of the host once, when first needed. */
@@ -308,13 +306,13 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   publicDiagnostics(inputs: readonly DiagnosticInput[]): Diagnostic[] {
-    return inputs.length ? toPublic(inputs, this.#accepted?.name ?? this.#chartName(this.#options.current)) : [];
+    return inputs.length ? toPublic(inputs, this.#accepted?.name ?? this.#chartName(this.#options)) : [];
   }
 
   /** Replaces what a presentation stage found; outside a frame the change is delivered at once. */
   #setPresentation(where: PresentationStage, list: readonly DiagnosticInput[]): void {
     const before = this.#presentation?.get(where);
-    const beforeLen = before ? before.length : 0;
+    const beforeLen = before?.length ?? 0;
     if (beforeLen === 0 && list.length === 0) return;
     if (before && beforeLen === list.length && before.every((d, i) => diagnosticKey(d) === diagnosticKey(list[i]!))) return;
     this.#setPresentationQuiet(where, list);
@@ -329,15 +327,14 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     (this.#notifications ??= []).push(work);
     // During a frame nothing reaches author code: hover, select and zoom that the interaction layer raises
     // while it is being committed are delivered once the frame has finished publishing (final review, 1).
-    if (this.#draining || this.inFrame) return;
-    this.#drain();
+    if (!this.inFrame) this.#drain();
   }
 
   #drain(): void {
-    if (this.#draining || !this.#notifications || this.#notifications.length === 0) return;
+    if (this.#draining || !this.#notifications?.length) return;
     this.#draining = true;
     try {
-      while (this.#notifications && this.#notifications.length && !this.#destroyed) this.#notifications.shift()!();
+      while (this.#notifications?.length && !this.#destroyed) this.#notifications.shift()!();
     } finally {
       this.#draining = false;
       if (this.#destroyed && this.#notifications) {
@@ -364,7 +361,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     // Charts with a standing finding (a hint on their data) then skip the copies and key sets on every frame.
     if (inputs === this.#settledInputs) return;
     const now = this.publicDiagnostics(inputs);
-    if (this.#deliveredKeys && this.#deliveredKeys.size > 0) {
+    if (this.#deliveredKeys?.size) {
       const keys = new Set(now.map(diagnosticKey));
       // Deleting the entry being visited is safe while a Map is iterated.
       for (const k of this.#deliveredKeys.keys()) if (!keys.has(k)) this.#deliveredKeys.delete(k);
@@ -373,7 +370,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     // Settled before any handler runs: a delivery that author code starts from the handler settles its own list.
     this.#settledInputs = inputs;
     if (!fresh.length) return;
-    const handler = (this.#accepted?.options ?? this.#options.current).onDiagnostic;
+    const handler = (this.#accepted?.options ?? this.#options).onDiagnostic;
     const delivered = this.#deliveredKeys ??= new Map();
     for (const d of fresh) delivered.set(diagnosticKey(d), new Set([handler]));
     this.#notifyDiagnostics(fresh, handler);
@@ -441,7 +438,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const rawFound = sink.inputs();
     const found = rawFound.length === 0
       ? EMPTY_DIAGNOSTICS
-      : rawFound.filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
+      : rawFound.filter(d => !(d.code === 'AX112' && d.field === 'zoom' && axisKind(c.frame) === 'wall'));
     const before = previous?.viewDiagnostics ?? EMPTY_DIAGNOSTICS;
     const viewDiagnostics = found.length === 0 && before.length === 0
       ? EMPTY_DIAGNOSTICS
@@ -466,7 +463,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     commit?.();
     if (commit && c.stream?.store.frame === c.frame) c.stream.track(c.frame);
     if (this.held && c.frame === this.held.frame) this.held = null;
-    this.#options.commit(c.options);
+    this.#options = c.options;
     this.#frameRevision = Math.max(this.#frameRevision, c.frame.revision);
     // Naming and the chart's name come from the options alone: a stream's appends keep the same options object,
     // so they keep the same naming list too (and the delivery pass can see that nothing changed).
@@ -493,8 +490,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   /** A strict chart rejects a create, update or append whose own findings include an error or warning. */
-  protected reject(strict: boolean, found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    if (strict && strictViolations(found).length) this.#reject(found, name, handler);
+  protected reject(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
+    if (strictViolations(found).length) this.#reject(found, name, handler);
   }
 
   #reject(found: readonly DiagnosticInput[], name: string, handler: unknown): never {
@@ -520,12 +517,15 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       // A failure while a call was prepared (a row getter that throws): what the call had found until then is
       // kept, with AX199 after it, as validate() reports it; under strict that is a rejection, before the
       // accepted chart changes (final review, finding 7).
-      const before = call.sink?.inputs() ?? [];
-      const after = this.#accepted === null ? call.naming : [];
+      const before = call.sink?.inputs() ?? EMPTY_DIAGNOSTICS;
+      const after = this.#accepted === null ? call.naming : EMPTY_DIAGNOSTICS;
       if (call.strict) this.#reject([...before, internalFailure(), ...after], call.name, call.handler);
       this.#raiseInternal(error, before, after);
       // A create that failed has nothing to draw from: show the error state now (never a blank box).
-      if (this.#accepted === null) this.#showInternal(messagesOf(this.#options.current.messages), this.#chartName(this.#options.current), this.#options.current);
+      if (this.#accepted === null) {
+        const options = this.#options;
+        this.#showInternal(messagesOf(options.messages), this.#chartName(options), options);
+      }
       this.schedule();
     }
   }
@@ -542,40 +542,43 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     return undefined as never;
   }
 
-  update(patch: unknown): void {
+  update(patch: unknown): void { this.#update(patch, false); }
+
+  #prepareOptions(call: Preparation, options: OptionRecord, sink: DiagnosticCollector | null = null, create = false): void {
+    // Reading a title can throw. Finish reading the new options before replacing the previous error context.
+    const strict = options.strict === true, name = this.#chartName(options), handler = options.onDiagnostic;
+    const naming = create ? namingDiagnostics(options) : EMPTY_DIAGNOSTICS;
+    call.strict = strict;
+    call.name = name;
+    call.handler = handler;
+    call.sink = sink;
+    call.naming = naming;
+  }
+
+  #update(patch: unknown, initial: boolean): void {
     this.guard(call => {
       countStage(this, 'options');
       // Reading the patch runs author getters: until it has been read, the chart is as strict as it is now
       // (re-check, C6).
-      const now = this.#options.current;
-      Object.assign(call, { strict: now.strict === true, name: this.#chartName(now), handler: now.onDiagnostic });
-      const { next, changed } = this.#options.preview(patch);
+      const now = this.#options;
+      this.#prepareOptions(call, now);
+      // Create has already snapshotted the input, including any getters.
+      const patched = initial ? null : applyPatch(this.#options, patch);
+      const next = patched?.next ?? now;
       const previous = this.#accepted;
       const supplied = patch !== null && typeof patch === 'object' && Object.hasOwn(patch, 'data');
       const optionSink = new DiagnosticCollector();
-      Object.assign(call, {
-        sink: optionSink, strict: next.strict === true, name: this.#chartName(next), handler: next.onDiagnostic,
-        naming: previous === null ? namingDiagnostics(next) : [],
-      });
+      this.#prepareOptions(call, next, optionSink, previous === null);
       const messages = messagesFor(next, previous);
       const common = { options: next, messages, zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? (emptyHidden ??= new Set()) };
-      const resolve = (table?: Table, sink = optionSink) => (this.composition.resolve ?? resolveFields)(this.kind, publicOptions(next), sink, table);
+      const resolve = (table?: Table, sink = optionSink) => (this.composition.resolve ?? resolveFields)(this.kind, { ...next }, sink, table);
       let c: Candidate;
       let commit: (() => void) | null = null;
       let heldAfter: Held = null;
-      const replace = previous === null || changed.has('data') || (supplied && previous.stream !== null);
+      const replace = previous === null || patched?.changed.has('data') || (supplied && previous.stream !== null);
       const fieldsChanged = !replace && encodingChanged(previous!.options, next);
-      if (fieldsChanged && previous!.stream === null && namesOnlyChanged(previous!.options, next)) {
-        // Labels or units only, over the caller's own data: the same columns with new names (finding 12).
-        const resolved = resolve(previous!.source.table);
-        const p = previous!;
-        const opts = dataFindings(optionSink.inputs(), false);
-        c = {
-          ...common, resolved, source: resolved, stream: null, frame: renamed(p.frame, resolved, this.#frameRevision += 1),
-          dataDiagnostics: p.dataDiagnostics, dataOptions: p.dataOptions,
-          optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
-        };
-      } else if (replace || (fieldsChanged && previous!.stream === null)) {
+      const rename = fieldsChanged && !previous.stream && namesOnlyChanged(previous.options, next);
+      if (replace || (fieldsChanged && !rename && !previous!.stream)) {
         // New data, or new fields over the caller's own data: normalized from the options, borrowing typed
         // columns (plan 1.2). A stream this replaces is dropped with everything it held.
         countStage(this, 'normalize');
@@ -588,21 +591,23 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
           ...common, resolved, source: resolved, stream: null, frame, dataDiagnostics: data,
           dataOptions: dataFindings(opts, true), optionDiagnostics: dedupe(opts, data),
         };
-      } else if (fieldsChanged) {
+      } else if (fieldsChanged && !rename) {
         ({ c, commit, heldAfter } = this.encode(previous!, next, common, optionSink, resolve, this.#paused));
       } else {
         // Presentation only (title, domains, references, colors, …): the frame stays. Rows held by a Resume
         // that failed are shown by the next accepted call (finding 5).
-        const p = this.#resumable(previous!);
+        const p = rename ? previous! : this.#resumable(previous!);
         // The fields are unchanged, so what the retained rows said about them still holds: a stream is checked
         // against no rows (a title update must not walk them, finding 11) unless they were found wanting.
         const resolved = p.stream
           ? p.resolved.valid ? resolve(rowsTable([]))
-            : p.stream.store.resolveEncoding(publicOptions(next), optionSink)
+            : p.stream.store.resolveEncoding({ ...next }, optionSink)
           : resolve(p.source.table);
         const opts = dataFindings(optionSink.inputs(), false);
         c = {
-          ...p, ...common, resolved, optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
+          ...p, ...common, resolved, source: rename ? resolved : p.source,
+          frame: rename ? renamed(p.frame, resolved, ++this.#frameRevision) : p.frame,
+          optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
         };
       }
       const viewed = this.view(c, previous);
@@ -613,7 +618,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
         // While paused the held window is part of the chart: its findings count for strict too (finding 6).
         const keptHeld = heldAfter ?? (c.frame === previous?.frame ? this.held : null);
         if (this.#paused && keptHeld) found.push(...keptHeld.dataDiagnostics, ...keptHeld.viewDiagnostics);
-        this.reject(true, found, this.#chartName(next), next.onDiagnostic);
+        this.reject(found, this.#chartName(next), next.onDiagnostic);
       }
       // Data replaced or bounds changed: a window that no longer ends at the latest x stops following.
       const follow = followsLatest(viewed.view, c.zoom);
@@ -637,7 +642,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   protected revision(rev: number): void { this.#frameRevision = Math.max(this.#frameRevision, rev); }
   protected hold(accepted: Accepted): void {
     this.#accepted = accepted;
-    this.#options.commit(accepted.options);
+    this.#options = accepted.options;
     this.releaseRows();
   }
 
@@ -651,7 +656,21 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     return { ...this.#resumable(given), ...change };
   }
 
-  zoom(domain: unknown): void {
+  zoom(window: Span | null): void {
+    const a = this.#accepted;
+    if (a) this.zoomDomain(window === null ? null : positionWindow(a.frame, window[0], window[1]));
+  }
+
+  select(ref: DatumRef): void {
+    const point = this.drawn && pointForDatum(this.drawn, ref);
+    if (point) this.emit('select', point);
+  }
+
+  hover(ref: DatumRef | null): void {
+    if (this.listeners?.get('hover')?.size) this.emit('hover', this.drawn && ref ? pointForDatum(this.drawn, ref) : null);
+  }
+
+  zoomDomain(domain: unknown): void {
     this.guard(() => {
       const previous = this.#accepted;
       if (!previous) return;
@@ -687,7 +706,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     });
   }
 
-  toggleSeries(key: string): void {
+  toggle(key: string): void {
     this.guard(() => {
       const previous = this.#accepted;
       if (!previous) return;
@@ -701,7 +720,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   protected resume(): void {}
 
   /** Pause and resume (spec I6). Resume shows the newest held frame. */
-  setPaused(next: boolean): void {
+  pause(next: boolean): void {
     if (this.#destroyed || next === this.#paused) return;
     this.#paused = next;
     if (!next && this.held) this.resume();
@@ -749,7 +768,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     }
     const field = a.resolved.x.field;
     // AX143 suggests horizontal bars only for vertical bars on category labels.
-    const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
+    const xKind = axisKind(view.frame);
     const horizontal = view.kind === 'bar' ? view.horizontal : undefined;
     const key = [small, dense, hidden, field, xKind, horizontal, view.kind];
     if (sameKey(this.#fitKey, key)) return;
@@ -776,20 +795,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const run = this.#startFrame();
     if (!run) return;
     run.phase1();
-    run.phase2();
-    // The measure's layout brings style up to date, so the theme's reads after it start no style pass of their
-    // own; a late theme probe that moved the figure has it measured again (the second call does nothing else).
-    run.phase3Measure();
-    run.phase3Theme();
-    run.phase3Probe();
-    run.phase3Measure();
-    readoutSteps(run);
-    for (let pass = 0; pass < 4; pass++) {
-      if (!run.phase4PassWrite()) break;
-      if (run.phase4PassMeasure()) readoutSteps(run);
-    }
-    run.phase5();
-    run.after();
+    finishPhases(run, advanceOne, run);
   }
 
   /** Whether a frame may go on after author code ran (a formatter): the chart is alive and on the same state. */
@@ -812,13 +818,14 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     // The frame's own rows are kept while it publishes, whatever its author code accepts meanwhile (an append
     // with keep from a callback can no longer retire them; final review, finding 1).
     this.inflight = a;
-    const f = acquireFrame(this);
+    const f = acquireFrame(this, a);
     const view = a.view;
-    const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
-    const zoomed = view.kind !== 'donut' && a.zoom !== null && (view.xDomain[0] > view.xFull[0] || view.xDomain[1] < view.xFull[1]);
+    f.zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
+    f.zoomed = view.kind !== 'donut' && a.zoom !== null && (view.xDomain[0] > view.xFull[0] || view.xDomain[1] < view.xFull[1]);
     const placement = a.options.legend;
-    const legend = placement === false || placement === 'top' || placement === 'right' ? placement : 'bottom';
-    f.begin(a, isCompact(this.kind, a.options), stateDiagnostics(a), zoomOn, zoomed, legend);
+    f.legend = placement === false || placement === 'top' || placement === 'right' ? placement : 'bottom';
+    f.compact = isCompact(this.kind, a.options);
+    f.stateDiag = stateDiagnostics(a);
     return f;
   }
 
@@ -827,82 +834,12 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
    * accepted state) leaves error handling to the revision that will be drawn; any other failure is this
    * revision's error state. A closed or destroyed frame does nothing more.
    */
-  frameStep(f: FrameState, id: number): boolean {
+  frameStep(f: FrameState, phase: Exclude<keyof FrameRun, 'after' | 'phase3StripRemove'>): boolean {
     if (f.closed) return false;
     if (!this.#destroyed) {
       try {
-        switch (id) {
-          case STEP_PHASE1: this.#phase1(f); break;
-          case STEP_PHASE2: {
-            const a = f.a!;
-            if (f.keys) {
-              this.#mutate(f);
-              if (f.preparedTheme !== null && this.host.themeApply) {
-                countStage(this, 'theme');
-                this.host.themeApply(f.preparedTheme);
-              } else this.resolveTheme(f.keys, a.options.colors);
-            }
-            const hadStrip = this.#readoutMode, shown = f.shown;
-            if (shown.kind !== 'ready' || f.compact || f.tooSmall || a.options.tooltip === false) {
-              this.#readoutMode = false; this.#readoutKind = 'floating';
-            }
-            f.needMeasure = this.#arrange(f) || hadStrip !== this.#readoutMode || this.#sizeDirty || this.#size === null;
-            break;
-          }
-          case STEP_THEME:
-            if (this.host.themeFinish) {
-              const res = this.host.themeFinish(f.preparedTheme, true);
-              if (res !== null) this.#applyThemeResolution(res, f.keys!, f.a!.options.colors);
-              else f.needsThemeProbe = true;
-            }
-            break;
-          case STEP_MEASURE: this.#measurePending(f); break;
-          case STEP_PROBE:
-            if (this.host.themeProbe) {
-              this.#probeWrote = true;
-              const res = this.host.themeProbe(f.preparedTheme, this.#probeReport ??= wrote => { this.#probeWrote = wrote; });
-              f.needMeasure ||= this.#probeWrote;
-              this.#applyThemeResolution(res, f.keys!, f.a!.options.colors);
-              f.needsThemeProbe = false;
-            }
-            break;
-          case STEP_LAYOUT_CHECK: return this.#layoutCheck(f);
-          case STEP_STRIP_MOUNT:
-            if (f.needsStripProbe && f.stripProbe === null && this.host.stripProbeMount) f.stripProbe = this.host.stripProbeMount();
-            break;
-          case STEP_STRIP_READ:
-            if (f.needsStripProbe) {
-              const style = f.style;
-              this.#stripStyle = style; this.#stripFontEpoch = f.layoutEpoch;
-              const measured = f.stripProbe !== null && this.host.stripProbeRead ? this.host.stripProbeRead(f.stripProbe) : this.host.stripHeight?.();
-              this.#stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0 ? measured : 2 * Math.max(24, style.lineHeight);
-              f.needsStripProbe = false;
-            }
-            break;
-          case STEP_READOUT: this.#readoutDecide(f); break;
-          case STEP_STRIP_WRITE:
-            if (f.stripAction === 'strip-arrange') this.#arrange(f);
-            else if (f.stripAction === 'prepare-only') {
-              this.#mutate(f);
-              this.host.interaction.prepare(this.#controlsState(f));
-            }
-            break;
-          case STEP_STRIP_MEASURE:
-            if (f.stripAction === 'strip-arrange') this.#size = this.host.measure();
-            f.stripAction = null;
-            break;
-          case STEP_INIT:
-            if (f.readoutPending) {
-              f.readoutPending = false; f.passAction = null;
-              const result = f.result = this.#layoutForSize(f);
-              f.layoutDone = result === null;
-            }
-            break;
-          case STEP_PASS_WRITE: return this.#passWrite(f);
-          case STEP_PASS_MEASURE: return this.#passMeasure(f);
-          default: this.#publish(f);
-        }
-        return false;
+        const result = this[phase](f);
+        if (phase !== 'phase5') return !!result;
       } catch (error) {
         const a = f.a!;
         if (error !== ABORT && this.#current(a)) this.#failSafe(a, error);
@@ -910,6 +847,71 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     }
     this.#closeFrame(f);
     return false;
+  }
+
+  phase2(f: FrameState): void {
+    const a = f.a!;
+    if (f.keys) {
+      this.#mutate(f);
+      if (f.preparedTheme !== null && this.host.themeApply) {
+        countStage(this, 'theme');
+        this.host.themeApply(f.preparedTheme);
+      } else this.#resolveTheme(f.keys, a.options.colors);
+    }
+    const hadStrip = this.#hasStrip, shown = f.shown;
+    if (shown.kind !== 'ready' || f.compact || f.tooSmall || a.options.tooltip === false) {
+      this.#readoutKind = 'floating';
+    }
+    f.needMeasure = this.#arrange(f) || hadStrip !== this.#hasStrip || this.#sizeDirty || this.#size === null;
+  }
+
+  phase3Theme(f: FrameState): void {
+    if (this.host.themeFinish) {
+      const res = this.host.themeFinish(f.preparedTheme, true);
+      if (res !== null) this.#applyThemeResolution(res, f.keys!, f.a!.options.colors);
+      else f.needsThemeProbe = true;
+    }
+  }
+
+  phase3Probe(f: FrameState): void {
+    if (this.host.themeProbe) {
+      this.#probeWrote = true;
+      const res = this.host.themeProbe(f.preparedTheme, this.#probeReport ??= wrote => { this.#probeWrote = wrote; });
+      f.needMeasure ||= this.#probeWrote;
+      this.#applyThemeResolution(res, f.keys!, f.a!.options.colors);
+      f.needsThemeProbe = false;
+    }
+  }
+
+  phase3StripMount(f: FrameState): void {
+    if (f.stripProbe === null && this.host.stripProbeMount) f.stripProbe = this.host.stripProbeMount();
+  }
+
+  phase3StripRead(f: FrameState): void {
+    const style = f.style;
+    this.#stripStyle = style; this.#stripFontEpoch = f.layoutEpoch;
+    const measured = f.stripProbe !== null && this.host.stripProbeRead ? this.host.stripProbeRead(f.stripProbe) : this.host.stripHeight?.();
+    this.#stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0 ? measured : 2 * Math.max(24, style.lineHeight);
+    f.needsStripProbe = false;
+  }
+
+  phase4StripWrite(f: FrameState): void {
+    if (f.stripAction === StripAction.Arrange) this.#arrange(f);
+    else if (f.stripAction === StripAction.Prepare) {
+      this.#mutate(f);
+      this.host.interaction.prepare(this.#controlsState(f));
+    }
+  }
+
+  phase4StripMeasure(f: FrameState): void {
+    if (f.stripAction === StripAction.Arrange) this.#size = this.host.measure();
+    f.stripAction = StripAction.None;
+  }
+
+  phase4Init(f: FrameState): void {
+    f.readoutPending = false; f.passAction = PassAction.None;
+    const result = f.result = this.#layoutForSize(f);
+    f.layoutDone = result === null;
   }
 
   /** Removes the strip-height probe if it is in the figure; runs even on a closed frame. */
@@ -930,18 +932,12 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     if (!this.#destroyed) this.releaseRows();
   }
 
-  // Phase 5: Final diagnostics, scene, lookup, draw, text, figure, commit & close out frame.
-  finishFrame(f: FrameState): void {
-    this.frameStep(f, STEP_PUBLISH);
-    this.#closeFrame(f);
-  }
-
   // Post-frame: re-schedule if superseded, deliver diagnostics, and drain notifications.
   afterFrame(f: FrameState): void {
     this.#closeFrame(f);
     // Already finished (idle): only what author code queued since is left to deliver.
-    if (!f.idle) {
-      const a = f.a;
+    const a = f.a;
+    if (a) {
       // The frame's references go now, and the state back to the pool: a pooled state holds nothing of this
       // chart. A frame author code starts from here (below) may take it again; this one is done with it.
       releaseFrame(f);
@@ -981,23 +977,23 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const a = f.a!;
     const shownBefore = this.drawn;
     if (shownBefore && readerInputsMatch(shownBefore.readerInputs, f, labelsHidden, disclosure, tag)) {
-      return { reader: shownBefore.reader, inputs: shownBefore.readerInputs };
+      return shownBefore;
     }
     const lastReader = f.lastReader;
-    if (lastReader && readerInputsMatch(lastReader.inputs, f, labelsHidden, disclosure, tag)) return lastReader;
-    const view = f.view, formatters = f.formatters, named = f.named, by = f.by, compact = f.compact, locale = f.locale, caption = f.caption;
-    const inputs = [view, formatters, a.messages, a.options.title, named ? by : null, a.options.subtitle,
+    if (lastReader && readerInputsMatch(lastReader.readerInputs, f, labelsHidden, disclosure, tag)) return lastReader;
+    const { view, formatters, by, compact, locale, caption } = f;
+    const inputs = [view, formatters, a.messages, a.options.title, by, a.options.subtitle,
       a.options.description, disclosure.omitted, disclosure.changed, labelsHidden, a.options.table, compact, locale, caption, tag];
     countStage(this, 'reader');
     // The summary reads the view, not the name: when only the naming inputs changed, the statistics already
     // written are kept rather than scanned again (finding 11).
-    const before = lastReader ?? (shownBefore ? { reader: shownBefore.reader, inputs: shownBefore.readerInputs } : null);
-    const kept = before && sameReading(before.inputs, inputs) ? before.reader : null;
+    const before = lastReader ?? shownBefore;
+    const kept = before && readerInputsMatch(before.readerInputs, f, labelsHidden, disclosure, tag, true) ? before.reader : null;
     const t = a.options.title;
     const built = readerWith(this.composition.reader, {
       view, formatters, messages: a.messages, type: chartTypeName(a.messages, this.kind),
       title: typeof t === 'string' || (t && typeof t === 'object') ? t as string | Title : undefined,
-      labelledBy: named ? by! : undefined, caption,
+      labelledBy: by ?? undefined, caption,
       // The x column header carries the x unit (spec A4).
       labels: { xUnit: a.resolved.x.unit ?? undefined },
       subtitle: stringOption(a.options, 'subtitle') ?? undefined,
@@ -1027,11 +1023,11 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     if (kept) {
       const summary = kept.summary;
       const renamedModel: ReaderModel & { noteSegments: typeof built.noteSegments } = {
-        name: built.name, note: built.note, table: built.table, noteSegments: built.noteSegments, get summary() { return summary; },
+        name: built.name, note: built.note, table: built.table, noteSegments: built.noteSegments, summary,
       };
-      return f.lastReader = { reader: renamedModel, inputs };
+      return f.lastReader = { reader: renamedModel, readerInputs: inputs };
     }
-    return f.lastReader = { reader: built, inputs };
+    return f.lastReader = { reader: built, readerInputs: inputs };
   }
 
   /** Within a frame only disclosure, hidden labels or a composition's own reading can change the reader. */
@@ -1044,8 +1040,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const disclosure = this.#disclosureNow(f);
     const settled = f.settled;
     f.readerVersion = f.discVer;
-    if (settled && f.currentHidden === labelsHidden && Object.is(settled.inputs[14], tag) &&
-        settled.inputs[7] === disclosure.omitted && settled.inputs[8] === disclosure.changed) return;
+    if (settled && f.currentHidden === labelsHidden && Object.is(settled.readerInputs[14], tag) &&
+        settled.readerInputs[7] === disclosure.omitted && settled.readerInputs[8] === disclosure.changed) return;
     f.currentHidden = labelsHidden;
     let built = this.#readerFor(f, labelsHidden, disclosure, tag);
     // The summary runs author formatters lazily: it is made here, so what they threw on is in the
@@ -1060,7 +1056,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     f.settled = built;
   }
 
-  #measurePending(f: FrameState): void {
+  phase3Measure(f: FrameState): void {
     if (f.needMeasure) {
       f.needMeasure = false;
       this.#sizeDirty = false;
@@ -1073,20 +1069,33 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       sameDisclosure(f.arrangedDisclosure, this.#disclosureNow(f));
   }
 
-  #controlsState(f: FrameState) {
-    return controlsStateFor(f, f.settled!.reader, f.tooSmall, this.kind, this.#streaming, this.#paused, this.#readoutMode, this.#readoutKind);
+  #controlsState(f: FrameState): ControlsState {
+    const a = f.a!;
+    const r = f.settled!.reader;
+    const shown = f.shown;
+    return {
+      kind: this.kind, view: f.view, formatters: f.formatters, messages: a.messages, reader: r, tooSmall: f.tooSmall,
+      ready: shown.kind === 'ready', interactive: !f.compact, tooltip: a.options.tooltip !== false, legend: f.legend,
+      // Series that could not be drawn are still rows: the table their sentence points to is offered.
+      inspectable: (shown.kind === 'empty' || (shown.kind === 'error' && shown.message === 'seriesNotDrawn')) &&
+        (r.table?.rowCount ?? 0) > 0,
+      empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
+      zoom: f.zoomOn, zoomed: f.zoomed, streaming: this.#streaming, paused: this.#paused, epoch: a.frame.epoch, english: f.english, pageLang: f.lang, readout: this.#hasStrip,
+      // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'.
+      readoutMode: this.#readoutKind,
+    };
   }
 
   #arrange(f: FrameState): boolean {
     const small = f.tooSmall;
-    if (this.#arrangedFor(f) && f.arrangedStrip === this.#readoutMode) return false;
+    if (this.#arrangedFor(f) && f.arrangedStrip === this.#hasStrip) return false;
     const reader = f.settled!.reader;
     f.arrangedReader = reader;
     f.arrangedSmall = small;
     f.arrangedDisclosure = this.#disclosureNow(f);
-    f.arrangedStrip = this.#readoutMode;
+    f.arrangedStrip = this.#hasStrip;
     countStage(this, 'figure');
-    const model = figureModelFor(f, reader, small, f.arrangedDisclosure);
+    const model = figureModelFor(f, f.arrangedDisclosure);
     this.#mutate(f);
     const moved = this.host.figure.update(model);
     // The legend and toolbar are in place before the plot is measured: they take their share now.
@@ -1111,9 +1120,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const previous = this.drawn;
     const previousLayout = previous?.plotLayout;
     const sameSize = sameLayoutSize(previousLayout, width, height, strip) && previousLayout.layout.kind !== 'unmeasured';
-    if (sameSize && previous && previous.accepted.view === view && previous.accepted.resolved === a.resolved &&
-        previous.accepted.options.x === a.options.x && previous.accepted.messages.value === a.messages.value &&
-        isCompact(this.kind, previous.accepted.options) === compact && previous.locale === f.locale &&
+    if (sameSize && previous && previous.accepted.view === view && previous.axisContext === f.axisContext &&
+        previous.accepted.options.x === a.options.x &&
         previous.style === style && previous.fontEpoch === layoutEpoch) return previousLayout;
     const at = { width, height };
     const key = this.composition.layout.layoutKey(view, at, style, layoutEpoch, f.axisContext);
@@ -1127,7 +1135,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
 
   #layoutForSize(f: FrameState): PlotLayout | null {
     return this.#size === null || this.#size.width <= 0 || f.shown.kind !== 'ready' ? null
-      : this.#plotLayout(f, this.#size.width - (this.#fallback?.width ?? 0), this.#size.height - (this.#fallback?.height ?? 0), reservedStrip(this.#size, this.#readoutMode));
+      : this.#plotLayout(f, this.#size.width - (this.#fallback?.width ?? 0), this.#size.height - (this.#fallback?.height ?? 0), reservedStrip(this.#size, this.#hasStrip));
   }
 
   /** The axis context for this frame: the last one while what it holds is the same. */
@@ -1154,26 +1162,25 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   // Phase 1: Initial reads & pure CPU prep (zero DOM writes, zero probeColors).
-  #phase1(f: FrameState): void {
+  phase1(f: FrameState): void {
     const a = f.a!;
     const view = f.view;
     const compact = f.compact;
     countStage(this, 'frame');
-    const shown = f.shown = displayState(a, f.stateDiag, this.kind, this.#internalError !== null);
-    f.noteShown = shown.kind === 'ready' || shown.kind === 'empty' || shown.kind === 'error';
+    const shown = f.shown = displayState(a, f.stateDiag, compact, this.#internalError !== null);
     if (compact) {
       f.style = COMPACT_TEXT_STYLE;
       // Compact charts do not mount the text layer; keep dirty so an upgrade to full reads the real text style.
-      this.textStyleDirty = true;
+      this.#textStyleDirty = true;
     } else {
-      if (this.textStyleDirty) {
+      if (this.#textStyleDirty) {
         const next = this.host.textStyle();
         if (!sameTextStyle(this.#textStyle, next)) this.#textStyle = next;
-        this.textStyleDirty = false;
+        this.#textStyleDirty = false;
       }
       f.style = this.#textStyle!;
     }
-    f.layoutEpoch = this.fontEpoch;
+    f.layoutEpoch = this.#fontEpoch;
     // The inherited language is read once and serves the locale and the English marking alike.
     const lang = f.lang = this.host.pageLang();
     const locale = f.locale = this.host.locale(a.options.locale, lang);
@@ -1207,17 +1214,15 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     }
 
     // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
-    const by = f.by = stringOption(a.options, 'labelledBy');
-    const byText = f.byText = by ? this.host.labelText(by) : null;
+    const by = stringOption(a.options, 'labelledBy');
     // A heading with no text names nothing either (A1): the title, else the generated name, is used instead.
-    const named = f.named = !!byText?.trim();
+    f.caption = (by && this.host.labelText(by)?.trim()) || undefined;
+    f.by = f.caption ? by : null;
     const title = f.title = titleOf(a.options);
-    this.#setPresentation('naming', by !== null && !named && title === null
+    this.#setPresentation('naming', by !== null && !f.by && title === null
       ? [createDiagnostic('AX140', 'none', { detail: `No element with text has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
-    f.caption = named ? byText!.trim() || undefined : undefined;
 
-    const foreignPage = f.foreignPage = lang !== null && !ENGLISH_TAG.test(lang);
-    f.english = this.#englishOf(a, foreignPage);
+    f.english = this.#englishOf(a, lang !== null && !ENGLISH_TAG.test(lang));
 
     // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
     // publication (final review, finding 1), and what it reported belongs to every layout made from them,
@@ -1234,7 +1239,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     if (!this.#current(a)) throw ABORT;
 
     // Theme check: read-only preparation when the host supports phased theme resolution.
-    if (this.themeDirty || !this.theme || this.#themeSeries === null || this.#themeColors !== a.options.colors) {
+    if (this.#themeDirty || !this.#theme || this.#themeSeries === null || this.#themeColors !== a.options.colors) {
       f.keys = themeKeys(view);
     } else if (view.kind === 'donut') {
       const keys = themeKeys(view);
@@ -1252,9 +1257,9 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   // Phase 3b (part 1): Pure layout check; returns true if this chart needs a strip-height probe.
-  #layoutCheck(f: FrameState): boolean {
+  phase3LayoutCheck(f: FrameState): boolean {
     if (!f.readoutPending) return false;
-    this.#measurePending(f);
+    this.phase3Measure(f);
     f.needsStripProbe = false;
     // Readout mode, decided by layout (rule 5): the plot's rectangle as it is without the strip, laid out in
     // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
@@ -1262,7 +1267,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     // while the plot is too small (L8): that state has no strip.
     f.withoutLayout = null;
     f.narrowPlotHeight = null;
-    f.stripAction = null;
+    f.stripAction = StripAction.None;
     if (this.#size !== null && this.#size.width > 0 && f.shown.kind === 'ready' && !f.compact && !f.tooSmall && f.a!.options.tooltip !== false) {
       const room = this.#size.room ?? this.#size;
       const withoutLayout = f.withoutLayout = this.#plotLayout(f, room.width, room.height, null);
@@ -1279,8 +1284,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   // Phase 3b (part 3): Pure readout mode decision using measured stripHeight.
-  #readoutDecide(f: FrameState): void {
-    if (f.readoutPending && this.#size !== null && f.withoutLayout !== null) {
+  phase3ReadoutDecide(f: FrameState): void {
+    if (f.readoutPending && this.#size !== null) {
       // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
       // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
       // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
@@ -1288,66 +1293,50 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       let next: ReadoutMode = 'floating';
       const narrow = f.narrowPlotHeight;
       if (narrow !== null) {
-        if (this.#readoutMode && this.#size.room && this.#size.room.height - this.#size.height > 0) this.#stripHeight = this.#size.room.height - this.#size.height;
+        if (this.#hasStrip && this.#size.room && this.#size.room.height - this.#size.height > 0) this.#stripHeight = this.#size.room.height - this.#size.height;
         next = narrow - this.#stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
       }
       if (next !== this.#readoutKind) {
+        f.stripAction = (next === 'strip') !== this.#hasStrip ? StripAction.Arrange : StripAction.Prepare;
         this.#readoutKind = next;
-        const wantStrip = next === 'strip';
-        if (wantStrip !== this.#readoutMode) {
-          this.#readoutMode = wantStrip;
-          f.stripAction = 'strip-arrange';
-        } else {
-          f.stripAction = 'prepare-only';
-        }
       }
     }
   }
 
   // Phase 4.1 (per-pass writes): Drop strip, enter L8 fallback, or arrange hidden-label note.
-  #passWrite(f: FrameState): boolean {
-    f.passAction = null;
+  phase4PassWrite(f: FrameState): boolean {
+    f.passAction = PassAction.None;
     const result = f.result;
-    if (f.layoutDone || result === null || this.#size === null) return false;
+    if (result === null || this.#size === null) return false;
     const small = result.layout.kind === 'too-small';
-    if (small && this.#readoutMode && f.withoutLayout?.layout.kind === 'plot') {
+    if (small && this.#hasStrip && f.withoutLayout?.layout.kind === 'plot') {
       // Too small only because of the strip (its real height was more than expected): no strip and no
       // tooltip, and the readable plot stays (rule 5). The measured height keeps the next frame there.
       if (this.#size.room) this.#stripHeight = Math.max(this.#stripHeight, this.#size.room.height - this.#size.height);
-      this.#readoutMode = false;
       this.#readoutKind = 'none';
       this.#arrange(f);
-      f.passAction = 'drop-strip';
+      f.passAction = PassAction.DropStrip;
       return true;
     }
-    if (small && !f.tooSmall) {
-      f.normalSize = this.#size;
-      f.tooSmall = true;
-      this.#readoutMode = false;
-      this.#readoutKind = 'floating';
-      this.#settleFigureReader(f, 0);
-      this.#arrange(f);
-      f.passAction = 'enter-fallback';
-      return true;
-    }
-    if (!small && f.tooSmall) {
-      f.tooSmall = false;
-      this.#fallback = null;
-      this.#settleFigureReader(f, hiddenIn(result.layout));
-      this.#arrange(f);
-      f.passAction = 'leave-fallback';
-      return true;
-    }
-    if (f.tooSmall) {
-      f.layoutDone = true;
-      return false;
-    }
-    // Normal: the note says what this layout hides; if that moves the figure, judge the new size.
     const hidden = hiddenIn(result.layout);
-    if (!this.#readerCurrent(f, hidden) || f.arrangedStrip !== this.#readoutMode) {
+    if (small !== f.tooSmall) {
+      f.tooSmall = small;
+      if (small) {
+        f.normalSize = this.#size;
+        this.#readoutKind = 'floating';
+      } else {
+        this.#fallback = null;
+      }
+      this.#settleFigureReader(f, hidden);
+      this.#arrange(f);
+      f.passAction = small ? PassAction.EnterFallback : PassAction.LeaveFallback;
+      return true;
+    }
+    // A changed note can take room from the plot. Measure again only when arranging it actually moved the figure.
+    if (!small && (!this.#readerCurrent(f, hidden) || f.arrangedStrip !== this.#hasStrip)) {
       this.#settleFigureReader(f, hidden);
       if (this.#arrange(f)) {
-        f.passAction = 'note-moved';
+        f.passAction = PassAction.NoteMoved;
         return true;
       }
     }
@@ -1356,34 +1345,31 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   // Phase 4.1 (per-pass reads): Batched re-measure after pass writes.
-  #passMeasure(f: FrameState): boolean {
+  phase4PassMeasure(f: FrameState): boolean {
     const action = f.passAction;
-    f.passAction = null;
-    if (action === null || this.#size === null) return false;
+    f.passAction = PassAction.None;
+    if (action === PassAction.None || this.#size === null) return false;
     // Every pass action changed what the figure holds: each reads the plot again first.
     const size = this.#size = this.host.measure();
-    if (action === 'drop-strip') {
-      const result = f.result = this.#layoutForSize(f);
-      f.layoutDone = result === null;
-    } else if (action === 'enter-fallback') {
-      const normal = f.normalSize!;
-      this.#fallback = { width: (size?.width ?? normal.width) - normal.width, height: (size?.height ?? normal.height) - normal.height };
+    if (action === PassAction.EnterFallback) {
+      const normal = f.normalSize!, box = size ?? normal;
+      this.#fallback = { width: box.width - normal.width, height: box.height - normal.height };
       if (size === null || size.width <= 0) f.result = null;
       f.layoutDone = true;
-    } else if (action === 'leave-fallback') {
+    } else if (action === PassAction.LeaveFallback) {
       // The estimate let us leave fallback. Only the restored plot's measured room can decide readout.
       f.readoutPending = true;
       return true;
     } else {
       const next = this.#layoutForSize(f);
-      f.layoutDone = next === null || f.result === next;
+      f.layoutDone = next === null || (action === PassAction.NoteMoved && f.result === next);
       f.result = next;
     }
     return false;
   }
 
 
-  #publish(f: FrameState): void {
+  phase5(f: FrameState): void {
     const a = f.a!;
     const view = f.view;
     const shown = f.shown;
@@ -1417,12 +1403,12 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && this.#size !== null && this.#size.width > 0 && this.#size.height > 0);
     if (!this.#readerCurrent(f, hidden)) this.#settleFigureReader(f, hidden);
     if (this.#destroyed) throw ABORT;
-    const { reader, inputs } = f.settled!;
+    const { reader, readerInputs } = f.settled!;
     const formatters = f.formatters;
     const locale = f.locale;
 
     // Scene.
-    const ratio = this.pixelRatio;
+    const ratio = this.#pixelRatio;
     const previous = this.drawn;
     const sameGeometry = previous?.accepted.view === view && previous.layout === layout;
     let scene: Scene;
@@ -1459,7 +1445,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const drewBefore = previous ? previous.paintedTheme !== null : this.#hadMarks;
     if (measured ? previous?.paintedTheme !== paintedTheme || previous.scene !== scene || !Object.is(previous.pixelRatio, ratio) : drewBefore) {
       countStage(this, 'draw');
-      this.host.renderer.draw(measured ? scene : this.#emptyScene(), this.theme!.bindings, this.theme!.theme, ratio);
+      this.host.renderer.draw(measured ? scene : this.#emptyScene(), this.#theme!.bindings, this.#theme!.theme, ratio);
       this.#hadMarks = measured;
     }
     if (this.drawn?.layout !== layout) {
@@ -1469,23 +1455,29 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
 
     if (!this.#arrangedFor(f)) {
       countStage(this, 'figure');
-      this.host.figure.update(figureModelFor(f, reader, f.tooSmall, this.#disclosureNow(f)));
+      this.host.figure.update(figureModelFor(f, this.#disclosureNow(f)));
     }
 
     // A change of state is said once, politely (spec L7). The first state is not announced: it is what
     // the page shows on load, and 24 charts saying "Loading" at once is noise.
     if (this.#announced !== null && this.#announced !== shown.kind) {
-      this.host.figure.announce(shown.kind === 'ready' ? readyText(a, reader, f.byText) : shown.text,
+      this.host.figure.announce(shown.kind === 'ready' ? (reader.name || f.caption || a.name) : shown.text,
         shown.kind !== 'ready' && shown.message ? f.english(shown.message) : null);
     }
     if (measured || this.#announced !== null) this.#announced = shown.kind;
 
     this.drawn = {
-      accepted: a, formatters, formattersKey: f.fKey, locale, style: f.style, fontEpoch: f.layoutEpoch, pixelRatio: ratio,
-      layout, plotLayout: result, scene, lookup, reader, readerInputs: inputs, paintedTheme,
+      accepted: a, formatters, formattersKey: f.fKey, axisContext: f.axisContext, locale, style: f.style, fontEpoch: f.layoutEpoch, pixelRatio: ratio,
+      layout, plotLayout: result, scene, lookup, reader, readerInputs, paintedTheme,
     };
-    const { bindings, theme } = this.theme!;
-    const committed = Object.assign(this.#controlsState(f), { layout, lookup, bindings, theme, pixelRatio: ratio });
+    const { bindings, theme } = this.#theme!;
+    // The controls snapshot is new and still private. Complete it before handing it to the interaction layer.
+    const committed = this.#controlsState(f) as { -readonly [K in keyof Committed]: Committed[K] };
+    committed.layout = layout;
+    committed.lookup = lookup;
+    committed.bindings = bindings;
+    committed.theme = theme;
+    committed.pixelRatio = ratio;
     if (__DEV__ && compact) {
       // Dev/test hosts (acceptance tests) may inspect committed.lookup on compact charts; materialize
       // lazily on first access while keeping browser compact charts completely free of lookup allocations.
@@ -1531,18 +1523,18 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     this.#lastLayout = null;
     // The error revision keeps nothing of the options it failed on.
     this.#lastAxisContext = null;
-    this.themeDirty = true;
+    this.#themeDirty = true;
     this.#sizeDirty = true;
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) settle(this, a.revision);
   }
 
   /** Records a resolved theme and its AX141 presentation finding. */
   #applyThemeResolution(resolution: ThemeResolution, keys: readonly string[], colors: unknown): void {
-    this.theme = resolution;
+    this.#theme = resolution;
     this.#themeSeries = keys;
     this.#themeColors = colors;
     // A detached chart gets the light defaults; it resolves again in the next frame that draws.
-    this.themeDirty = resolution.resolved === false;
+    this.#themeDirty = resolution.resolved === false;
     this.#themeRevision++;
     // When the backdrop could not be determined the background is a guess, so contrast is not judged.
     let count = 0;
@@ -1553,7 +1545,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */
-  resolveTheme(keys: readonly string[], colors: unknown): void {
+  #resolveTheme(keys: readonly string[], colors: unknown): void {
     countStage(this, 'theme');
     this.#applyThemeResolution(this.host.theme(keys, object(colors) as Record<string, string>), keys, colors);
   }
@@ -1565,24 +1557,21 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
    * contents cleared (review 3, controller blocker 3).
    */
   #showInternal(m: Messages, name: string, o: OptionRecord): void {
-    const attempt = (step: () => void) => {
-      try { step(); } catch { /* the next step still runs */ }
-    };
-    attempt(() => this.host.interaction.clear());
-    attempt(() => this.host.figure.update({
+    release(() => this.host.interaction.clear());
+    release(() => this.host.figure.update({
       compact: isCompact(this.kind, o), title: titleOf(o), labelledBy: null, name,
       subtitle: null, summary: m.internalError, summaryVisible: false, note: null, message: m.internalError,
     }));
-    attempt(() => {
+    release(() => {
       if (this.#announced !== null && this.#announced !== 'internal') this.host.figure.announce(m.internalError);
       this.#announced = 'internal';
     });
-    attempt(() => {
+    release(() => {
       this.host.surfaces?.(false);
       this.#surfacesHidden = true;
     });
-    attempt(() => this.host.text.render([]));
-    attempt(() => { if (this.theme) this.host.renderer.draw(this.#emptyScene(), this.theme.bindings, this.theme.theme, this.pixelRatio); this.#hadMarks = false; });
+    release(() => this.host.text.render([]));
+    release(() => { if (this.#theme) this.host.renderer.draw(this.#emptyScene(), this.#theme.bindings, this.#theme.theme, this.#pixelRatio); this.#hadMarks = false; });
   }
 
   // ── events ─────────────────────────────────────────────────────────────────────────────────────
@@ -1604,10 +1593,56 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   // ── watchers ───────────────────────────────────────────────────────────────────────────────────
+  resize(): void {
+    // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
+    this.#dirtyTextAndStrip(true);
+    this.schedule();
+  }
+  page(): void {
+    // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
+    // and web fonts included (review 3, finding 19).
+    this.#themeDirty = true;
+    this.#dirtyTextAndStrip(true);
+    this.#pixelRatio = this.host.devicePixelRatio();
+    this.#fontEpoch++;
+    this.schedule();
+  }
+  theme(): void {
+    this.#themeDirty = true;
+    this.#dirtyTextAndStrip(false);
+    // The colours are resolved and written now, in the observer's callback, so the marks show the new
+    // scheme in the first frame after the change (L4): their paint refers to the custom properties written
+    // here. The light-dark() defaults follow prefers-color-scheme in CSS. Resolve AX141 when the
+    // media query's change event arrives. Only when what is on screen is also what is
+    // accepted, so the colours written belong to the marks shown.
+    const a = this.#accepted;
+    const drawn = this.drawn;
+    if (!this.inFrame && a && drawn && this.#theme && drawn.accepted.view === a.view) {
+      try {
+        const keys = themeKeys(a.view);
+        this.#resolveTheme(keys, a.options.colors);
+        if (!this.#themeDirty) this.deliverChanges();
+      } catch {
+        this.#themeDirty = true;
+      }
+    }
+    this.schedule();
+  }
+  language(): void { this.schedule(); }
+  fonts(): void {
+    this.#fontEpoch++;
+    this.resize();
+  }
+  pixelRatio(): void {
+    this.#pixelRatio = this.host.devicePixelRatio();
+    this.#textStyleDirty = true;
+    this.schedule();
+  }
+
   /** The text style and the strip's height are read again; with `size`, the plot size too. */
-  dirtyTextAndStrip(size: boolean): void {
+  #dirtyTextAndStrip(size: boolean): void {
     if (size) this.#sizeDirty = true;
-    this.textStyleDirty = true;
+    this.#textStyleDirty = true;
     this.#stripStyle = null;
   }
 
@@ -1621,16 +1656,16 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     this.#accepted?.stream?.clear();
     if (this.#notifications) this.#notifications.length = 0;
     this.waiters = this.disposers = this.#accepted = this.drawn = this.held = this.#lastLayout = this.#lastAxisContext = this.#textStyle = this.#stripStyle =
-      this.#englishMemo = this.onScreen = this.theme = this.#themeSeries = this.#settledInputs = this.#deliveryMade =
+      this.#englishMemo = this.onScreen = this.#theme = this.#themeSeries = this.#settledInputs = this.#deliveryMade =
       this.listeners = this.#presentation = this.#deliveredKeys = this.#notifications = null;
     this.#themeColors = undefined;
-    this.#options = new OptionsStore({});
+    this.#options = {};
     const owner = this.host;
     this.host = new DeadHost(owner.id, owner.renderer.kind);
     try {
       owner.dispose();
     } finally {
-      if (disposers) for (const fn of disposers) { try { fn(); } catch { /* keep disposing */ } }
+      if (disposers) for (const fn of disposers) release(fn);
       if ((__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) && pending) for (const w of pending) w.resolve();
     }
   }
@@ -1681,7 +1716,7 @@ class StreamingChartController extends ChartController {
   #recoverFields(previous: Accepted, stream: StreamSessionHandle, c: Candidate, before: Frame) {
     const store = stream.store;
     const check = new DiagnosticCollector();
-    const resolved = store.resolveEncoding(publicOptions(previous.options), check);
+    const resolved = store.resolveEncoding({ ...previous.options }, check);
     if (check.inputs().some(d => d.code === 'AX101')) return null;
     const again = store.prepareReencode(resolved, this.version());
     stream.ends(again.frame, before);
@@ -1707,7 +1742,7 @@ class StreamingChartController extends ChartController {
     countStage(this, 'normalize');
     const stream = previous.stream!;
     const store = stream.store;
-    const resolved = store.resolveEncoding(publicOptions(next), optionSink);
+    const resolved = store.resolveEncoding({ ...next }, optionSink);
     const prepared: PreparedFrame<Frame> = store.prepareReencode(resolved, this.version());
     stream.ends(prepared.frame, store.frame);
     const commit = prepared.commit;
@@ -1817,7 +1852,7 @@ class StreamingChartController extends ChartController {
       if (this.destroyed) return;
       if (previous.options.strict === true) {
         const found = joinedDiagnostics(prepared.callDiagnostics, viewed.found);
-        this.reject(true, found, previous.name, previous.options.onDiagnostic);
+        this.reject(found, previous.name, previous.options.onDiagnostic);
       }
       if (paused) {
         this.#commitRetained(prepared, stream);

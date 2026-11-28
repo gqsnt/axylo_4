@@ -1,5 +1,5 @@
-import type { DatumRef, DiagnosticInput, Formatters, Frame, Layout, Lookup, MarkRenderer, PaintBindings,
-  PlacedText, ReaderModel, ResolvedTheme, Scene, TextMeasurer, TextStyle, View,
+import type { DatumRef, DiagnosticInput, Formatters, Frame, Layout, Lookup, MarkRenderer,
+  PlacedText, ReaderModel, Scene, TextMeasurer, TextStyle, View,
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, XValue } from '../public';
 import type { ChartType, ResolvedOptions } from '../data/options';
@@ -8,6 +8,7 @@ import type { DiagnosticCollector } from '../diagnostics';
 import type { ThemeResolution } from '../theme';
 import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
+import type { AxisContext } from './axes';
 import type { Store } from './composition';
 import type { ChartHandle, StageCounter } from './instrument';
 import type { DeliveryConsole } from './delivery';
@@ -205,7 +206,7 @@ export interface PlotLayout {
 }
 
 export type Disclosure = { readonly omitted: number; readonly changed: number };
-export interface ReaderEntry { readonly reader: ReaderModel; readonly inputs: readonly unknown[] }
+export interface ReaderEntry { readonly reader: ReaderModel; readonly readerInputs: readonly unknown[] }
 
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
 export type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'size' | 'naming' | 'internal';
@@ -252,6 +253,7 @@ export interface Drawn {
   accepted: Accepted;
   formatters: Formatters;
   formattersKey: readonly unknown[];
+  axisContext: AxisContext;
   locale: string;
   style: TextStyle;
   fontEpoch: number;
@@ -278,22 +280,16 @@ export interface ControllerCore {
   readonly onScreen: { readonly frame: Frame } | null;
   readonly settledRevision: number;
   readonly stages: StageCounter | null;
-  readonly theme: { bindings: PaintBindings; theme: ResolvedTheme } | null;
-  fontEpoch: number;
   listeners: Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>> | null;
   disposers: Set<() => void> | null;
-  pixelRatio: number;
-  textStyleDirty: boolean;
-  themeDirty: boolean;
+  readonly currentRatio: number;
   waiters: { revision: number; resolve: () => void }[] | null;
   append(rows: unknown, options?: { keep?: number }): void;
   deliverChanges(): void;
   destroy(): void;
   diagnosticInputs(): readonly DiagnosticInput[];
-  dirtyTextAndStrip(size: boolean): void;
   emit<E extends keyof ChartEvents<unknown>>(event: E, payload: ChartEvents<unknown>[E] | null): void;
   publicDiagnostics(inputs: readonly DiagnosticInput[]): Diagnostic[];
-  resolveTheme(keys: readonly string[], colors: unknown): void;
   schedule(): void;
   /**
    * Reports that an author format for `field` threw and the default text was the fallback (AX160 'changed'): delivered
@@ -303,8 +299,6 @@ export interface ControllerCore {
    * a stock one on the same field; with `retire` as well, that finding alone is withdrawn instead.
    */
   readonly fallback?: (field: string, own?: unknown, retire?: unknown) => void;
-  setPaused(paused: boolean): void;
-  toggleSeries(key: string): void;
   update(patch: unknown): void;
-  zoom(domain: unknown): void;
+  zoomDomain(domain: unknown): void;
 }

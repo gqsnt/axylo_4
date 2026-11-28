@@ -1,7 +1,7 @@
 import { SLOT_ABSENT_FIELD, SLOT_INVALID, SLOT_NULL, SLOT_VALUE, type DiagnosticSink, type SlotState } from '../core/contracts';
 import type { ResolvedValueField } from './options';
 import { Reports } from './reports';
-import { withSignedZeros, type FullStatistics } from './store-statistics';
+import { withSignedZeros, type FullStatistics } from './series';
 import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
@@ -91,7 +91,6 @@ export function readValues(
       return { y, slot: slot ?? null, allValid };
     }
   }
-  slot ??= new Uint8Array(table.length);
   const reports = new Reports(field.field, sink);
   mode ??= borrowed ? 'other' : inspectValues(table, field.field, included);
 
@@ -138,11 +137,11 @@ export function readValues(
     }
     if (y !== column) y[i] = value;
     if (state !== SLOT_VALUE) {
-      slot[i] = state;
+      (slot ??= new Uint8Array(table.length))[i] = state;
       allValid = false;
     }
   }
 
   reports.flush(sink);
-  return { y, slot: allValid ? null : slot, allValid };
+  return { y, slot: allValid ? null : slot ?? new Uint8Array(table.length), allValid };
 }

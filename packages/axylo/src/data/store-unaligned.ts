@@ -1,20 +1,18 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, Frame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
-import { normalizeDonut, buildPoints, type DataEnvironment, type FrameVersion } from './normalize';
+import { buildDonut, buildPoints, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveFields, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { lowerBound } from './search';
-import { checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, RevisionStore, retentionStart, StreamRows } from './store-rows';
+import { forwardDiagnostics, installEncodingExtras, nextVersion, RevisionStore, selectWindow, StreamRows } from './store-rows';
 import { CalendarWindow } from './store-calendar';
 import { StoreMap } from './store-map';
 import { Column, Labels } from './store-window';
 import { ByteCount, CallerBuffers, countColumn, countRevisions, type OwnedBytes } from './store-bytes';
-import { rowsTable, type Table } from './table';
+import { batchTable, type Table } from './table';
 import { retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
-import { nameOf } from './x';
 
 const quiet: DiagnosticSink = { add() {} };
-
 
 export interface Result<F> {
   readonly frame: F;
@@ -35,28 +33,6 @@ export interface Storage<F> {
 
 type Open<F> = (result: Result<F>, options: ResolvedOptions) => Storage<F> | null;
 
-const doubles = (length: number) => new Float64Array(length);
-const indexes = (length: number) => new Int32Array(length);
-const states = (length: number) => new Uint8Array(length);
-
-function buildDonut(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<DonutFrame> {
-  const frame = normalizeDonut(options, environment, sink, version);
-  const positions = new Float64Array(options.valid ? options.table.length : 0).fill(NaN);
-  const labels = new Map<string, number>();
-  const order = new Int32Array(frame.labels.length);
-  let length = 0;
-  for (let i = 0; i < positions.length; i++) {
-    const label = nameOf(options.table.read(i, options.x.field));
-    if (label === null) continue;
-    let index = labels.get(label);
-    if (index === undefined) labels.set(label, index = labels.size);
-    positions[i] = index;
-    order[length++] = i;
-  }
-  order.sort((a, b) => positions[a]! - positions[b]!);
-  return { frame, positions, order };
-}
-
 function ordered(positions: Float64Array, last: number = -Infinity): boolean {
   for (const position of positions) {
     if (!Number.isFinite(position) || position < last) return false;
@@ -68,12 +44,6 @@ function ordered(positions: Float64Array, last: number = -Infinity): boolean {
 function identity(rows: Int32Array, first: number): boolean {
   for (let i = 0; i < rows.length; i++) if (rows[i] !== first + i) return false;
   return true;
-}
-
-function extended<T extends Float64Array | Int32Array | Uint8Array>(column: Column<T>, values?: T): Column<T> {
-  const draft = column.fork();
-  if (values) draft.append(values);
-  return draft;
 }
 
 /**
@@ -93,10 +63,10 @@ function openPoints({ frame, positions }: Result<PointFrame>): Storage<PointFram
     calendar?.observe(position);
   }
   const complete = !series.missingX?.length && positions.length === series.x.length;
-  return pointWindow(frame.xKind, complete ? null : new Column(doubles, positions), distinct,
-    new Column(doubles, series.x), new Column(doubles, series.y),
-    identity(series.row, 0) ? null : new Column(indexes, series.row), 0,
-    new Column(doubles, series.missingX ?? new Float64Array()), new Column(indexes, series.missingRow ?? new Int32Array()), calendar);
+  return pointWindow(frame.xKind, complete ? null : new Column(positions), distinct,
+    new Column(series.x), new Column(series.y),
+    identity(series.row, 0) ? null : new Column(series.row), 0,
+    new Column(series.missingX ?? new Float64Array()), new Column(series.missingRow ?? new Int32Array()), calendar);
 }
 
 function pointWindow(
@@ -108,19 +78,19 @@ function pointWindow(
   oldCalendar: CalendarWindow | null,
 ): Storage<PointFrame> {
   function rowsOf(): Column<Int32Array> {
-    const length = oldX.view().length;
-    return new Column(indexes, Int32Array.from({ length }, (_, i) => i + rowShift));
+    const length = oldX.length;
+    return new Column(Int32Array.from({ length }, (_, i) => i + rowShift));
   }
 
   const storage: Storage<PointFrame> = {
     extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<PointFrame> | null {
       const series = next.frame.series[0];
-      const last = (oldPositions ?? oldX).view().at(-1);
+      const last = (oldPositions ?? oldX).last;
       if (next.frame.xKind !== kind || !series?.row || !ordered(next.positions, last)) return null;
       // A tie can append if its y also sorts after the old tail. Otherwise the old snapshot
       // and the new sort order need different storage.
-      const lastX = oldX.view().at(-1);
-      const lastY = oldY.view().at(-1);
+      const lastX = oldX.last;
+      const lastY = oldY.last;
       if (lastX !== undefined && lastY !== undefined && series.x[0] === lastX && series.y[0]! < lastY) return null;
 
       const calendar = oldCalendar?.fork() ?? null;
@@ -129,15 +99,15 @@ function pointWindow(
         if (calendar.daily()) return null;
       }
       const complete = !series.missingX?.length && next.positions.length === series.x.length;
-      let positions = oldPositions?.fork() ?? (complete ? null : new Column(doubles, oldX.view()));
+      let positions = oldPositions?.fork() ?? (complete ? null : new Column(oldX.view()));
       positions?.append(next.positions);
-      const count = oldX.view().length;
+      const count = oldX.length;
       const row = oldRow?.fork() ?? (identity(series.row, count + rowShift) ? null : rowsOf());
       row?.append(series.row);
-      const x = extended(oldX, series.x);
-      const y = extended(oldY, series.y);
-      const missingX = extended(oldMissingX, series.missingX);
-      const missingRow = extended(oldMissingRow, series.missingRow);
+      const x = oldX.extend(series.x);
+      const y = oldY.extend(series.y);
+      const missingX = oldMissingX.extend(series.missingX);
+      const missingRow = oldMissingRow.extend(series.missingRow);
       let shift = rowShift;
       let retained = distinct;
       let previous = last;
@@ -166,11 +136,13 @@ function pointWindow(
         y.drop(points);
         if (row) row.drop(points);
         else shift += points;
-        const missing = lowerBound(missingX.view(), first);
-        missingX.drop(missing);
-        missingRow.drop(missing);
+        if (missingX.length) {
+          const missing = lowerBound(missingX.view(), first);
+          missingX.drop(missing);
+          missingRow.drop(missing);
+        }
         // Once the last row without a y has left, every retained row is a point again: positions repeat x.
-        if (positions && !missingX.view().length && positions.view().length === x.view().length) {
+        if (positions && !missingX.length && positions.length === x.length) {
           positions = null;
         }
       }
@@ -181,11 +153,10 @@ function pointWindow(
     frame(frame: PointFrame): PointFrame {
       // The frame's null row means "point i came from row i": once points have left the front, it needs the index.
       if (!oldRow && rowShift !== 0) oldRow = rowsOf();
-      const missingX = oldMissingX.view();
-      const missing = missingX.length > 0;
+      const missing = oldMissingX.length > 0;
       return { ...frame, series: [{
         ...frame.series[0]!, x: oldX.view(), y: oldY.view(), row: oldRow?.view() ?? null,
-        missingX: missing ? missingX : undefined, missingRow: missing ? oldMissingRow.view() : undefined,
+        missingX: missing ? oldMissingX.view() : undefined, missingRow: missing ? oldMissingRow.view() : undefined,
       }] };
     },
   };
@@ -204,25 +175,25 @@ function pointWindow(
 
 function openSlices({ frame, positions }: Result<DonutFrame>): Storage<DonutFrame> | null {
   if (frame.labels.length !== positions.length || !frame.row) return null;
-  const labels = new Map(frame.labels.map((label, index) => [label, index]));
+  const labels = new StoreMap(frame.labels.map((label, index) => [label, index]));
   if (labels.size !== frame.labels.length) return null;
-  return sliceWindow(new Labels(frame.labels), new StoreMap(labels), labels.size,
-    new Column(doubles, frame.values), new Column(states, frame.slot), new Column(indexes, frame.row));
+  return sliceWindow(new Labels(frame.labels), labels, labels.size,
+    new Column(frame.values), new Column(frame.slot), new Column(frame.row));
 }
 
 function sliceWindow(labels: Labels, positions: StoreMap<string, number>, next: number,
   values: Column<Float64Array>, slot: Column<Uint8Array>, row: Column<Int32Array>): Storage<DonutFrame> {
   const storage: Storage<DonutFrame> = {
-    commit() { positions.commit(); },
+    commit() { positions = positions.commit(); },
     frame: frame => ({ ...frame, labels: labels.view(), values: values.view(), slot: slot.view(), row: row.view() }),
     extend(result, rows, firstRow, keep) {
       const { frame } = result;
       if (frame.labels.length !== result.positions.length || !frame.row || frame.labels.some(label => positions.has(label))) return null;
       const names = labels.fork();
       const index = positions.fork();
-      const y = extended(values, frame.values);
-      const states = extended(slot, frame.slot);
-      const source = extended(row, frame.row);
+      const y = values.extend(frame.values);
+      const states = slot.extend(frame.slot);
+      const source = row.extend(frame.row);
       for (let i = 0; i < frame.labels.length; i++) {
         const label = frame.labels[i]!;
         names.push(label);
@@ -252,50 +223,34 @@ function sliceWindow(labels: Labels, positions: StoreMap<string, number>, next: 
 }
 
 // Sample windows retain a contiguous suffix of arrival indexes, including rows whose value is missing.
-export function dropOldSamples(rows: StreamRows, keep: number, evicted?: number[]): number {
+export function dropOldSamples(rows: StreamRows, keep: number): number {
   const count = Math.max(0, rows.size - keep);
   const first = rows.next - rows.size;
   for (let i = first; i < first + count; i++) {
     rows.forget(i);
-    evicted?.push(i);
   }
   return count;
 }
 
-function removeRows(table: Table, result: Result<Frame>, keep: number, rows: StreamRows, evicted: number[]): number {
+function removeRows(table: Table, result: Result<Frame>, keep: number, rows: StreamRows): number {
   if (result.frame.shape === 'aligned') {
-    return dropOldSamples(rows, keep, evicted);
+    return dropOldSamples(rows, keep);
   }
-  const { positions } = result;
-  const first = retentionStart(result, keep);
-  let unplaced = 0;
-  for (let i = 0; i < table.length; i++) {
-    if (!Number.isFinite(positions[i])) unplaced++;
-  }
-  let excess = Math.max(0, unplaced - 2 * keep);
-  const before = evicted.length;
-  for (let i = 0; i < table.length; i++) {
-    const position = positions[i]!;
-    if (Number.isFinite(position) ? position >= first : excess-- <= 0) continue;
-    const row = table.rowIndex(i);
-    rows.forget(row);
-    evicted.push(row);
-  }
-  return evicted.length - before;
+  const before = rows.size;
+  selectWindow(table, result, keep, row => rows.forget(row));
+  return before - rows.size;
 }
 
 let installUnalignedExtras: () => void;
 
-export class SampleStore<F extends Frame> extends RevisionStore<F> {
+export class SampleStore<F extends Frame> extends RevisionStore<F, Candidate<F>> {
   #encoding: ResolvedOptions;
   #storage: Storage<F> | null;
 
-  readonly #type: 'scatter' | 'donut' | 'histogram';
   readonly #build: Build<F>;
   readonly #open: Open<F>;
   readonly #environment: DataEnvironment;
   readonly #sink: DiagnosticSink;
-  readonly #resolve: typeof resolveFields;
 
   constructor(
     type: 'scatter' | 'donut' | 'histogram',
@@ -307,18 +262,16 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     sink: DiagnosticSink = quiet,
     resolve = resolveFields,
   ) {
-    super(options.table);
-    this.#type = type;
+    super(options.table, type, resolve);
     this.#build = build;
     this.#open = open;
     this.#environment = environment;
     this.#sink = sink;
-    this.#resolve = resolve;
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras();
     this.#encoding = withoutTable(options);
     const diagnostics = new DiagnosticCollector();
     const table = this.rows.table();
-    const { result, storage } = this.#buildStorage(this.rows, table, options, version, diagnostics);
+    const { result, storage } = this.#buildStorage(this.rows, { ...options, table }, version, diagnostics);
     this.latest = diagnostics.inputs();
     this.#storage = storage;
     this.publish(storage?.frame(result.frame) ?? result.frame);
@@ -326,15 +279,11 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
   }
 
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
-  resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
-    return withoutTable(this.#resolve(this.#type, input, sink, this.rows.table()));
-  }
-
   #buildStorage(
-    rows: StreamRows, table: Table, options: ResolvedOptions, version: FrameVersion, sink: DiagnosticCollector,
+    rows: StreamRows, options: ResolvedOptions, version: FrameVersion, sink: DiagnosticCollector,
   ): { result: Result<F>; storage: Storage<F> | null } {
-    const result = this.#build({ ...options, table }, this.#environment, sink, version);
-    if (this.#type !== 'histogram') rows.resetPositions(table, result.positions);
+    const result = this.#build(options, this.#environment, sink, version);
+    if (this.kind !== 'histogram') rows.resetPositions(options.table, result.positions);
     return { result, storage: sink.inputs().length ? null : this.#open(result, withoutTable(options)) };
   }
 
@@ -344,14 +293,14 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     const keep = retention(options);
     const fast = this.#extendAppend(base, rows, version, keep);
     if (fast) return fast;
-    const retained = this.rows.fork();
+    const retained = this.rows.fork(true);
     retained.append(rows);
     let table = retained.table();
     const call = new DiagnosticCollector();
     const rebuild = (sink: DiagnosticSink) => this.#build(retargetOptions(this.#encoding, table, sink), this.#environment, sink, version);
     let result = rebuild(call);
     const ordering = new DiagnosticCollector();
-    if (this.#type === 'scatter') {
+    if (this.kind === 'scatter') {
       const reports = new Reports(this.#encoding.x.field, ordering);
       let highest = -Infinity;
       for (let i = 0; i < result.positions.length; i++) {
@@ -364,9 +313,8 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
       reports.flush(ordering);
     }
     let current = call;
-    const evicted: number[] = [];
     // Removing rows can change the inferred kind and make formerly unplaceable x values usable.
-    while (keep !== undefined && removeRows(table, result, keep, retained, evicted)) {
+    while (keep !== undefined && removeRows(table, result, keep, retained)) {
       current = new DiagnosticCollector();
       table = retained.table();
       result = rebuild(current);
@@ -374,61 +322,50 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     retained.compactColumns();
     const ordered = ordering.inputs();
     const diagnostics = [...current.inputs(), ...ordered];
-    if (this.#type !== 'histogram') retained.resetPositions(table, result.positions);
+    if (this.kind !== 'histogram') retained.resetPositions(table, result.positions);
     return this.#prepare(base, result.frame, retained, diagnostics.length ? null : this.#open(result, this.#encoding),
-      diagnostics, [...call.inputs(), ...ordered], evicted);
+      diagnostics, [...call.inputs(), ...ordered]);
   }
 
   #extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): Candidate<F> | null {
     // Implicit string parsing and diagnostics can change when old rows leave. Reuse old values only when
     // both partitions have unambiguous clean values and the same x interpretation.
     if (!this.#storage || this.#encoding.values[0]?.parse || this.#encoding.series !== null) return null;
-    const table = { ...rowsTable(rows), rowIndex: (row: number) => this.rows.next + row };
+    const table = batchTable(rows, this.rows.next);
     const diagnostics = new DiagnosticCollector();
     const resolved = retargetOptions(this.#encoding, table, diagnostics);
     if (!resolved.valid) return null;
     const result = this.#build(resolved, this.#environment, diagnostics, version);
     if (diagnostics.inputs().length) return null;
-    const retained = this.rows.fork();
-    const evicted: number[] = [];
-    retained.onForget = row => evicted.push(row);
+    const retained = this.rows.fork(true);
     retained.append(rows);
     const extension = this.#storage.extend(result, retained, this.rows.next, keep);
-    retained.onForget = undefined;
     if (!extension) return null;
     retained.compactColumns();
-    return this.#prepare(base, result.frame, retained, extension, [], [], evicted);
+    return this.#prepare(base, result.frame, retained, extension, [], []);
   }
 
-  prepareReencode(options: ResolvedOptions, version: FrameVersion): Candidate<F> {
-    return this.#prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
-  }
-
-  #prepareEncoding(
-    rows: StreamRows, options: ResolvedOptions, version: FrameVersion, call: DiagnosticCollector,
-    replacement?: { table: Table; valid: boolean },
-  ): Candidate<F> {
-    const base = this.current;
-    checkVersion(base, version);
-    const table = rows.table();
-    const resolved = retargetOptions(options, replacement?.table ?? table, call, replacement?.valid);
-    const { result, storage } = this.#buildStorage(rows, table, resolved, version, call);
+  protected override encode(base: F, rows: StreamRows, resolved: ResolvedOptions, options: ResolvedOptions,
+    version: FrameVersion, call: DiagnosticCollector, replacement: boolean): Candidate<F> {
+    // Some replacements validate the caller's columns but publish values through the new store's source rows.
+    const input = replacement ? { ...resolved, table: rows.table() } : resolved;
+    const { result, storage } = this.#buildStorage(rows, input, version, call);
     const diagnostics = call.inputs();
-    return this.#prepare(base, result.frame, rows, storage, diagnostics, diagnostics, [], options, replacement !== undefined);
+    return this.#prepare(base, result.frame, rows, storage, diagnostics, diagnostics, options, replacement);
   }
 
   #prepare(
     base: F, frame: F, rows: StreamRows, storage: Storage<F> | null,
     diagnostics: readonly DiagnosticInput[], callDiagnostics: readonly DiagnosticInput[],
-    evicted: readonly number[], options = this.#encoding, replacement = false,
+    options = this.#encoding, replacement = false,
   ): Candidate<F> {
     const candidate = this.preview(base, storage?.frame(frame) ?? frame, rows, diagnostics, callDiagnostics, () => {
-      this.commitRows(rows, evicted, replacement);
+      this.commitRows(rows, replacement);
       storage?.commit?.();
       this.#storage = storage;
       if (options !== this.#encoding) this.#encoding = withoutTable(options);
     });
-    return { ...candidate, abort: candidate.commit.abort };
+    return Object.assign(candidate, { abort: candidate.commit.abort });
   }
   static {
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras = () => {
@@ -450,9 +387,7 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
         prepared.commit();
         return prepared.frame;
       };
-      installEncodingExtras<PointFrame | DonutFrame, Store>(proto, function (rows, options, version, call, replacement) {
-        return this.#prepareEncoding(rows, options, version, call, replacement);
-      });
+      installEncodingExtras<PointFrame | DonutFrame, Store>(proto);
     };
   }
 }

@@ -240,8 +240,7 @@ class SampleWindow implements Storage<AlignedFrame> {
   ) {}
 
   extend(next: Result<AlignedFrame>, rows: StreamRows, _first: number, keep?: number): SampleWindow {
-    const values = this.values.fork();
-    values.append(next.positions);
+    const values = this.values.extend(next.positions);
     if (keep !== undefined) values.drop(dropOldSamples(rows, keep));
     // The store has validated both partitions before taking this path.
     const combined = histogramFrame(this.options, values.view(), { add() {} }, next.frame);
@@ -256,5 +255,5 @@ export function openHistogramStore(frame: Frame, source: ResolvedOptions, _data:
     const samples = samplesOf(options, sink);
     return { frame: histogramFrame(options, samples, sink, version),
       positions: samples instanceof Float64Array ? samples : Float64Array.from(samples), order: null };
-  }, (result, options) => !options.valid || options.normalize === 'density' ? null : new SampleWindow(new Column(n => new Float64Array(n), result.positions), options), source, env, frame, undefined, resolveOptions);
+  }, (result, options) => !options.valid || options.normalize === 'density' ? null : new SampleWindow(new Column(result.positions), options), source, env, frame, undefined, resolveOptions);
 }

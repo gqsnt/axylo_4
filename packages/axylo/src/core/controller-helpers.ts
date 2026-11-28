@@ -1,10 +1,10 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE,
-  type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type PaintBindings,
-  type ReaderModel, type ResolvedTheme, type View,
+  type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup,
+  type ReaderModel, type View,
 } from './contracts';
 import type { Messages, Point, XValue } from '../public';
-import type { ChartType, ResolvedOptions } from '../data/options';
+import type { ResolvedOptions } from '../data/options';
 import type { Table } from '../data/table';
 import type { FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
@@ -14,30 +14,15 @@ import { createDiagnostic } from '../diagnostics';
 import { resolveMessages } from '../messages';
 import { seriesNotDrawnSentence } from '../reader';
 import type { FigureModel } from '../dom/figure';
-import type { Committed, ControlsState } from '../dom/interaction';
-import type { Composition } from './composition';
+import { sameEntry, type Composition } from './composition';
 import { sameValue, type OptionRecord } from './options';
-import { isCompact, object, stringOption, type Span } from './stages';
-import type { Accepted, Disclosure, Display, Drawn, Held, PresentationStage, ReadoutMode, StreamSessionHandle } from './controller-types';
-import { builtIn, EMPTY_DIAGNOSTICS, READY, READER_INPUTS, sameEntry, type FrameState } from './frame-state';
+import { object, stringOption, type Span } from './stages';
+import type { Accepted, Disclosure, Display, Drawn, Held, PresentationStage, StreamSessionHandle } from './controller-types';
+import { builtIn, EMPTY_DIAGNOSTICS, INHERIT_LANGUAGE, READY, type FrameState } from './frame-state';
 
 /** AX100 and AX101 describe the supplied data, so they stay with the call that set it. */
 export const dataFindings = (list: readonly DiagnosticInput[], data: boolean): DiagnosticInput[] =>
   list.filter(d => (d.code === 'AX100' || d.code === 'AX101') === data);
-
-/**
- * Reader inputs equal apart from the naming ones (sameKey's rule, without filtered copies). The view comes
- * first so a new streaming view ends the comparison early. The title, labelledBy, caption and count of
- * hidden labels do not affect the summary.
- */
-export function sameReading(a: readonly unknown[], b: readonly unknown[]): boolean {
-  if (a.length !== b.length || !Object.is(a[0], b[0])) return false;
-  for (let i = 1; i < a.length; i++) {
-    if (i === 3 || i === 4 || i === 9 || i === 13) continue;
-    if (!sameEntry(a[i], b[i])) return false;
-  }
-  return true;
-}
 
 export function lazyLookup(
   composition: Composition, view: View, layout: Layout, formatters: Formatters, messages: Messages,
@@ -53,13 +38,11 @@ export function lazyLookup(
  * ISO date-time without offset for a wall-clock time, the category's name, else the number.
  */
 export function positionValue(frame: Frame, position: number): XValue {
-  if (frame.shape === 'donut') return position;
-  const kind = frame.shape === 'points' ? frame.xKind : frame.x.kind;
+  const kind = axisKind(frame);
   // A Date holds whole milliseconds: a position between them is given as the number zoom() reads the same
   // way, so an event's window can be passed on unchanged (final review, finding 12).
   if (kind === 'time') return Number.isInteger(position) ? new Date(position) : position;
-  if ((kind === 'date' || kind === 'wall') && Number.isFinite(position)) {
-    if (!Number.isInteger(position)) return position;
+  if ((kind === 'date' || kind === 'wall') && Number.isInteger(position)) {
     const iso = new Date(position).toISOString();
     // Only four-digit years read back as written; others stay positions.
     if (iso.length !== 24) return position;
@@ -73,17 +56,22 @@ export function positionValue(frame: Frame, position: number): XValue {
   return position;
 }
 
-/** Whether a window can be set on this frame's x axis: time, date and number axes only in 1.0 (spec I3). */
-export function zoomable(frame: Frame): boolean {
-  return frame.shape === 'points' || (frame.shape === 'aligned' && frame.x.kind !== 'category');
+export function positionWindow(frame: Frame, lo: number, hi: number): Span<XValue> {
+  return [positionValue(frame, lo), positionValue(frame, hi)];
 }
 
-export function isWall(frame: Frame): boolean {
-  return frame.shape === 'aligned' ? frame.x.kind === 'wall' : frame.shape === 'points' && frame.xKind === 'wall';
+export function axisKind(frame: Frame) {
+  return frame.shape === 'aligned' ? frame.x.kind : frame.shape === 'points' ? frame.xKind : undefined;
+}
+
+/** Time, date, wall-clock and number positions can be windowed (spec I3). */
+export function zoomable(frame: Frame): boolean {
+  const kind = axisKind(frame);
+  return kind !== undefined && kind !== 'category';
 }
 
 function latestX(frame: Frame): number {
-  if (frame.shape === 'aligned') return frame.x.values.length ? frame.x.values[frame.x.values.length - 1]! : NaN;
+  if (frame.shape === 'aligned') return frame.x.values[frame.x.values.length - 1] ?? NaN;
   if (frame.shape === 'points') {
     let latest = -Infinity;
     for (const s of frame.series) {
@@ -160,17 +148,11 @@ export function stateDiagnostics(a: Accepted, pending: Held = null): readonly Di
 }
 
 /** The window moved to end at the new latest x, keeping its width; null when it cannot follow. */
-function followLatest(frame: Frame, before: View): Span<XValue> | null {
-  if (before.kind === 'donut' || frame.shape === 'donut') return null;
-  if (frame.shape === 'aligned' && frame.x.kind === 'category') return null;
-  const span = before.xDomain[1] - before.xDomain[0];
-  const latest = latestX(frame);
-  if (!Number.isFinite(latest) || !Number.isFinite(span)) return null;
-  return [positionValue(frame, latest - span), positionValue(frame, latest)];
-}
-
 export function followingZoom(a: Accepted, frame: Frame): Span<XValue> | null {
-  return a.follow && a.zoom ? followLatest(frame, a.view) ?? a.zoom : a.zoom;
+  const view = a.view;
+  if (!a.follow || !a.zoom || view.kind === 'donut' || !zoomable(frame)) return a.zoom;
+  const width = view.xDomain[1] - view.xDomain[0], latest = latestX(frame);
+  return Number.isFinite(latest) && Number.isFinite(width) ? positionWindow(frame, latest - width, latest) : a.zoom;
 }
 
 export function canRecoverFields(a: Accepted): boolean {
@@ -181,7 +163,7 @@ export function canRecoverFields(a: Accepted): boolean {
 export function zoomPayload(a: Accepted): readonly [XValue, XValue] | null {
   const view = a.view;
   if (a.zoom === null || view.kind === 'donut') return null;
-  return [positionValue(a.frame, view.xDomain[0]), positionValue(a.frame, view.xDomain[1])];
+  return positionWindow(a.frame, view.xDomain[0], view.xDomain[1]);
 }
 
 /** Theme bindings per palette slot: series by index; donut slices by their colorIndex (DX6). */
@@ -198,7 +180,7 @@ export function sameSeriesKeys(view: Exclude<View, { kind: 'donut' }>, keys: rea
   return s.length === keys.length && keys.every((k, i) => s[i]!.key === k);
 }
 
-export function displayState(a: Accepted, diagnostics: readonly DiagnosticInput[], chartType: ChartType, failed: boolean): Display {
+export function displayState(a: Accepted, diagnostics: readonly DiagnosticInput[], compact: boolean, failed: boolean): Display {
   const m = a.messages;
   if (failed) return builtIn('internal', m, 'internalError');
   const state = a.options.state;
@@ -222,7 +204,7 @@ export function displayState(a: Accepted, diagnostics: readonly DiagnosticInput[
     // says which, as the summary does (spec 3.5).
     const undrawn = a.view.kind === 'donut' ? [] : a.view.frame.series.filter(s => !s.drawable);
     if (undrawn.length) {
-      const table = a.options.table !== false && !isCompact(chartType, a.options);
+      const table = a.options.table !== false && !compact;
       const text = undrawn.map(s => seriesNotDrawnSentence(m, s.label, table)).join(' ');
       return { kind: 'error', text, message: 'seriesNotDrawn' };
     }
@@ -241,31 +223,35 @@ export function englishMarker(source: unknown): (key: keyof Messages) => string 
 }
 
 export function buildFormatSpec(a: Accepted, locale: string, onFormatterError: (field: string) => void): FormatSpec {
-  const { frame, resolved } = a;
-  const valueFor = (field: string) => resolved.values.find(v => v.field === field) ?? resolved.values[0];
-  const messages = { noData: a.messages.noData, noObservation: a.messages.noObservation };
+  const { frame, resolved, messages } = a;
+  const { x, values } = resolved;
+  const value = values[0];
+  let axis: FormatSpec['x'], series: FormatSpec['series'];
   if (frame.shape === 'donut') {
-    const v = resolved.values[0];
-    return {
-      series: [{ field: v?.field ?? 'value', unit: frame.unit, scale: frame.valueScale, format: v?.format ?? null }],
-      x: { field: resolved.x.field, kind: 'category', unit: null, timeZone: null, dateUnit: null, categories: frame.labels },
-      locale, messages, onFormatterError,
+    axis = { field: x.field, kind: 'category', unit: null, timeZone: null, dateUnit: null, categories: frame.labels };
+    series = [{ field: value?.field ?? 'value', unit: frame.unit, scale: frame.valueScale, format: value?.format ?? null }];
+  } else {
+    const aligned = frame.shape === 'aligned';
+    axis = {
+      field: x.field, unit: x.unit, scale: x.scale, format: x.format as never,
+      kind: aligned ? frame.x.kind : frame.xKind,
+      timeZone: aligned ? frame.x.timeZone : frame.timeZone,
+      dateUnit: aligned ? frame.x.dateUnit : pointDateUnit(frame, x.field, a.stream),
+      categories: aligned ? frame.x.categories : null,
     };
+    series = aligned ? frame.series.map(s => ({
+      field: s.field, unit: s.unit, scale: s.valueScale,
+      format: (values.find(v => v.field === s.field) ?? value)?.format ?? null,
+    })) : frame.series.map(() => ({
+      field: value?.field ?? 'y', unit: frame.yUnit, scale: value?.scale ?? null, format: value?.format ?? null,
+    }));
   }
-  const x = frame.shape === 'aligned'
-    ? { kind: frame.x.kind, timeZone: frame.x.timeZone, dateUnit: frame.x.dateUnit, categories: frame.x.categories }
-    : { kind: frame.xKind, timeZone: frame.timeZone, dateUnit: pointDateUnit(frame, resolved.x.field, a.stream), categories: null };
-  const series = frame.shape === 'aligned'
-    ? frame.series.map(s => ({ field: s.field, unit: s.unit, scale: s.valueScale, format: valueFor(s.field)?.format ?? null }))
-    : frame.series.map(() => ({ field: resolved.values[0]?.field ?? 'y', unit: frame.yUnit, scale: resolved.values[0]?.scale ?? null, format: resolved.values[0]?.format ?? null }));
-  return {
-    series, x: { field: resolved.x.field, unit: resolved.x.unit, scale: resolved.x.scale, format: resolved.x.format as never, ...x },
-    locale, messages, onFormatterError,
-  };
+  return { series, x: axis, locale, messages, onFormatterError };
 }
 
 export function formattersKeyOf(spec: FormatSpec, valueCount: number): unknown[] {
-  const key: unknown[] = [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit, spec.x.scale,
+  const x = spec.x;
+  const key: unknown[] = [spec.locale, x.kind, x.timeZone, x.dateUnit, x.categories, x.format, x.unit, x.scale,
     spec.messages.noData, spec.messages.noObservation, valueCount];
   for (const series of spec.series) key.push(series.field, series.unit, series.scale, series.format);
   return key;
@@ -290,44 +276,54 @@ export function sameFormatInputs(before: Accepted, after: Accepted): boolean {
     a.labels === b.labels && a.unit === b.unit && a.valueScale === b.valueScale;
 }
 
+const NOTE_MESSAGES = ['valuesNotShown', 'valuesChanged', 'labelsHidden'] as const;
+
 function noteLangFor(f: FrameState, disclosure: Disclosure): string | null {
-  const labelsHidden = f.currentHidden;
-  if (disclosure.omitted === 0 && disclosure.changed === 0 && labelsHidden === 0) return null;
-  const a = f.a!;
+  if (!(disclosure.omitted || disclosure.changed || f.currentHidden)) return null;
   const english = f.english;
-  const shownKeys = [disclosure.omitted > 0 ? 'valuesNotShown' : null, disclosure.changed > 0 ? 'valuesChanged' : null,
-    labelsHidden > 0 ? 'labelsHidden' : null].filter((k): k is 'valuesNotShown' | 'valuesChanged' | 'labelsHidden' => k !== null);
-  const withTable = a.options.table !== false && !f.compact && shownKeys.some(k => a.messages[k].includes('{seeTable}'));
-  const keysList: (keyof Messages)[] = withTable ? [...shownKeys, 'seeTable'] : shownKeys;
-  return shownKeys.length > 0 && keysList.every(k => english(k)) ? 'en' : null;
+  const table = !f.compact && f.a!.options.table !== false;
+  let seeTable = false;
+  for (const key of NOTE_MESSAGES) {
+    const count = key === 'valuesNotShown' ? disclosure.omitted : key === 'valuesChanged' ? disclosure.changed : f.currentHidden;
+    if (count > 0) {
+      if (!english(key)) return null;
+      if (table && f.a!.messages[key].includes('{seeTable}')) seeTable = true;
+    }
+  }
+  return seeTable ? english('seeTable') : 'en';
 }
 
-/** The reader's inputs equal `k` (sameKey's rule), without making the array to compare. */
-export function readerInputsMatch(k: readonly unknown[], f: FrameState, labelsHidden: number, disclosure: Disclosure, tag?: unknown): boolean {
-  if (k.length !== READER_INPUTS) return false;
+/** A summary ignores the name, caption and hidden-label count. Exact hits also keep the reader and table. */
+export function readerInputsMatch(
+  k: readonly unknown[], f: FrameState, hidden: number, disclosure: Disclosure, tag: unknown, summary = false,
+): boolean {
   const a = f.a!, o = a.options;
-  return sameEntry(k[0], f.view) && sameEntry(k[1], f.formatters) && sameEntry(k[2], a.messages) &&
-    sameEntry(k[3], o.title) && sameEntry(k[4], f.named ? f.by : null) && sameEntry(k[5], o.subtitle) &&
-    sameEntry(k[6], o.description) && k[7] === disclosure.omitted && k[8] === disclosure.changed &&
-    k[9] === labelsHidden && k[10] === o.table && k[11] === f.compact && k[12] === f.locale &&
-    k[13] === f.caption && Object.is(k[14], tag);
+  if (k[0] !== f.view || k[1] !== f.formatters || k[2] !== a.messages || k[11] !== f.compact ||
+      k[12] !== f.locale || k[7] !== disclosure.omitted || k[8] !== disclosure.changed ||
+      !sameEntry(k[5], o.subtitle) || !sameEntry(k[6], o.description)) return false;
+  return summary ? sameEntry(k[10], o.table) && sameEntry(k[14], tag)
+    : k[10] === o.table && Object.is(k[14], tag) && k[9] === hidden && k[13] === f.caption &&
+      k[4] === f.by && sameEntry(k[3], o.title);
 }
 
-export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, disclosure: Disclosure): FigureModel {
+export function figureModelFor(f: FrameState, disclosure: Disclosure): FigureModel {
   const a = f.a!;
   const shown = f.shown;
   const compact = f.compact;
-  const named = f.named;
   const english = f.english;
-  const message = shown.kind === 'ready' ? null : shown.text;
-  const messageLang = message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null;
-  const note = f.noteShown ? r.note : null;
-  const noteLang = f.foreignPage ? noteLangFor(f, disclosure) : null;
+  const r = f.settled!.reader;
+  const ready = shown.kind === 'ready';
+  const message = ready ? null : shown.text;
+  const messageLang = !ready && shown.message ? english(shown.message) : null;
+  const note = shown.kind === 'internal' || shown.kind === 'loading' ? null : r.note;
+  const foreign = english !== INHERIT_LANGUAGE;
+  const noteLang = foreign ? noteLangFor(f, disclosure) : null;
   // The reader already marked its English runs. On an English page the whole note inherits one language.
-  const noteSegments = f.foreignPage && note !== null
+  const noteSegments = foreign && note !== null
     ? (r as ReaderModel & Pick<FigureModel, 'noteSegments'>).noteSegments ?? [{ text: note, lang: noteLang }]
     : null;
-  const compactErrorNote = compact && message !== null && shown.kind !== 'ready' && shown.kind !== 'empty' && note !== null;
+  const stateMessage = !ready && shown.kind !== 'empty';
+  const compactErrorNote = compact && stateMessage && note !== null;
   // A compact chart is one image: its description says what state it is in (C1).
   // Loading and error are not empty (documentation findings 1 and 3): their description is the state, not
   // a reading of data the plot does not show.
@@ -339,64 +335,19 @@ export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, di
     ? [{ text: `${message} `, lang: messageLang }, ...noteSegments]
     : null;
   return {
-    compact, title: named ? null : f.title, labelledBy: named ? f.by : null, name: r.name || a.name,
+    compact, title: f.by ? null : f.title, labelledBy: f.by, name: r.name || a.name,
     subtitle: stringOption(a.options, 'subtitle'), summary,
-    summaryVisible: small, note, message,
+    summaryVisible: f.tooSmall, note, message,
     messageLang,
     noteLang,
     // The reader's runs, each in its own language (reader review, finding 5); English is marked only on a
     // page in another language (A10).
     noteSegments,
     // The generated summary's sentences are the built-in templates; the names in them do not change that.
-    summaryLang: message !== null && shown.kind !== 'ready' && shown.kind !== 'empty'
-      ? (shown.message && english(shown.message) ? 'en' : null)
+    summaryLang: stateMessage ? messageLang
       : english('chartSummary') && english('seriesSummary') ? 'en' : null,
     summarySegments,
   };
-}
-
-export function controlsStateFor(
-  f: FrameState, r: ReaderModel, small: boolean, kind: ChartType, streaming: boolean, paused: boolean,
-  readout: boolean, readoutMode: ReadoutMode,
-): ControlsState {
-  const a = f.a!;
-  const shown = f.shown;
-  return {
-    kind, view: f.view, formatters: f.formatters, messages: a.messages, reader: r, tooSmall: small,
-    ready: shown.kind === 'ready', interactive: !f.compact, tooltip: a.options.tooltip !== false, legend: f.legend,
-    // Series that could not be drawn are still rows: the table their sentence points to is offered.
-    inspectable: (shown.kind === 'empty' || (shown.kind === 'error' && shown.message === 'seriesNotDrawn')) &&
-      (r.table?.rowCount ?? 0) > 0,
-    empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
-    zoom: f.zoomOn, zoomed: f.zoomed, streaming, paused, epoch: a.frame.epoch, english: f.english, pageLang: f.lang, readout,
-    // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'.
-    readoutMode,
-  };
-}
-
-/** The controls state with what the frame drew, in one object (the controls' keys first, as before). */
-export function committedStateFor(
-  f: FrameState, r: ReaderModel, small: boolean, layout: Layout, lookup: Lookup, ratio: number,
-  kind: ChartType, streaming: boolean, paused: boolean, readout: boolean, readoutMode: ReadoutMode,
-  bindings: PaintBindings, theme: ResolvedTheme,
-): Committed {
-  const a = f.a!;
-  const shown = f.shown;
-  return {
-    kind, view: f.view, formatters: f.formatters, messages: a.messages, reader: r, tooSmall: small,
-    ready: shown.kind === 'ready', interactive: !f.compact, tooltip: a.options.tooltip !== false, legend: f.legend,
-    inspectable: (shown.kind === 'empty' || (shown.kind === 'error' && shown.message === 'seriesNotDrawn')) &&
-      (r.table?.rowCount ?? 0) > 0,
-    empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
-    zoom: f.zoomOn, zoomed: f.zoomed, streaming, paused, epoch: a.frame.epoch, english: f.english, pageLang: f.lang, readout,
-    readoutMode,
-    layout, lookup, bindings, theme, pixelRatio: ratio,
-  };
-}
-
-export function readyText(a: Accepted, reader: ReaderModel, byText: string | null): string {
-  if (reader.name) return reader.name;
-  return byText?.trim() || a.name;
 }
 
 /** The public description of a datum, for `hover` and `select`, from the displayed revision. */
@@ -512,21 +463,26 @@ export function isTable(source: unknown): source is Table {
  */
 export function hasData(view: View, hidden = false): boolean {
   if (view.kind === 'donut') return view.slices.some(s => s.angles !== null);
-  const shown = (i: number) => view.visible[i] || (hidden && view.frame.series[i]!.drawable);
-  if (view.kind === 'scatter') {
-    return view.frame.series.some((_, i) => shown(i) && view.visiblePoints[i]!.end > view.visiblePoints[i]!.start);
+  for (let i = 0; i < view.frame.series.length; i++) {
+    if (!view.visible[i] && !(hidden && view.frame.series[i]!.drawable)) continue;
+    if (view.kind === 'scatter') {
+      const { start, end } = view.visiblePoints[i]!;
+      if (end > start) return true;
+      continue;
+    }
+    const series = view.frame.series[i]!, { start, end } = view.drawSlots[i] ?? view.visibleSlots;
+    const more = repeatsOf(series);
+    if (more && more.start[end]! > more.start[start]!) return true;
+    const slots = seriesSlots(series);
+    if (!slots) {
+      if (end > start) return true;
+    } else {
+      // A missing bar still has its no-data glyph at the baseline (spec F2).
+      for (let j = start; j < end; j++) {
+        const state = slots[j];
+        if (state === SLOT_VALUE || (view.kind === 'bar' && state !== SLOT_NO_ROW)) return true;
+      }
+    }
   }
-  // A bar with no value is still drawn: its "no data" glyph at the baseline (spec F2; finding 18).
-  const drawable = (state: number) => state === SLOT_VALUE || (view.kind === 'bar' && state !== SLOT_NO_ROW);
-  return view.frame.series.some((s, i) => {
-    if (!shown(i)) return false;
-    const { start, end } = view.drawSlots[i] ?? view.visibleSlots, more = repeatsOf(s);
-    // A scatter's repeated rows (cartesian/repeats.ts) are values only, so one in the draw range counts as a
-    // slot's own value there does. Without repeats both sides are undefined, which compares false.
-    if (more?.start[end]! > more?.start[start]!) return true;
-    const slots = seriesSlots(s);
-    if (!slots) return end > start;
-    for (let j = start; j < end; j++) if (drawable(slots[j]!)) return true;
-    return false;
-  });
+  return false;
 }

@@ -51,15 +51,16 @@ export interface Composition {
   readonly svg: SvgMarks;
 }
 
+/** One position of sameKey's rule: the same value, or arrays with the same entries. */
+export function sameEntry(x: unknown, y: unknown): boolean {
+  if (Object.is(x, y)) return true;
+  return Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => v === y[k]);
+}
+
 export function sameKey(a: readonly unknown[] | null, b: readonly unknown[]): boolean {
   if (a === null || a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    const x = a[i];
-    const y = b[i];
-    if (Object.is(x, y)) continue;
-    // Categories are compared by content: a renormalized frame has a new array with the same names.
-    if (Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => v === y[k])) continue;
-    return false;
+    if (!sameEntry(a[i], b[i])) return false;
   }
   return true;
 }

@@ -2,727 +2,667 @@
  * Theme resolution (spec L4, DX6, A5): decides light or dark for a chart root, and turns paints into both
  * CSS expressions for the live SVG renderer and concrete colors for contrast checks. Standard paints come
  * from the verified palette. The browser resolves custom paints through probe elements.
- *
- * The chart paints no background unless the author sets `--axylo-background`: marks sit on whatever is
- * behind the chart. So the background used for checks is the effective opaque backdrop, found by walking up
- * from the chart and compositing computed background colors; with `--axylo-background` it is that color
- * (composited over the backdrop), which SVG then also paints. What is measured is what is drawn.
  */
-import type { PaintBindings, PaintToken, ResolvedTheme } from '../core/contracts';
-import { composedParent } from '../core/environment';
-import { composite, isLightColor, lowContrastSeries, parseColor, type Rgba } from './color';
-import { DARK, LIGHT, SERIES_COUNT } from './palette';
+import type { PaintBindings, PaintToken, ResolvedTheme } from "../core/contracts";
+import { composedParent } from "../core/environment";
+import { composite, isLightColor, lowContrastSeries, parseColor, WHITE, type Rgba } from "./color";
+import { DARK, LIGHT, SERIES_COUNT } from "./palette";
 
 export interface ThemeResolution {
   readonly bindings: PaintBindings;
   readonly theme: ResolvedTheme;
-  /**
-   * false when the element is not connected to a document: nothing could be computed, the paints are the
-   * light defaults, and the caller should resolve again once the chart is attached.
-   */
   readonly resolved?: boolean;
-  /**
-   * false when the backdrop behind the chart could not be determined (a background image on the way up):
-   * `theme.paints.tokens.background` is then a guess, and the caller should skip the AX141 check.
-   */
   readonly backdropKnown?: boolean;
-  /** Series keys whose author color the browser does not accept as a color; they use their palette slot. */
   readonly invalidColors?: readonly string[];
-  /** Series below 3:1 when the standard palette supplied all concrete paints. */
   readonly lowContrast?: readonly number[];
 }
 
-const STANDARD_TOKENS = ['axis', 'grid', 'reference', 'muted', 'focus'] as const;
-const TOKENS = ['axis', 'grid', 'reference', 'muted', 'focus', 'text'] as const;
+const STD_TOKENS = ["axis", "grid", "reference", "muted", "focus"] as const;
+const TOKENS = ["axis", "grid", "reference", "muted", "focus", "text"] as const;
+const SCHEME_ATTR = "data-axylo-scheme";
+const BG_PROP = "--axylo-background";
+const BACKDROP_PROP = "--axylo-backdrop";
+const M_FORCED = "(forced-colors: active)";
+const M_CONTRAST = "(prefers-contrast: more)";
+const M_DARK = "(prefers-color-scheme: dark)";
+const NONE: readonly never[] = [];
+const CLEAR_LAYER: BackdropLayer = { c: null, i: false };
 
-/**
- * CSS expressions for the token paints. Each public name (which an author may set anywhere, including
- * `:root`) falls back to a private default from the stylesheet.
- */
-// Readonly by type; not frozen at run time, since a call at import time keeps a bundler from dropping the module.
 export const TOKEN_BINDINGS: Readonly<Record<PaintToken, string>> = {
-  axis: 'var(--axylo-axis, var(--axylo-default-axis))',
-  grid: 'var(--axylo-grid, var(--axylo-default-grid))',
-  reference: 'var(--axylo-reference, var(--axylo-default-reference))',
-  muted: 'var(--axylo-muted, var(--axylo-default-muted))',
-  focus: 'var(--axylo-focus, var(--axylo-default-focus))',
-  // The author's background if any; else the backdrop resolveTheme found (set on the chart root).
-  background: 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))',
-  // The chart inherits the page's text color unless the author sets --axylo-text (spec DX6).
-  text: 'var(--axylo-text, currentColor)',
+  axis: "var(--axylo-axis, var(--axylo-default-axis))",
+  grid: "var(--axylo-grid, var(--axylo-default-grid))",
+  reference: "var(--axylo-reference, var(--axylo-default-reference))",
+  muted: "var(--axylo-muted, var(--axylo-default-muted))",
+  focus: "var(--axylo-focus, var(--axylo-default-focus))",
+  background: "var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))",
+  text: "var(--axylo-text, currentColor)",
 };
 
-/** The palette slot for a series index, as a CSS expression. */
-export const seriesBinding = (index: number): string => {
-  const slot = index % SERIES_COUNT;
-  // One string per palette slot: every chart writes and compares the same ones.
-  return slotBindings[slot] ??= `var(--axylo-series-${slot + 1}, var(--axylo-default-series-${slot + 1}))`;
-};
 const slotBindings: (string | undefined)[] = [];
+export const seriesBinding = (index: number): string => {
+  const s = index % SERIES_COUNT;
+  return (slotBindings[s] ??= `var(--axylo-series-${s + 1}, var(--axylo-default-series-${s + 1}))`);
+};
 
-/**
- * Name of the custom property, set on the chart root, that carries series `index`'s color. Marks reference
- * it rather than the color itself, so the color can change (an author's `var(--brand)`, forced colors on or
- * off) with no draw call.
- */
+const seriesProps: (string | undefined)[] = [];
 export const seriesProperty = (index: number): string =>
-  index < PROPERTY_CACHE_LIMIT ? seriesProperties[index] ??= `--axylo-series-color-${index + 1}` : `--axylo-series-color-${index + 1}`;
-/** The series property names written and read on every theme pass, made once each. */
-const seriesProperties: (string | undefined)[] = [];
-const PROPERTY_CACHE_LIMIT = 256;
-
-/**
- * An author color as the value of its series property. `--axylo-forced-series` is unset except under forced
- * colors, where the stylesheet sets it to a system color: the author's color then steps aside, and comes back
- * when forced colors ends, with no draw call (review finding 6).
- */
-const authorBinding = (expression: string): string => `var(--axylo-forced-series, ${expression})`;
+  index < 256
+    ? (seriesProps[index] ??= `--axylo-series-color-${index + 1}`)
+    : `--axylo-series-color-${index + 1}`;
 
 const paletteCache: Record<string, string> = {};
-const paletteRgb = (hex: string): string => paletteCache[hex] ??= rgbText(parseColor(hex)!);
+const rgbText = (c: Rgba): string =>
+  `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;
+const paletteRgb = (hex: string): string => (paletteCache[hex] ??= rgbText(parseColor(hex)!));
 
-function paintValues(light: string, dark: string) {
-  return { light, dark, follows: `light-dark(${light}, ${dark})` };
-}
+let standardTokens:
+  | { name: (typeof STD_TOKENS)[number]; property: string; fallback: string; follows: string }[]
+  | undefined;
+const lightDark = (light: string, dark: string) => `light-dark(${light}, ${dark})`;
+let followsSeries: string[] | undefined;
 
-function standardPaints() {
-  return {
-    tokens: STANDARD_TOKENS.map(name => ({
-      name, property: `--axylo-${name}`, fallback: `--axylo-default-${name}`,
-      values: paintValues(LIGHT[name], DARK[name]),
-    })),
-    series: LIGHT.series.map((light, i) => paintValues(light, DARK.series[i]!)),
-  };
-}
-
-let standard: ReturnType<typeof standardPaints> | undefined;
-
-/** Cached Canvas system color per document when forced-colors is off (keyed by colorScheme + prefersDark). */
 const canvasCache = new WeakMap<Document, Map<string, Rgba | null>>();
+const written = new WeakMap<Element, number>();
+const probes = new WeakMap<Document, { b: HTMLElement; c: HTMLElement[]; p: HTMLElement[] }>();
+let paintBindings: Map<number, PaintBindings> | undefined;
 
-export interface ThemeBatch {
-  readonly forcedColors: boolean;
-  readonly moreContrast: boolean;
-  readonly prefersDark: boolean;
-  readonly backdrops: WeakMap<Element, Backdrop>;
-  readonly ancestorLayers: WeakMap<Element, BackdropLayer>;
-  readonly canvas: Map<string, Rgba | null>;
-  /** The last standard paint result of this batch (see `standardResolution`). */
-  last?: ThemeResolution | null;
-}
-
-const MEDIA_FORCED = '(forced-colors: active)';
-const MEDIA_CONTRAST = '(prefers-contrast: more)';
-const MEDIA_DARK = '(prefers-color-scheme: dark)';
 const media = (win: Window, query: string) => win.matchMedia(query).matches;
 
-/** `media`: the live media state when the window's theme watchers already hold it (no new queries). */
+export interface ThemeBatch {
+  readonly f: boolean;
+  readonly m: boolean;
+  readonly d: boolean;
+  readonly b: WeakMap<Element, Backdrop>;
+  readonly a: WeakMap<Element, BackdropLayer>;
+  readonly c: Map<string, Rgba | null>;
+  l?: ThemeResolution | null;
+}
+
 export function createThemeBatch(
-  win: Window, cached?: { readonly forcedColors: boolean; readonly moreContrast: boolean; readonly prefersDark: boolean } | null,
+  win: Window,
+  cached?: {
+    readonly forcedColors: boolean;
+    readonly moreContrast: boolean;
+    readonly prefersDark: boolean;
+  } | null,
 ): ThemeBatch {
   return {
-    forcedColors: cached ? cached.forcedColors : media(win, MEDIA_FORCED),
-    moreContrast: cached ? cached.moreContrast : media(win, MEDIA_CONTRAST),
-    prefersDark: cached ? cached.prefersDark : media(win, MEDIA_DARK),
-    backdrops: new WeakMap(),
-    ancestorLayers: new WeakMap(),
-    canvas: new Map(),
-    last: null,
+    f: cached ? cached.forcedColors : media(win, M_FORCED),
+    m: cached ? cached.moreContrast : media(win, M_CONTRAST),
+    d: cached ? cached.prefersDark : media(win, M_DARK),
+    b: new WeakMap(),
+    a: new WeakMap(),
+    c: new Map(),
+    l: null,
   };
 }
 
-/**
- * The paint bindings for a number of palette slots: the same expressions every time (an author's colors are
- * written as the custom properties they name), so one bindings object per count, shared by every chart that
- * keeps it with its resolved theme.
- */
-let paintBindings: Map<number, PaintBindings> | undefined;
-const SERIES_BINDING_LIMIT = 64;
-
 function bindingsFor(count: number): PaintBindings {
-  const cache = paintBindings ??= new Map();
-  let bindings = cache.get(count);
-  if (bindings) return bindings;
-  const series = new Array<string>(count);
-  for (let i = 0; i < count; i++) series[i] = `var(${seriesProperty(i)})`;
-  bindings = { tokens: TOKEN_BINDINGS, series };
-  if (cache.size >= SERIES_BINDING_LIMIT) cache.delete(cache.keys().next().value!);
-  cache.set(count, bindings);
-  return bindings;
-}
-
-/** Validated palettes can share their empty invalid-color and contrast lists. */
-const NONE: readonly never[] = [];
-
-function canvasKey(win: Window, scheme: string, batch?: ThemeBatch | null): string {
-  const dark = batch?.prefersDark ?? media(win, MEDIA_DARK);
-  return `${scheme}|${dark ? '1' : '0'}`;
-}
-
-// A cached null records an unavailable Canvas color, while undefined still needs a probe.
-function readCachedCanvas(
-  doc: Document, win: Window, scheme: string, forcedColors: boolean, batch?: ThemeBatch | null,
-): Rgba | null | undefined {
-  const shared = batch?.canvas.get(scheme);
-  if (shared !== undefined) return shared;
-  if (forcedColors) return;
-  const key = canvasKey(win, scheme, batch);
-  const value = canvasCache.get(doc)?.get(key);
-  if (value !== undefined) batch?.canvas.set(scheme, value);
-  return value;
-}
-
-function resolveSystemCanvas(
-  element: Element,
-  win: Window,
-  colorScheme: string,
-  forcedColors: boolean,
-  batch?: ThemeBatch | null,
-): Rgba | null {
-  const doc = element.ownerDocument;
-  const cached = readCachedCanvas(doc, win, colorScheme, forcedColors, batch);
-  if (cached !== undefined) return cached;
-  const value = parseColor(probeColors(element, ['Canvas'])[0]!);
-  if (!forcedColors) {
-    const cacheKey = canvasKey(win, colorScheme, batch);
-    let docMap = canvasCache.get(doc);
-    if (!docMap) canvasCache.set(doc, docMap = new Map());
-    else if (docMap.size >= 32) docMap.clear();
-    docMap.set(cacheKey, value);
+  const cache = (paintBindings ??= new Map());
+  let b = cache.get(count);
+  if (!b) {
+    const series = new Array<string>(count);
+    for (let i = 0; i < count; i++) series[i] = `var(${seriesProperty(i)})`;
+    b = { tokens: TOKEN_BINDINGS, series };
+    if (cache.size >= 64) cache.delete(cache.keys().next().value!);
+    cache.set(count, b);
   }
-  batch?.canvas.set(colorScheme, value);
+  return b;
+}
+
+function getCanvas(
+  el: Element,
+  win: Window,
+  scheme: string,
+  forced: boolean,
+  batch: ThemeBatch | null | undefined,
+  probe: boolean,
+): Rgba | null | undefined {
+  const doc = el.ownerDocument;
+  const shared = batch?.c.get(scheme);
+  if (shared !== undefined) return shared;
+  let key = "";
+  if (!forced) {
+    key = `${scheme}|${(batch?.d ?? media(win, M_DARK)) ? 1 : 0}`;
+    const cached = canvasCache.get(doc)?.get(key);
+    if (cached !== undefined) {
+      batch?.c.set(scheme, cached);
+      return cached;
+    }
+  }
+  if (!probe) return undefined;
+  const value = parseColor(probeColors(el, ["Canvas"])[0]!);
+  if (!forced) {
+    let map = canvasCache.get(doc);
+    if (!map) canvasCache.set(doc, (map = new Map()));
+    else if (map.size >= 32) map.clear();
+    map.set(key, value);
+  }
+  batch?.c.set(scheme, value);
   return value;
 }
 
-/** Series property counts already written per root, so stale ones are removed when series go away. */
-const written = new WeakMap<Element, number>();
-
-interface Backdrop { readonly color: Rgba; readonly known: boolean; readonly rgb: string }
-
+interface Backdrop {
+  readonly c: Rgba;
+  readonly k: boolean;
+  readonly r: string;
+}
 interface BackdropLayer {
-  readonly color: Rgba | null;
-  readonly image: boolean;
-  readonly rootScheme?: string;
+  readonly c: Rgba | null;
+  readonly i: boolean;
+  readonly s?: string;
 }
-
-interface AncestorLayer {
-  readonly node: Element;
-  readonly layer: BackdropLayer;
-}
-
 interface PendingBackdrop {
-  readonly own: BackdropLayer;
-  readonly ancestors: readonly AncestorLayer[];
-  readonly rootColorScheme: string;
+  readonly o: BackdropLayer;
+  readonly a: readonly [Element, BackdropLayer][];
+  readonly s: string;
 }
 
 export interface PreparedTheme {
   readonly el: HTMLElement;
-  readonly doc: Document;
-  readonly win: Window | null;
-  readonly on: boolean;
-  readonly fc: boolean;
-  readonly mc: boolean;
-  readonly keys: readonly string[];
-  readonly own: readonly (string | null)[] | null;
-  readonly custom: boolean;
-  readonly bindings: PaintBindings;
-  readonly prev: string | null;
-  readonly css: CSSStyleDeclaration | undefined;
-  readonly batch: ThemeBatch | null;
-  /** Bit 0 allows light, bit 1 allows dark. */
-  modes: number;
-  bgExpr: string;
-  initialBg: string;
-  invalid: readonly string[];
-  backdrop: Backdrop | null;
-  pending: PendingBackdrop | null;
-  ready: boolean;
-  checked: boolean;
+  readonly f: boolean;
+  readonly m: boolean;
+  readonly k: readonly string[];
+  readonly a: readonly (string | null)[] | null;
+  readonly b: PaintBindings;
+  readonly p: string | null;
+  readonly s: CSSStyleDeclaration | undefined;
+  readonly h: ThemeBatch | null;
+  x: number;
+  g: string;
+  i: string;
+  v: readonly string[];
+  c: Backdrop | null;
+  q: PendingBackdrop | null;
+  r: boolean;
+  y: boolean;
   later: string | null;
-  scheme: 'light' | 'dark';
-  follows: boolean;
-  bg: string;
-  known: boolean;
-  std: boolean;
+  l: "light" | "dark";
+  n: boolean;
+  z: string;
+  kn: boolean;
+  t: boolean;
 }
 
-/**
- * Pure read-only phase of theme resolution: inspects computed style, cached backdrop and scheme without
- * writing inline custom properties, attributes, or probe elements to the DOM. Any work requiring DOM
- * probes (`validColors`, uncached `Canvas`, `--axylo-background`) is deferred to `applyTheme` / `probeTheme`.
- */
+let lastScheme = "normal",
+  lastModes = 0;
+
 export function prepareTheme(
-  element: HTMLElement,
+  el: HTMLElement,
   seriesKeys: readonly string[],
   colors?: Readonly<Record<string, string>> | null,
   batch?: ThemeBatch | null,
 ): PreparedTheme {
-  const doc = element.ownerDocument;
-  const win = doc.defaultView;
-  const connected = win !== null && element.isConnected;
-  const forcedColors = connected && (batch ? batch.forcedColors : media(win, MEDIA_FORCED));
-  const moreContrast = connected && (batch ? batch.moreContrast : media(win, MEDIA_CONTRAST));
-  let authored: (string | null)[] | null = null;
+  const d = el.ownerDocument,
+    w = d.defaultView,
+    o = w !== null && el.isConnected;
+  const f = o && (batch ? batch.f : media(w, M_FORCED));
+  const m = o && (batch ? batch.m : media(w, M_CONTRAST));
+  let a: (string | null)[] | null = null;
   if (colors) {
     for (let i = 0; i < seriesKeys.length; i++) {
-      const key = seriesKeys[i]!;
-      if (!Object.hasOwn(colors, key)) continue;
-      const value = colors[key]?.trim();
-      if (value) (authored ??= new Array<string | null>(seriesKeys.length).fill(null))[i] = value;
+      const key = seriesKeys[i]!,
+        val = Object.hasOwn(colors, key) ? colors[key]?.trim() : "";
+      if (val) (a ??= new Array<string | null>(seriesKeys.length).fill(null))[i] = val;
     }
   }
-  const hasAuthored = connected && authored !== null;
-  const previous = element.getAttribute(SCHEME_ATTRIBUTE);
-  const prepared: PreparedTheme = {
-    el: element, doc, win, on: connected, fc: forcedColors, mc: moreContrast, keys: seriesKeys, own: authored, custom: hasAuthored,
-    bindings: bindingsFor(seriesKeys.length), prev: previous,
-    css: connected ? win.getComputedStyle(element) : undefined, batch: batch ?? null,
-    initialBg: '', bgExpr: '', modes: 0,
-    invalid: NONE, backdrop: null, pending: null,
-    ready: !connected, checked: false, later: null,
-    scheme: previous === 'dark' ? 'dark' : 'light', follows: false,
-    bg: paletteRgb(LIGHT.background), known: false,
-    std: !forcedColors && !moreContrast && !hasAuthored,
+  const p = el.getAttribute(SCHEME_ATTR),
+    s = o ? w.getComputedStyle(el) : undefined;
+  const prep: PreparedTheme = {
+    el,
+    f,
+    m,
+    k: seriesKeys,
+    a,
+    b: bindingsFor(seriesKeys.length),
+    p,
+    s,
+    h: batch ?? null,
+    i: "",
+    g: "",
+    x: 0,
+    v: NONE,
+    c: null,
+    q: null,
+    r: !o,
+    y: false,
+    later: null,
+    l: p === "dark" ? "dark" : "light",
+    n: false,
+    z: paletteRgb(LIGHT.background),
+    kn: false,
+    t: !f && !m && !(o && a !== null),
   };
-  const style = prepared.css;
-  if (style) {
-    prepared.initialBg = style.backgroundColor;
-    collectBackdrop(prepared);
-    prepared.bgExpr = style.getPropertyValue(BACKGROUND_PROPERTY).trim();
-    const colorScheme = style.colorScheme;
-    prepared.modes = schemeModes(colorScheme);
-    // Cold Canvas and custom backgrounds must wait until the probe phase.
-    if (prepared.backdrop && !prepared.bgExpr) {
-      const canvas = prepared.modes === 3
-        ? readCachedCanvas(doc, win!, colorScheme, forcedColors, batch) : null;
-      // Nothing was written since colorScheme was read: the same value serves the decision.
-      if (canvas !== undefined) decideScheme(prepared, canvas, undefined, colorScheme);
+  if (s) {
+    prep.i = s.backgroundColor;
+    collectBackdrop(prep);
+    prep.g = s.getPropertyValue(BG_PROP).trim();
+    const cs = s.colorScheme;
+    if (cs !== lastScheme) {
+      const parts = cs === "normal" ? [] : cs.split(/\s+/);
+      lastModes = +parts.includes("light") + 2 * +parts.includes("dark");
+      lastScheme = cs;
+    }
+    prep.x = lastModes;
+    if (prep.c && !prep.g) {
+      const canvas = prep.x === 3 ? getCanvas(el, w!, cs, f, batch, false) : null;
+      if (canvas !== undefined) decideScheme(prep, canvas, undefined, cs);
     }
   }
-  return prepared;
+  return prep;
 }
 
-/**
- * The schemes a computed color-scheme allows: bit 0 light, bit 1 dark. The tiles of a page share one value,
- * so the last one is kept rather than split again per chart.
- */
-let lastColorScheme = 'normal';
-let lastModes = 0;
-
-function schemeModes(colorScheme: string): number {
-  if (colorScheme !== lastColorScheme) {
-    const schemes = colorScheme === 'normal' ? [] : colorScheme.split(/\s+/);
-    lastModes = Number(schemes.includes('light')) + 2 * Number(schemes.includes('dark'));
-    lastColorScheme = colorScheme;
-  }
-  return lastModes;
-}
-
-const SCHEME_ATTRIBUTE = 'data-axylo-scheme';
-const BACKGROUND_PROPERTY = '--axylo-background';
-const BACKDROP_PROPERTY = '--axylo-backdrop';
-
-/** `colorScheme`: the computed color-scheme when the caller read it with no write since; else it is read here. */
-function decideScheme(p: PreparedTheme, schemeColor: Rgba | null, override?: Rgba, colorScheme?: string): void {
-  const { css: style, modes: allowed, backdrop } = p;
-  const fixed = allowed === 1 || allowed === 2;
-  if (schemeColor) p.scheme = isLightColor(schemeColor) ? 'light' : 'dark';
-  else if (fixed) p.scheme = allowed === 1 ? 'light' : 'dark';
+function decideScheme(
+  p: PreparedTheme,
+  schemeColor: Rgba | null,
+  override?: Rgba,
+  cs?: string,
+): void {
+  const fixed = p.x === 1 || p.x === 2;
+  if (schemeColor) p.l = isLightColor(schemeColor) ? "light" : "dark";
+  else if (fixed) p.l = p.x === 1 ? "light" : "dark";
   else {
-    const text = concreteColor(style!.color, p.doc);
-    p.scheme = text && isLightColor(text) ? 'dark' : 'light';
+    const text = concreteColor(p.s!.color, p.el.ownerDocument);
+    p.l = text && isLightColor(text) ? "dark" : "light";
   }
-  // For a declared color-scheme the CSS defaults follow the browser, including media changes.
-  const scheme = override ? '' : colorScheme ?? style!.colorScheme;
-  p.follows = !override && !!scheme && scheme !== 'normal';
-  p.std = !p.fc && !p.mc && !p.custom
-    && (!p.follows || fixed || schemeColor !== null);
-  p.bg = override ? rgbText(schemeColor!) : backdrop!.rgb;
-  p.known = backdrop!.known || (override?.a ?? 0) >= 1;
-  p.ready = true;
+  const scheme = override ? "" : (cs ?? p.s!.colorScheme);
+  p.n = !override && !!scheme && scheme !== "normal";
+  p.t = !p.f && !p.m && !(p.s && p.a) && (!p.n || fixed || schemeColor !== null);
+  p.z = override ? rgbText(schemeColor!) : p.c!.r;
+  p.kn = p.c!.k || (override?.a ?? 0) >= 1;
+  p.r = true;
 }
 
-/**
- * Resolves scheme, `follows`, `background`, and `backdropKnown` after `--axylo-series-color-*` and
- * `--axylo-backdrop` have been written on `p.el`, so `--axylo-background` may reference them.
- */
-function resolveSchemeAndBackground(p: PreparedTheme, bgExpr: string): void {
-  const { el: element, win, css: style, backdrop, modes: allowed, fc: forcedColors, batch } = p;
+function resolveSchemeAndBg(p: PreparedTheme, bgExpr: string): void {
   if (bgExpr) {
-    const expression = ['var(--axylo-background)'];
-    p.checked = true;
-    if (/^currentcolor$/i.test(bgExpr) || validColors(element, expression)[0]) {
-      const color = parseColor(probeColors(element, expression)[0]!);
+    const expr = ["var(--axylo-background)"];
+    p.y = true;
+    if (/^currentcolor$/i.test(bgExpr) || validColors(p.el, expr)[0]) {
+      const color = parseColor(probeColors(p.el, expr)[0]!);
       if (color && color.a > 0) {
-        decideScheme(p, composite(color, backdrop!.color), color);
+        decideScheme(p, composite(color, p.c!.c), color);
         return;
       }
     }
   }
-  const canvas = allowed === 3 ? resolveSystemCanvas(element, win!, style!.colorScheme, forcedColors, batch) : null;
-  decideScheme(p, canvas);
+  decideScheme(
+    p,
+    p.x === 3
+      ? getCanvas(p.el, p.el.ownerDocument.defaultView!, p.s!.colorScheme, p.f, p.h, true)!
+      : null,
+  );
 }
 
-function writeBackdrop(p: PreparedTheme, empty = false): void {
-  setProperty(p.el.style, BACKDROP_PROPERTY, p.backdrop!.rgb, empty);
+const setProp = (st: CSSStyleDeclaration, name: string, val: string, empty: boolean) => {
+  if (empty || st.getPropertyValue(name) !== val) st.setProperty(name, val);
+};
+
+function syncScheme(p: PreparedTheme, prev: string | null): void {
+  if (p.n) {
+    if (prev !== null) p.el.removeAttribute(SCHEME_ATTR);
+  } else if (prev !== p.l) p.el.setAttribute(SCHEME_ATTR, p.l);
 }
 
-function syncScheme(p: PreparedTheme, previous: string | null): void {
-  if (p.follows) {
-    if (previous !== null) p.el.removeAttribute(SCHEME_ATTRIBUTE);
-  } else if (previous !== p.scheme) p.el.setAttribute(SCHEME_ATTRIBUTE, p.scheme);
-}
-
-/**
- * Write & coordinated-probe phase of theme resolution: sets `--axylo-series-color-*`, `--axylo-backdrop`,
- * and `data-axylo-scheme` on `element`. When `--axylo-background` is set, series and backdrop properties
- * are written before `--axylo-background` is probed so references to them resolve cleanly.
- */
 export function applyTheme(p: PreparedTheme): void {
-  const { el: element, own: authored, custom: hasAuthored, keys: seriesKeys, bindings: { series } } = p;
+  const {
+    el,
+    a,
+    k,
+    b: { series },
+  } = p;
   finishBackdrop(p);
-
-  const valid = hasAuthored ? validColors(element, authored!) : null;
-  // A list is made only when a color is actually invalid.
+  const valid = p.s && a ? validColors(el, a) : null;
   let invalid: string[] | null = null;
-  const style = element.style;
-  const empty = style.length === 0;
+  const st = el.style,
+    empty = st.length === 0;
   for (let i = 0; i < series.length; i++) {
-    const own = authored?.[i];
-    if (own && valid && !valid[i]) (invalid ??= []).push(seriesKeys[i]!);
-    setProperty(style, seriesProperty(i), own && (!valid || valid[i]) ? authorBinding(own) : seriesBinding(i), empty);
+    const own = a?.[i];
+    if (own && valid && !valid[i]) (invalid ??= []).push(k[i]!);
+    setProp(
+      st,
+      seriesProperty(i),
+      own && (!valid || valid[i]) ? `var(--axylo-forced-series, ${own})` : seriesBinding(i),
+      empty,
+    );
   }
-  if (valid) p.invalid = invalid ?? NONE;
-  for (let i = written.get(element) ?? 0; i > series.length; i--) style.removeProperty(seriesProperty(i - 1));
-  written.set(element, series.length);
-  if (p.on) {
-    writeBackdrop(p, empty);
-    if (!p.ready) resolveSchemeAndBackground(p, p.bgExpr);
-    syncScheme(p, p.prev);
+  if (valid) p.v = invalid ?? NONE;
+  for (let i = written.get(el) ?? 0; i > series.length; i--)
+    st.removeProperty(seriesProperty(i - 1));
+  written.set(el, series.length);
+  if (p.s) {
+    setProp(st, BACKDROP_PROP, p.c!.r, empty);
+    if (!p.r) resolveSchemeAndBg(p, p.g);
+    syncScheme(p, p.p);
   }
 }
 
-function resolveLateBackground(p: PreparedTheme, liveBg: string): void {
-  const background = p.css!.backgroundColor;
-  if (background !== p.initialBg) {
-    p.initialBg = background;
-    // Library writes can affect ancestor rules too. Use the current styles for this second pass.
+function resolveLateBg(p: PreparedTheme, liveBg: string): void {
+  const bg = p.s!.backgroundColor;
+  if (bg !== p.i) {
+    p.i = bg;
     collectBackdrop(p, null);
     finishBackdrop(p, null);
-    writeBackdrop(p);
+    setProp(p.el.style, BACKDROP_PROP, p.c!.r, false);
   }
-  resolveSchemeAndBackground(p, liveBg);
-  // Use the live attribute after probing because applyTheme may have updated it.
-  syncScheme(p, p.el.getAttribute(SCHEME_ATTRIBUTE));
-  p.checked = true;
+  resolveSchemeAndBg(p, liveBg);
+  syncScheme(p, p.el.getAttribute(SCHEME_ATTR));
+  p.y = true;
 }
 
-/**
- * Post-write verification phase: reads the live declaration after `applyTheme` so standalone stylesheet
- * overrides (and `--axylo-background` expressions referencing `--axylo-series-color-*` or `--axylo-backdrop`)
- * are detected. When `deferProbe` is true and a probe is needed, returns `null` so the caller can finish
- * layout reads first and then call `probeTheme(p)`.
- */
 export function finalizeTheme(p: PreparedTheme, deferProbe = false): ThemeResolution | null {
-  const { css: style } = p;
-  if (style) {
-    // A `background-color` or `--axylo-background` referencing `--axylo-series-color-*` or `--axylo-backdrop`
-    // may change or become non-empty after `applyTheme` writes them.
-    const bgChanged = style.backgroundColor !== p.initialBg;
-    const liveBg = !p.checked || bgChanged ? style.getPropertyValue(BACKGROUND_PROPERTY).trim() : '';
-    if ((!p.checked && liveBg !== '') || bgChanged) {
+  const s = p.s;
+  if (s) {
+    const bgChanged = s.backgroundColor !== p.i;
+    const liveBg = !p.y || bgChanged ? s.getPropertyValue(BG_PROP).trim() : "";
+    if ((!p.y && liveBg !== "") || bgChanged) {
       if (deferProbe) {
         p.later = liveBg;
         return null;
       }
-      resolveLateBackground(p, liveBg);
+      resolveLateBg(p, liveBg);
     }
   }
   return standardResolution(p) ?? (deferProbe ? null : probeTheme(p));
 }
 
 function standardResolution(p: PreparedTheme): ThemeResolution | null {
-  const { css: style, on: connected, scheme, follows } = p;
-  if (!p.std || style?.getPropertyValue('--axylo-text')) return null;
-  const defaults = standard ??= standardPaints();
-  const palette = connected ? scheme : 'light';
-  const expected = follows ? 'follows' : palette;
-  const tokens = defaults.tokens;
-  const count = p.bindings.series.length;
-  if (style) {
-    for (let t = 0; t < tokens.length; t++) {
-      const token = tokens[t]!;
-      const value = style.getPropertyValue(token.property) || style.getPropertyValue(token.fallback);
-      if (value.trim() !== token.values[expected]) return null;
+  const { s, l, n } = p,
+    o = s !== undefined;
+  if (!p.t || s?.getPropertyValue("--axylo-text")) return null;
+  const pal = o && l === "dark" ? DARK : LIGHT,
+    palName = o ? l : "light",
+    count = p.b.series.length;
+  if (s) {
+    const tokens = (standardTokens ??= STD_TOKENS.map((name) => ({
+      name,
+      property: `--axylo-${name}`,
+      fallback: `--axylo-default-${name}`,
+      follows: lightDark(LIGHT[name], DARK[name]),
+    })));
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i]!;
+      if (
+        (s.getPropertyValue(t.property) || s.getPropertyValue(t.fallback)).trim() !==
+        (n ? t.follows : pal[t.name])
+      )
+        return null;
     }
+    if (n) followsSeries ??= LIGHT.series.map((v, i) => lightDark(v, DARK.series[i]!));
     for (let i = 0; i < count; i++) {
-      // CSSOM has already substituted both palette variables in the property the marks use.
-      // Read it on each chart so the full cascade, including child-specific selectors, still applies.
-      if (style.getPropertyValue(seriesProperty(i)).trim() !== defaults.series[i % SERIES_COUNT]![expected]) return null;
+      const slot = i % SERIES_COUNT;
+      if (
+        s.getPropertyValue(seriesProperty(i)).trim() !==
+        (n ? followsSeries![slot] : pal.series[slot])
+      )
+        return null;
     }
   }
-  const text = style ? normalizeColor(style.color, p.doc) : 'rgb(0, 0, 0)';
-  // Every check above passed for this figure: its paints are the palette's, the text and background it
-  // has. Only a light-DOM figure whose background was not probed shares the batch's last result.
-  const batch = p.batch;
-  const shareable = batch !== null && connected && !p.checked && !p.bgExpr && inDocumentTree(p.el, p.doc);
-  const last = shareable ? batch.last : null;
-  if (last && last.bindings === p.bindings && last.backdropKnown === p.known && last.theme.scheme === palette &&
-      last.theme.paints.tokens.text === text && last.theme.paints.tokens.background === p.bg &&
-      last.theme.forcedColors === p.fc && last.theme.moreContrast === p.mc && !p.invalid.length && !last.invalidColors!.length) return last;
-  const paints = { background: p.bg, text } as Record<PaintToken, string>;
-  for (let t = 0; t < tokens.length; t++) paints[tokens[t]!.name] = paletteRgb(tokens[t]!.values[palette]);
+  const doc = p.el.ownerDocument,
+    text = s ? normalizeColor(s.color, doc) : "rgb(0, 0, 0)";
+  const batch = p.h;
+  const shareable =
+    batch !== null &&
+    o &&
+    !p.y &&
+    !p.g &&
+    typeof p.el.getRootNode === "function" &&
+    p.el.getRootNode() === doc;
+  const last = shareable ? batch.l : null;
+  if (
+    last &&
+    last.bindings === p.b &&
+    last.backdropKnown === p.kn &&
+    last.theme.scheme === palName &&
+    last.theme.paints.tokens.text === text &&
+    last.theme.paints.tokens.background === p.z &&
+    last.theme.forcedColors === p.f &&
+    last.theme.moreContrast === p.m &&
+    !p.v.length &&
+    !last.invalidColors!.length
+  )
+    return last;
+  const paints = { background: p.z, text } as Record<PaintToken, string>;
+  for (const name of STD_TOKENS) paints[name] = paletteRgb(pal[name]);
   const series = new Array<string>(count);
-  for (let i = 0; i < count; i++) series[i] = paletteRgb(defaults.series[i % SERIES_COUNT]![palette]);
-  const resolution = themeResolution(p, paints, series, true);
-  if (shareable) batch.last = resolution;
-  return resolution;
+  for (let i = 0; i < count; i++) series[i] = paletteRgb(pal.series[i % SERIES_COUNT]!);
+  const res = themeResolution(p, paints, series, true);
+  if (shareable) batch.l = res;
+  return res;
 }
 
-/** The element is in its document's own tree, not in a shadow root. */
-function inDocumentTree(element: Element, doc: Document): boolean {
-  return typeof element.getRootNode === 'function' && element.getRootNode() === doc;
-}
+let tokenExpressions: string[] | undefined;
 
-/** Resolves custom/non-standard paints via probe elements after `finalizeTheme(p, true)` returned `null`. */
 export function probeTheme(p: PreparedTheme): ThemeResolution {
   if (p.later !== null) {
     const liveBg = p.later;
     p.later = null;
-    resolveLateBackground(p, liveBg);
+    resolveLateBg(p, liveBg);
     return finalizeTheme(p, false)!;
   }
-  const tokens = { background: p.bg } as Record<PaintToken, string>;
-  const seriesColors = probeColors(p.el, [...TOKENS.map(t => TOKEN_BINDINGS[t]), ...p.bindings.series]);
-  const values = seriesColors.splice(0, TOKENS.length);
-  TOKENS.forEach((name, i) => { tokens[name] = values[i]!; });
-  return themeResolution(p, tokens, seriesColors);
+  const tokens = { background: p.z } as Record<PaintToken, string>;
+  const series = probeColors(
+    p.el,
+    (tokenExpressions ??= TOKENS.map((t) => TOKEN_BINDINGS[t])).concat(p.b.series),
+  );
+  const values = series.splice(0, TOKENS.length);
+  TOKENS.forEach((name, i) => {
+    tokens[name] = values[i]!;
+  });
+  return themeResolution(p, tokens, series);
 }
 
-function themeResolution(p: PreparedTheme, tokens: Record<PaintToken, string>, series: string[], standard = false): ThemeResolution {
-  const theme = { scheme: p.scheme, forcedColors: p.fc, moreContrast: p.mc, paints: { tokens, series } };
-  // Each verified palette slot meets 3:1 on its own opaque background (decision 0003).
+function themeResolution(
+  p: PreparedTheme,
+  tokens: Record<PaintToken, string>,
+  series: string[],
+  standard = false,
+): ThemeResolution {
+  const theme = { scheme: p.l, forcedColors: p.f, moreContrast: p.m, paints: { tokens, series } };
   let lowContrast: readonly number[] | undefined;
-  if (standard && p.known) {
-    const palette = p.scheme === 'light' ? LIGHT : DARK;
-    lowContrast = p.bg === paletteRgb(palette.background) ? NONE : lowContrastSeries(theme);
-  }
+  if (standard && p.kn)
+    lowContrast =
+      p.z === paletteRgb((p.l === "light" ? LIGHT : DARK).background)
+        ? NONE
+        : lowContrastSeries(theme);
   return {
-    bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, lowContrast, theme,
+    bindings: p.b,
+    resolved: p.s !== undefined,
+    backdropKnown: p.kn,
+    invalidColors: p.v,
+    lowContrast,
+    theme,
   };
 }
 
-/**
- * Resolves the theme for `element` (the chart root, normally `.axylo`), sets `data-axylo-scheme` on it,
- * and writes one `--axylo-series-color-N` property per series on it. `colors` maps series keys to the
- * author's CSS colors; they stay live (`var(--brand-1)` follows `--brand-1`), but a value the browser does
- * not accept as a color is replaced by the palette slot and listed in `invalidColors`.
- */
 export function resolveTheme(
   element: HTMLElement,
   seriesKeys: readonly string[],
   colors?: Readonly<Record<string, string>> | null,
 ): ThemeResolution {
-  const prepared = prepareTheme(element, seriesKeys, colors);
-  applyTheme(prepared);
-  return finalizeTheme(prepared, false)!;
+  const p = prepareTheme(element, seriesKeys, colors);
+  applyTheme(p);
+  return finalizeTheme(p, false)!;
 }
 
-const CLEAR_LAYER: BackdropLayer = { color: null, image: false };
-
-function readBackdropLayer(value: string, image: string, doc: Document, rootScheme?: string): BackdropLayer {
-  const hasImage = !!image && image !== 'none';
-  // The browser serializes a default transparent background this way. It contributes no layer to composite.
-  if (!hasImage && !rootScheme && value === 'rgba(0, 0, 0, 0)') return CLEAR_LAYER;
-  return { color: concreteColor(value, doc), image: hasImage, rootScheme };
+function readBackdropLayer(
+  val: string,
+  img: string,
+  doc: Document,
+  rootScheme?: string,
+): BackdropLayer {
+  const i = !!img && img !== "none";
+  return !i && !rootScheme && val === "rgba(0, 0, 0, 0)"
+    ? CLEAR_LAYER
+    : { c: concreteColor(val, doc), i, s: rootScheme };
 }
 
-function backdrop(color: Rgba, known: boolean): Backdrop {
-  return { color, known, rgb: rgbText(color) };
-}
+const mkBackdrop = (c: Rgba, k: boolean): Backdrop => ({ c, k, r: rgbText(c) });
 
 function layerOver(layer: BackdropLayer, base: Backdrop): Backdrop {
-  const known = base.known && !layer.image;
-  return layer.color && layer.color.a > 0
-    ? backdrop(composite(layer.color, base.color), known)
-    : known === base.known ? base : { ...base, known };
+  const k = base.k && !layer.i;
+  return layer.c && layer.c.a > 0
+    ? mkBackdrop(composite(layer.c, base.c), k)
+    : k === base.k
+      ? base
+      : { ...base, k };
 }
 
-/** Share actual ancestor layers while Canvas is still cold. Always read the chart's own layer live. */
-function collectBackdrop(p: PreparedTheme, batch = p.batch): void {
-  const { el, doc, win, css: style, fc: forcedColors } = p;
-  const root = doc.documentElement;
-  const own = readBackdropLayer(p.initialBg, style!.backgroundImage, doc);
-  p.pending = null;
-  if (own.color && own.color.a >= 1) {
-    p.backdrop = backdrop(own.color, !own.image);
+function collectBackdrop(p: PreparedTheme, batch = p.h): void {
+  const { el, s, f } = p,
+    d = el.ownerDocument,
+    w = d.defaultView!,
+    root = d.documentElement;
+  const own = readBackdropLayer(p.i, s!.backgroundImage, d);
+  p.q = null;
+  if (own.c && own.c.a >= 1) {
+    p.c = mkBackdrop(own.c, !own.i);
     return;
   }
-  let node = composedParent(el);
-  let base = node ? batch?.backdrops.get(node) : undefined;
+  let node = composedParent(el),
+    base = node ? batch?.b.get(node) : undefined;
   if (base) {
-    p.backdrop = layerOver(own, base);
+    p.c = layerOver(own, base);
     return;
   }
 
-  const ancestors: AncestorLayer[] = [];
-  let rootColorScheme = el === root ? style!.colorScheme : '';
+  const ancestors: [Element, BackdropLayer][] = [];
+  let rootCS = el === root ? s!.colorScheme : "";
   while (node) {
-    let layer = batch?.ancestorLayers.get(node);
+    let layer = batch?.a.get(node);
     if (!layer) {
-      const cs = win!.getComputedStyle(node);
-      layer = readBackdropLayer(cs.backgroundColor, cs.backgroundImage, doc, node === root ? cs.colorScheme : undefined);
-      batch?.ancestorLayers.set(node, layer);
+      const cs = w.getComputedStyle(node);
+      layer = readBackdropLayer(
+        cs.backgroundColor,
+        cs.backgroundImage,
+        d,
+        node === root ? cs.colorScheme : undefined,
+      );
+      batch?.a.set(node, layer);
     }
-    if (layer.color && layer.color.a >= 1) {
-      base = backdrop(layer.color, !layer.image);
-      batch?.backdrops.set(node, base);
+    if (layer.c && layer.c.a >= 1) {
+      base = mkBackdrop(layer.c, !layer.i);
+      batch?.b.set(node, base);
       break;
     }
-    rootColorScheme ||= layer.rootScheme ?? '';
-    ancestors.push({ node, layer });
+    rootCS ||= layer.s ?? "";
+    ancestors.push([node, layer]);
     node = composedParent(node);
-    if (node) {
-      base = batch?.backdrops.get(node);
-      if (base) break;
-    }
+    if (node && (base = batch?.b.get(node))) break;
   }
   if (!base) {
-    rootColorScheme ||= win!.getComputedStyle(root).colorScheme;
-    const canvas = readCachedCanvas(doc, win!, rootColorScheme, forcedColors, p.batch);
+    rootCS ||= w.getComputedStyle(root).colorScheme;
+    const canvas = getCanvas(el, w, rootCS, f, p.h, false);
     if (canvas === undefined) {
-      p.pending = { own, ancestors, rootColorScheme };
+      p.q = { o: own, a: ancestors, s: rootCS };
       return;
     }
     base = canvasBackdrop(canvas);
   }
-  p.backdrop = compositeBackdrop(own, ancestors, base, batch);
+  p.c = compositeBackdrop(own, ancestors, base, batch);
 }
 
-const WHITE: Rgba = { r: 1, g: 1, b: 1, a: 1 };
+const canvasBackdrop = (c: Rgba | null): Backdrop =>
+  mkBackdrop(c === null ? WHITE : c.a < 1 ? composite(c, WHITE) : c, true);
 
-function canvasBackdrop(color: Rgba | null): Backdrop {
-  return backdrop(color === null ? WHITE : color.a < 1 ? composite(color, WHITE) : color, true);
-}
-
-function finishBackdrop(p: PreparedTheme, batch = p.batch): void {
-  if (!p.pending) return;
-  const { own, ancestors, rootColorScheme } = p.pending;
-  const { doc, win, fc: forcedColors } = p;
-  let base: Backdrop | undefined;
-  let count = ancestors.length;
-  // An earlier tile may have filled an ancestor's backdrop since the read pass.
-  if (batch) {
-    for (let i = 0; i < count; i++) {
-      base = batch.backdrops.get(ancestors[i]!.node);
-      if (base) {
+function finishBackdrop(p: PreparedTheme, batch = p.h): void {
+  if (!p.q) return;
+  const { o, a, s } = p.q,
+    doc = p.el.ownerDocument;
+  let base: Backdrop | undefined,
+    count = a.length;
+  if (batch)
+    for (let i = 0; i < count; i++)
+      if ((base = batch.b.get(a[i]![0]))) {
         count = i;
         break;
       }
-    }
-  }
-  base ??= canvasBackdrop(resolveSystemCanvas(doc.documentElement, win!, rootColorScheme, forcedColors, p.batch));
-  p.backdrop = compositeBackdrop(own, ancestors, base, batch, count);
-  p.pending = null;
+  base ??= canvasBackdrop(getCanvas(doc.documentElement, doc.defaultView!, s, p.f, p.h, true)!);
+  p.c = compositeBackdrop(o, a, base, batch, count);
+  p.q = null;
 }
 
 function compositeBackdrop(
-  own: BackdropLayer, ancestors: readonly AncestorLayer[], base: Backdrop,
-  batch: ThemeBatch | null, count = ancestors.length,
+  own: BackdropLayer,
+  ancestors: readonly [Element, BackdropLayer][],
+  base: Backdrop,
+  batch: ThemeBatch | null,
+  count = ancestors.length,
 ): Backdrop {
   for (let i = count - 1; i >= 0; i--) {
-    const { node, layer } = ancestors[i]!;
+    const [node, layer] = ancestors[i]!;
     base = layerOver(layer, base);
-    batch?.backdrops.set(node, base);
+    batch?.b.set(node, base);
   }
   return layerOver(own, base);
 }
 
-const rgbText = (c: Rgba): string => `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;
-
-function setProperty(style: CSSStyleDeclaration, name: string, value: string, empty: boolean): void {
-  if (empty || style.getPropertyValue(name) !== value) style.setProperty(name, value);
-}
-
-// Children retain their inline declarations, but inherit variables from the chart being measured.
-interface ProbeSet {
-  box: HTMLElement;
-  colors: HTMLElement[];
-  pairs: HTMLElement[];
-}
-const probes = new WeakMap<Document, ProbeSet>();
-
-function probeColors(element: Element, expressions: readonly string[], validating = false): string[] {
-  const doc = element.ownerDocument;
+function probeColors(el: Element, expressions: readonly string[], validating = false): string[] {
+  const doc = el.ownerDocument;
   let cached = probes.get(doc);
   if (!cached) {
-    const box = doc.createElement('div');
-    box.style.display = 'none';
-    probes.set(doc, cached = { box, colors: [], pairs: [] });
+    const b = doc.createElement("div");
+    b.style.display = "none";
+    probes.set(doc, (cached = { b, c: [], p: [] }));
   }
-  const { box } = cached;
-  const pool = validating ? cached.pairs : cached.colors;
-  box.style.forcedColorAdjust = validating ? '' : 'none';
-  const spans = expressions.map((expression, i) => {
+  const { b } = cached,
+    pool = validating ? cached.p : cached.c;
+  b.style.forcedColorAdjust = validating ? "" : "none";
+  for (let i = 0; i < expressions.length; i++) {
     let span = pool[i];
     if (!span) {
-      span = pool[i] = doc.createElement('span');
-      span.style.forcedColorAdjust = 'none';
+      span = pool[i] = doc.createElement("span");
+      span.style.forcedColorAdjust = "none";
       if (validating) {
-        const parent = doc.createElement('div');
-        parent.style.color = i % 2 ? '#040506' : '#010203';
-        parent.style.forcedColorAdjust = 'none';
+        const parent = doc.createElement("div");
+        parent.style.color = i % 2 ? "#040506" : "#010203";
+        parent.style.forcedColorAdjust = "none";
         parent.appendChild(span);
       }
     }
-    // CSSOM ignores an invalid assignment, so validation must clear the previous color.
-    if (validating) span.style.color = '';
-    span.style.color = expression;
-    box.appendChild(validating ? span.parentElement! : span);
-    return span;
-  });
-  element.appendChild(box);
+    if (validating) span.style.color = "";
+    span.style.color = expressions[i]!;
+    b.appendChild(validating ? span.parentElement! : span);
+  }
+  el.appendChild(b);
   try {
-    return spans.map(span => {
-      const color = doc.defaultView!.getComputedStyle(span).color;
-      return validating ? color : normalizeColor(color, doc);
-    });
+    const colors = new Array<string>(expressions.length);
+    for (let i = 0; i < colors.length; i++) {
+      const color = doc.defaultView!.getComputedStyle(pool[i]!).color;
+      colors[i] = validating ? color : normalizeColor(color, doc);
+    }
+    return colors;
   } finally {
-    box.remove();
-    box.replaceChildren();
+    b.remove();
+    b.replaceChildren();
   }
 }
 
-function validColors(element: HTMLElement, expressions: readonly (string | null)[]): boolean[] {
-  const values = probeColors(element, expressions.flatMap(e => e === null ? [] : [e, e]), true);
-  let index = 0;
-  return expressions.map(e => e === null || values[index++] === values[index++] || /^currentcolor$/i.test(e));
+function validColors(el: HTMLElement, expressions: readonly (string | null)[]): boolean[] {
+  const values = probeColors(
+    el,
+    expressions.flatMap((e) => (e === null ? [] : [e, e])),
+    true,
+  );
+  let i = 0;
+  return expressions.map(
+    (e) => e === null || values[i++] === values[i++] || /^currentcolor$/i.test(e),
+  );
 }
 
-/**
- * Computed colors are rgb()/rgba() for most inputs but keep other spaces (oklch(), lab()) as written.
- * Those are converted by painting one pixel, so canvas and the contrast check always get sRGB. An empty
- * or unknown value is returned as is rather than as the canvas's initial black.
- */
-function normalizeColor(value: string, doc: Document): string {
-  return value && !parseColor(value) ? canvasColor(value, doc) : value;
-}
-
-function concreteColor(value: string, doc: Document): Rgba | null {
-  return parseColor(value) ?? (value ? parseColor(canvasColor(value, doc)) : null);
-}
+const normalizeColor = (val: string, doc: Document): string =>
+  val && !parseColor(val) ? canvasColor(val, doc) : val;
+const concreteColor = (val: string, doc: Document): Rgba | null =>
+  parseColor(val) ?? (val ? parseColor(canvasColor(val, doc)) : null);
 
 function canvasColor(value: string, doc: Document): string {
-  const canvas = doc.createElement('canvas');
-  canvas.width = canvas.height = 1;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (ctx === null) return value;
-  // A sentinel first: if the browser rejects `value`, fillStyle keeps the sentinel and we know.
-  ctx.fillStyle = '#010203';
+  const c = doc.createElement("canvas");
+  c.width = c.height = 1;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return value;
+  ctx.fillStyle = "#010203";
   ctx.fillStyle = value;
-  if (ctx.fillStyle === '#010203') return value;
+  if (ctx.fillStyle === "#010203") return value;
   ctx.fillRect(0, 0, 1, 1);
-  const bytes = ctx.getImageData(0, 0, 1, 1).data;
-  return `rgba(${bytes.slice(0, 3).join(', ')}, ${Math.round(bytes[3]! / 255 * 1000) / 1000})`;
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgba(${d[0]}, ${d[1]}, ${d[2]}, ${Math.round((d[3]! / 255) * 1000) / 1000})`;
 }

@@ -1,16 +1,19 @@
-import type { DiagnosticInput, Formatters, Layout, ReaderModel, TextStyle, View } from './contracts';
+import { FrameSteps } from './frame-phases';
+import type { DiagnosticInput, Formatters, Layout, ReaderModel, TextStyle } from './contracts';
 import type { Messages } from '../public';
 import type { ControlsState } from '../dom/interaction';
 import type { AxisContext } from './axes';
 import type { titleOf } from './stages';
 import type { Accepted, Disclosure, Display, FrameRun, PlotLayout, ReaderEntry, Size } from './controller-types';
 
+export const enum PassAction { None, DropStrip, EnterFallback, LeaveFallback, NoteMoved }
+export const enum StripAction { None, Arrange, Prepare }
+
 /** What a frame's steps reach in their controller: made once per chart. */
 export interface FrameDriver {
-  frameStep(f: FrameState, id: number): boolean;
-  removeStripProbe(f: FrameState): void;
-  finishFrame(f: FrameState): void;
   afterFrame(f: FrameState): void;
+  removeStripProbe(f: FrameState): void;
+  frameStep(f: FrameState, phase: Exclude<keyof FrameRun, 'after' | 'phase3StripRemove'>): boolean;
 }
 
 /** Shared neutral text style used for compact charts, which never lay out text labels. */
@@ -30,25 +33,6 @@ export function sameLayoutSize(layout: PlotLayout | null | undefined, width: num
   return !!layout && Object.is(layout.width, width) && Object.is(layout.height, height) && layout.strip === strip;
 }
 
-/** Steps of a frame, dispatched by the controller's one step function (no closure per step or per frame). */
-export const STEP_PHASE1 = 0;
-export const STEP_PHASE2 = 1;
-export const STEP_THEME = 2;
-export const STEP_MEASURE = 3;
-export const STEP_PROBE = 4;
-export const STEP_LAYOUT_CHECK = 5;
-export const STEP_STRIP_MOUNT = 6;
-export const STEP_STRIP_READ = 7;
-export const STEP_READOUT = 8;
-export const STEP_STRIP_WRITE = 9;
-export const STEP_STRIP_MEASURE = 10;
-export const STEP_INIT = 11;
-export const STEP_PASS_WRITE = 12;
-export const STEP_PASS_MEASURE = 13;
-export const STEP_PUBLISH = 14;
-
-/** How many inputs the reader model is keyed by (readerFor). */
-export const READER_INPUTS = 15;
 export const EMPTY_KEY: readonly unknown[] = [];
 /** On a page in another language with no message overrides, mark every built-in text as English. */
 export const ALL_ENGLISH = (): string => 'en';
@@ -62,198 +46,77 @@ export function sameDisclosure(a: Disclosure, b: Disclosure): boolean {
   return a.omitted === b.omitted && a.changed === b.changed;
 }
 
-/** One position of sameKey's rule: the same value, or arrays with the same entries. */
-export function sameEntry(x: unknown, y: unknown): boolean {
-  if (Object.is(x, y)) return true;
-  return Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => v === y[k]);
-}
-
 /** The strip reserved under the plot at this size, null when no strip is reserved. */
 export function reservedStrip(at: Size, strip: boolean): number | null {
   return strip ? (at.room ? Math.max(0, at.room.height - at.height) : 0) : null;
 }
 
-/** The readout steps of a single-chart frame, in the order the batch runs them across charts. */
-export function readoutSteps(run: FrameState): void {
-  if (run.compact && !run.needMeasure) {
-    run.phase4Init();
-    return;
-  }
-  if (run.phase3LayoutCheck()) {
-    run.phase3StripMount();
-    try {
-      run.phase3StripRead();
-    } finally {
-      run.phase3StripRemove();
-    }
-  }
-  run.phase3ReadoutDecide();
-  run.phase4StripWrite();
-  run.phase4StripMeasure();
-  run.phase4Init();
-}
-
 /**
- * Both the private flush and the external batch run these steps. A batch owns a single-use handle:
- * detach its private reference before returning the state to the pool or delivering author callbacks.
- */
-export class FrameHandle implements FrameRun {
-  #state: FrameState | null;
-  constructor(state: FrameState | null) {
-    // A private flush runs the state itself. Only an external handle is detached on completion.
-    this.#state = state ?? (this instanceof FrameState ? this : null);
-  }
-  phase1(): void { const f = this.#state; f?.driver?.frameStep(f, STEP_PHASE1); }
-  phase2(): void { const f = this.#state; f?.driver?.frameStep(f, STEP_PHASE2); }
-  phase3Theme(): void {
-    const f = this.#state;
-    if (f && f.preparedTheme !== null) f.driver?.frameStep(f, STEP_THEME);
-  }
-  phase3Measure(): void {
-    const f = this.#state;
-    if (f && f.needMeasure) f.driver?.frameStep(f, STEP_MEASURE);
-  }
-  phase3Probe(): void {
-    const f = this.#state;
-    if (f && f.needsThemeProbe) f.driver?.frameStep(f, STEP_PROBE);
-  }
-  phase3LayoutCheck(): boolean {
-    const f = this.#state;
-    return !!f && (!f.compact || f.needMeasure) && (f.driver?.frameStep(f, STEP_LAYOUT_CHECK) ?? false);
-  }
-  phase3StripMount(): void {
-    const f = this.#state;
-    if (f && f.needsStripProbe) f.driver?.frameStep(f, STEP_STRIP_MOUNT);
-  }
-  phase3StripRead(): void {
-    const f = this.#state;
-    if (f && f.needsStripProbe) f.driver?.frameStep(f, STEP_STRIP_READ);
-  }
-  phase3ReadoutDecide(): void {
-    const f = this.#state;
-    if (f && f.withoutLayout) f.driver?.frameStep(f, STEP_READOUT);
-  }
-  phase4StripWrite(): void {
-    const f = this.#state;
-    if (f && f.stripAction) f.driver?.frameStep(f, STEP_STRIP_WRITE);
-  }
-  phase4StripMeasure(): void {
-    const f = this.#state;
-    if (f && f.stripAction) f.driver?.frameStep(f, STEP_STRIP_MEASURE);
-  }
-  phase4Init(): void {
-    const f = this.#state;
-    if (f && f.readoutPending) f.driver?.frameStep(f, STEP_INIT);
-  }
-  phase4PassWrite(): boolean {
-    const f = this.#state;
-    return !!f && !f.layoutDone && (f.driver?.frameStep(f, STEP_PASS_WRITE) ?? false);
-  }
-  phase4PassMeasure(): boolean {
-    const f = this.#state;
-    return !!f && f.passAction !== null && (f.driver?.frameStep(f, STEP_PASS_MEASURE) ?? false);
-  }
-  phase3StripRemove(): void { const f = this.#state; f?.driver?.removeStripProbe(f); }
-  phase5(): void { const f = this.#state; f?.driver?.finishFrame(f); }
-  after(): void {
-    const f = this.#state;
-    this.#state = null;
-    f?.driver?.afterFrame(f);
-  }
-}
-
-/**
- * One frame's state and its phased handle. Finished states go back to a small pool shared by every chart
+ * One frame's state. Finished states go back to a small pool shared by every chart
  * (acquireFrame, releaseFrame), so a steady stream of frames allocates no closures and no scope, and a chart
- * that is not drawing keeps none; the fields are what each frame started from before (see `begin`). Every
+ * that is not drawing keeps none; its accepted revision stays fixed until publication. Every
  * field is set in the constructor, so the shape never changes.
  */
-export class FrameState extends FrameHandle {
+export class FrameState extends FrameSteps {
+  protected get state() { return this; }
+  after(): void { this.driver!.afterFrame(this); }
+
   /** The controller running this frame; null once the state is back in the pool, so a stale handle does nothing. */
-  driver: FrameDriver | null;
-  /** True until a frame begins and again once its `after` step has run: only an idle state is reused. */
-  idle = true;
-  closed = true;
-  a: Accepted | null = null;
-  view: View = null!;
-  compact = false;
-  stateDiag: readonly DiagnosticInput[] = EMPTY_DIAGNOSTICS;
-  zoomOn: ControlsState['zoom'] = false;
-  zoomed = false;
-  legend: ControlsState['legend'] = 'bottom';
+  declare driver: FrameDriver | null;
+  declare closed: boolean;
+  declare a: Accepted | null;
+  get view() { return this.a!.view; }
+  declare compact: boolean;
+  declare stateDiag: readonly DiagnosticInput[];
+  declare zoomOn: ControlsState['zoom'];
+  declare zoomed: boolean;
+  declare legend: ControlsState['legend'];
   /** The strip-height probe while it is in the figure (mounted early or after the measure). */
-  stripProbe: unknown = null;
-  mutated = false;
-  style: TextStyle = COMPACT_TEXT_STYLE;
-  layoutEpoch = 0;
-  locale = '';
-  shown: Display = READY;
-  noteShown = false;
-  lang: string | null = null;
-  fKey: readonly unknown[] = EMPTY_KEY;
-  formatters: Formatters = null!;
-  byText: string | null = null;
-  named = false;
-  by: string | null = null;
-  title: ReturnType<typeof titleOf> = null;
-  caption: string | undefined = undefined;
-  english: (key: keyof Messages) => string | null = INHERIT_LANGUAGE;
-  foreignPage = false;
-  axisContext: AxisContext = null!;
-  keys: string[] | null = null;
-  preparedTheme: unknown = null;
-  needsThemeProbe = false;
-  tooSmall = false;
-  arrangedReader: ReaderModel | null = null;
-  arrangedSmall = false;
-  arrangedDisclosure: Disclosure = EMPTY_DISCLOSURE;
-  arrangedStrip: boolean | undefined = undefined;
-  needMeasure = false;
-  withoutLayout: PlotLayout | null = null;
-  readoutPending = true;
-  narrowPlotHeight: number | null = null;
-  needsStripProbe = false;
-  stripAction: 'strip-arrange' | 'prepare-only' | null = null;
-  result: PlotLayout | null = null;
-  layoutDone = true;
-  passAction: 'drop-strip' | 'enter-fallback' | 'leave-fallback' | 'note-moved' | null = null;
-  normalSize: Size | null = null;
-  discVer = -1;
-  discCache: Disclosure = EMPTY_DISCLOSURE;
-  lastReader: ReaderEntry | null = null;
-  currentHidden = 0;
-  settled: ReaderEntry | null = null;
-  readerVersion = -1;
+  declare stripProbe: unknown;
+  declare mutated: boolean;
+  declare style: TextStyle;
+  declare layoutEpoch: number;
+  declare locale: string;
+  declare shown: Display;
+  declare lang: string | null;
+  declare fKey: readonly unknown[];
+  declare formatters: Formatters;
+  declare by: string | null;
+  declare title: ReturnType<typeof titleOf>;
+  declare caption: string | undefined;
+  declare english: (key: keyof Messages) => string | null;
+  declare axisContext: AxisContext;
+  declare keys: string[] | null;
+  declare preparedTheme: unknown;
+  declare needsThemeProbe: boolean;
+  declare tooSmall: boolean;
+  declare arrangedReader: ReaderModel | null;
+  declare arrangedSmall: boolean;
+  declare arrangedDisclosure: Disclosure;
+  declare arrangedStrip: boolean | undefined;
+  declare needMeasure: boolean;
+  declare withoutLayout: PlotLayout | null;
+  declare readoutPending: boolean;
+  declare narrowPlotHeight: number | null;
+  declare needsStripProbe: boolean;
+  declare stripAction: StripAction;
+  declare result: PlotLayout | null;
+  declare layoutDone: boolean;
+  declare passAction: PassAction;
+  declare normalSize: Size | null;
+  declare discVer: number;
+  declare discCache: Disclosure;
+  declare lastReader: ReaderEntry | null;
+  declare currentHidden: number;
+  declare settled: ReaderEntry | null;
+  declare readerVersion: number;
 
-  constructor(driver: FrameDriver) {
-    super(null);
-    this.driver = driver;
-  }
+  constructor() { super(); this.clear(); }
 
-  /** References are already clear, both on a new state and on one returned to the pool. */
-  begin(
-    a: Accepted, compact: boolean, stateDiag: readonly DiagnosticInput[], zoomOn: ControlsState['zoom'], zoomed: boolean,
-    legend: ControlsState['legend'],
-  ): void {
-    this.idle = false;
-    this.closed = false;
-    this.a = a;
-    this.view = a.view;
-    this.compact = compact;
-    this.stateDiag = stateDiag;
-    this.zoomOn = zoomOn;
-    this.zoomed = zoomed;
-    this.legend = legend;
-  }
-
-  /** A fresh state already has these defaults. Only one borrowed back from the pool needs them reset. */
-  reuse(driver: FrameDriver): void {
-    this.driver = driver;
+  /** The pool keeps no controller, revision, view or reader and always hands back the same initial state. */
+  clear(): void {
     this.mutated = false;
     this.layoutEpoch = 0;
-    this.noteShown = false;
-    this.named = false;
-    this.foreignPage = false;
     this.needsThemeProbe = false;
     this.tooSmall = false;
     this.arrangedSmall = false;
@@ -262,28 +125,22 @@ export class FrameState extends FrameHandle {
     this.readoutPending = true;
     this.narrowPlotHeight = null;
     this.needsStripProbe = false;
-    this.stripAction = null;
+    this.stripAction = StripAction.None;
     this.layoutDone = true;
-    this.passAction = null;
+    this.passAction = PassAction.None;
     this.discVer = -1;
     this.currentHidden = 0;
     this.readerVersion = -1;
-  }
-
-  /** Lets go of everything the finished frame referenced: a pooled state holds no controller, revision, view or reader. */
-  clear(): void {
-    this.idle = true;
+    this.closed = true;
     this.driver = null;
     this.stripProbe = null;
     this.locale = '';
     this.lang = null;
-    this.byText = null;
     this.by = null;
     this.caption = undefined;
     this.arrangedDisclosure = EMPTY_DISCLOSURE;
     this.discCache = EMPTY_DISCLOSURE;
     this.a = null;
-    this.view = null!;
     this.stateDiag = EMPTY_DIAGNOSTICS;
     this.style = COMPACT_TEXT_STYLE;
     this.shown = READY;
@@ -301,9 +158,6 @@ export class FrameState extends FrameHandle {
     this.lastReader = null;
     this.settled = null;
   }
-
-  // A private flush keeps its own handle and drops the controller in clear().
-  override after(): void { this.driver?.afterFrame(this); }
 }
 
 /**
@@ -315,16 +169,19 @@ const FRAME_POOL_SIZE = 4;
 /** Made on the first release, so importing the module allocates nothing. */
 let framePool: FrameState[] | null = null;
 
-export function acquireFrame(driver: FrameDriver): FrameState {
-  const f = framePool?.pop();
-  if (!f) return new FrameState(driver);
-  f.reuse(driver);
+export function acquireFrame(driver: FrameDriver, accepted: Accepted): FrameState {
+  const f = framePool?.pop() ?? new FrameState();
+  f.driver = driver;
+  f.closed = false;
+  f.a = accepted;
   return f;
 }
 
 /** Clears the finished state and keeps it if the pool has room; nothing else may use the state afterwards. */
 export function releaseFrame(f: FrameState): void {
-  f.clear();
   const pool = framePool ??= [];
-  if (pool.length < FRAME_POOL_SIZE) pool.push(f);
+  if (pool.length < FRAME_POOL_SIZE) {
+    f.clear();
+    pool.push(f);
+  }
 }

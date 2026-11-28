@@ -34,8 +34,8 @@ export function sameRef(a: DatumRef | null, b: DatumRef | null): boolean {
   if (a === b) return true;
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === 'slice') return a.sliceKey === (b as typeof a).sliceKey;
-  if (a.kind === 'aligned') return a.seriesKey === (b as typeof a).seriesKey && a.x === (b as typeof a).x;
-  return a.seriesKey === (b as typeof a).seriesKey && a.row === (b as typeof a).row && a.x === (b as typeof a).x;
+  const other = b as typeof a;
+  return a.seriesKey === other.seriesKey && a.x === other.x && (a.kind === 'aligned' || a.row === (other as typeof a).row);
 }
 
 /** The series a reading lists: shown and drawable, in series order. Runs on every pointer move. */
@@ -241,16 +241,29 @@ export function targetBox(view: View, lookup: Lookup, target: PickTarget, only: 
 
 export const ZOOM_FACTOR = 2, PAN_SHARE = 0.1;
 
-function inside(full: Span, start: number, width: number): Span {
-  const a = Math.max(full[0], Math.min(start, full[1] - width));
-  return [a, a + width];
+function clampStart(full: Span, start: number, width: number): number {
+  return Math.max(full[0], Math.min(start, full[1] - width));
+}
+
+function anchoredStart(full: Span, cur: Span, center: number, width: number): number {
+  const span = cur[1] - cur[0];
+  return clampStart(full, center - (span > 0 ? (center - cur[0]) / span : 0.5) * width, width);
+}
+
+function fits(full: Span, width: number): boolean {
+  const span = full[1] - full[0];
+  return span > 0 && !(width >= span);
+}
+
+function validWindow(start: number, end: number): boolean {
+  return Number.isFinite(start) && Number.isFinite(end) && end > start;
 }
 
 export function scaleWindow(full: Span, cur: Span, factor: number, center: number, minWidth: number): Span | null {
-  const fw = full[1] - full[0], cw = cur[1] - cur[0], w = Math.max(minWidth, cw * factor);
-  if (!(fw > 0) || w >= fw) return null;
-  const next = inside(full, center - (cw > 0 ? (center - cur[0]) / cw : 0.5) * w, w);
-  return Number.isFinite(next[0]) && Number.isFinite(next[1]) && next[1] > next[0] ? next : cur;
+  const width = Math.max(minWidth, (cur[1] - cur[0]) * factor);
+  if (!fits(full, width)) return null;
+  const start = anchoredStart(full, cur, center, width), end = start + width;
+  return validWindow(start, end) ? [start, end] : cur;
 }
 
 export function zoomStep(full: Span, cur: Span, factor: number, center: number, minWidth: number): Span | null | undefined {
@@ -266,14 +279,11 @@ export function zoomStep(full: Span, cur: Span, factor: number, center: number, 
  */
 export function canZoomIn(view: View, w: Span): boolean {
   if (view.kind === 'donut') return false;
-  const full = view.xFull, factor = 1 / ZOOM_FACTOR, center = (w[0] + w[1]) / 2, minWidth = minimumWidth(view);
-  // scaleWindow, as zoomStep calls it.
-  const fw = full[1] - full[0], cw = w[1] - w[0], width = Math.max(minWidth, cw * factor);
-  if (!(fw > 0) || width >= fw) return false;
-  const start = center - (cw > 0 ? (center - w[0]) / cw : 0.5) * width;
-  const a = Math.max(full[0], Math.min(start, full[1] - width)), b = a + width;
-  // A window that is not finite or empty is the current one, which is not narrower than itself.
-  return Number.isFinite(a) && Number.isFinite(b) && b > a && b - a < w[1] - w[0];
+  const full = view.xFull, span = w[1] - w[0];
+  const width = Math.max(minimumWidth(view), span / ZOOM_FACTOR);
+  if (!fits(full, width)) return false;
+  const start = anchoredStart(full, w, (w[0] + w[1]) / 2, width), end = start + width;
+  return validWindow(start, end) && end - start < span;
 }
 
 export function pinchWidth(start: number, factor: number, minWidth: number): number {
@@ -282,8 +292,8 @@ export function pinchWidth(start: number, factor: number, minWidth: number): num
 }
 
 export function panWindow(full: Span, cur: Span, share: number): Span | null {
-  const w = cur[1] - cur[0], moved = inside(full, cur[0] + share * w, w);
-  return moved[0] === cur[0] ? null : moved;
+  const w = cur[1] - cur[0], start = clampStart(full, cur[0] + share * w, w);
+  return start === cur[0] ? null : [start, start + w];
 }
 
 export function minimumWidth(view: View): number {

@@ -1,12 +1,11 @@
 import type { DatumRef, Frame, TextMeasurer, TextStyle } from './contracts';
 import type { ChartEvents, Diagnostic } from '../public';
 import type { ThemeResolution } from '../theme';
-import type { Span } from './stages';
 import type { ChartHandle, Probe, StageCounter } from './instrument';
-import type { ControllerActions, ControllerCore, Host, Invalidate, Size } from './controller-types';
+import type { ControllerCore, Host, Size } from './controller-types';
 import { SYNC, type SyncResolve } from './peer';
 import { EXPORT, register, type ExportSeam } from '../export/contract';
-import { pointForDatum, positionValue, themeKeys } from './controller-helpers';
+import { pointForDatum } from './controller-helpers';
 
 /**
  * What a destroyed controller holds instead of its host, so a handle kept by the page retains no DOM. One
@@ -90,13 +89,13 @@ export class Handle implements ChartHandle {
     if (unregister) (c.disposers ??= new Set()).add(unregister);
   }
   get update(): (patch: unknown) => void {
-    return own(this, 'update', (patch: unknown): void => { this.#c.update(patch); });
+    return own(this, 'update', this.#c.update.bind(this.#c));
   }
   get append(): (rows: unknown, options?: { keep?: number }) => void {
-    return own(this, 'append', (rows: unknown, options?: { keep?: number }): void => { this.#c.append(rows, options); });
+    return own(this, 'append', this.#c.append.bind(this.#c));
   }
   get zoom(): (domain: unknown) => void {
-    return own(this, 'zoom', (domain: unknown): void => { this.#c.zoom(domain); });
+    return own(this, 'zoom', this.#c.zoomDomain.bind(this.#c));
   }
   get on(): <E extends keyof ChartEvents<unknown>>(event: E, listener: (payload: ChartEvents<unknown>[E]) => void) => () => void {
     const c = this.#c;
@@ -115,95 +114,7 @@ export class Handle implements ChartHandle {
     return c.publicDiagnostics(c.diagnosticInputs());
   }
   get destroy(): () => void {
-    return own(this, 'destroy', (): void => { this.#c.destroy(); });
-  }
-}
-
-/**
- * What the interaction layer may ask of one chart; everything goes through the public paths. Destroy nulls the
- * accepted and drawn state and the listeners, so those checks also stop a destroyed chart.
- */
-export class ChartActions implements ControllerActions {
-  constructor(private readonly c: ControllerCore) {}
-  zoom(window: Span | null): void {
-    const c = this.c;
-    const a = c.accepted;
-    if (!a) return;
-    c.zoom(window === null ? null : [positionValue(a.frame, window[0]), positionValue(a.frame, window[1])]);
-  }
-  toggle(seriesKey: string): void { this.c.toggleSeries(seriesKey); }
-  pause(paused: boolean): void { this.c.setPaused(paused); }
-  select(ref: DatumRef): void {
-    const c = this.c;
-    const d = c.drawn;
-    const point = d && pointForDatum(d, ref);
-    if (point) c.emit('select', point);
-  }
-  hover(ref: DatumRef | null): void {
-    const c = this.c;
-    const d = c.drawn;
-    // Nothing is built for a pointer move nobody listens to.
-    if (!c.listeners?.get('hover')?.size) return;
-    c.emit('hover', d && ref ? pointForDatum(d, ref) : null);
-  }
-}
-
-/**
- * What the page tells one chart (observers, watchers). A destroyed chart schedules no frame (schedule checks),
- * holds no accepted state and has a dead host, so what these set on it is never read.
- */
-export class ChartInvalidate implements Invalidate {
-  constructor(private readonly c: ControllerCore) {}
-  resize(): void {
-    const c = this.c;
-    // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
-    c.dirtyTextAndStrip(true);
-    c.schedule();
-  }
-  page(): void {
-    const c = this.c;
-    // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
-    // and web fonts included (review 3, finding 19).
-    c.themeDirty = true;
-    c.dirtyTextAndStrip(true);
-    c.pixelRatio = c.host.devicePixelRatio();
-    c.fontEpoch++;
-    c.schedule();
-  }
-  theme(): void {
-    const c = this.c;
-    c.themeDirty = true;
-    c.dirtyTextAndStrip(false);
-    // The colours are resolved and written now, in the observer's callback, so the marks show the new
-    // scheme in the first frame after the change (L4): their paint refers to the custom properties written
-    // here. The light-dark() defaults follow prefers-color-scheme in CSS. Resolve AX141 when the
-    // media query's change event arrives. Only when what is on screen is also what is
-    // accepted, so the colours written belong to the marks shown.
-    const a = c.accepted;
-    const drawn = c.drawn;
-    if (!c.inFrame && a && drawn && c.theme && drawn.accepted.view === a.view) {
-      try {
-        const keys = themeKeys(a.view);
-        c.resolveTheme(keys, a.options.colors);
-        if (!c.themeDirty) c.deliverChanges();
-      } catch {
-        c.themeDirty = true;
-      }
-    }
-    c.schedule();
-  }
-  language(): void { this.c.schedule(); }
-  fonts(): void {
-    const c = this.c;
-    c.fontEpoch++;
-    c.dirtyTextAndStrip(true);
-    c.schedule();
-  }
-  pixelRatio(): void {
-    const c = this.c;
-    c.pixelRatio = c.host.devicePixelRatio();
-    c.textStyleDirty = true;
-    c.schedule();
+    return own(this, 'destroy', this.#c.destroy.bind(this.#c));
   }
 }
 
@@ -222,7 +133,7 @@ export class ControllerProbe implements Probe {
     const c = this.c;
     const drawn = c.drawn;
     return drawn && {
-      view: drawn.accepted.view, layout: drawn.layout, pixelRatio: c.pixelRatio, scene: drawn.scene,
+      view: drawn.accepted.view, layout: drawn.layout, pixelRatio: c.currentRatio, scene: drawn.scene,
       streaming: drawn.accepted.stream !== null, table: drawn.accepted.source.table,
     };
   }

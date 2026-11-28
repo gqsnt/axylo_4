@@ -114,14 +114,34 @@ interface MeasuringContext {
   wordSpacing: string | number;
 }
 
+function applySpacing(state: MeasuringContext, key: 'letterSpacing' | 'wordSpacing', value: number): void {
+  if (state[key] === value) return;
+  const css = `${value}px`;
+  if (state[key] !== css) state.ctx[key] = css;
+  state[key] = value;
+}
+
 type Widths = Map<string, number>;
-interface MeasurementCache {
-  readonly styles: WeakMap<TextStyle, Widths>;
-  readonly fonts: Map<string, Widths>;
-  size: number;
-  /** The style measured last and its widths: consecutive labels of one style skip the lookups. */
-  lastStyle: TextStyle | null;
-  lastWidths: Widths | null;
+class MeasurementCache {
+  readonly #styles = new WeakMap<TextStyle, Widths>();
+  readonly #fonts = new Map<string, Widths>();
+  size = 0;
+  #lastStyle: TextStyle | null = null;
+  #lastWidths: Widths | null = null;
+
+  widthsFor(style: TextStyle): Widths {
+    if (this.#lastStyle === style) return this.#lastWidths!;
+    let widths = this.#styles.get(style);
+    if (!widths) {
+      // Numeric spacings before the arbitrary font string make an unambiguous key.
+      const key = `${style.letterSpacing} ${style.wordSpacing} ${style.font}`;
+      widths = this.#fonts.get(key);
+      if (!widths) this.#fonts.set(key, widths = new Map());
+      this.#styles.set(style, widths);
+    }
+    this.#lastStyle = style;
+    return this.#lastWidths = widths;
+  }
 }
 /** Measured widths per document, for every style together, so the bound holds for the whole page. */
 const measurers = new WeakMap<Document, DocumentMeasurer>();
@@ -134,25 +154,6 @@ export function noteFontLoad(doc: Document): void {
 /** How many widths the document's cache holds (for tests of its bound). */
 export function measurementCacheSize(doc: Document): number {
   return measurers.get(doc)?.cache?.size ?? 0;
-}
-
-function newMeasurementCache(): MeasurementCache {
-  return { styles: new WeakMap(), fonts: new Map(), size: 0, lastStyle: null, lastWidths: null };
-}
-
-function widthsFor(cache: MeasurementCache, style: TextStyle): Widths {
-  if (cache.lastStyle === style) return cache.lastWidths!;
-  let widths = cache.styles.get(style);
-  if (!widths) {
-    // Spacing values are numbers. Putting both before the font keeps arbitrary CSS font strings unambiguous.
-    const key = `${style.letterSpacing} ${style.wordSpacing} ${style.font}`;
-    widths = cache.fonts.get(key);
-    if (!widths) cache.fonts.set(key, widths = new Map());
-    cache.styles.set(style, widths);
-  }
-  cache.lastStyle = style;
-  cache.lastWidths = widths;
-  return widths;
 }
 
 function measuringContext(doc: Document): MeasuringContext | null {
@@ -181,8 +182,8 @@ class DocumentMeasurer implements TextMeasurer {
   }
 
   readonly width = (text: string, style: TextStyle): number => {
-    let cache = this.cache ??= newMeasurementCache();
-    let widths = widthsFor(cache, style);
+    let cache = this.cache ??= new MeasurementCache();
+    let widths = cache.widthsFor(style);
     const hit = widths.get(text);
     if (hit !== undefined) return hit;
     if (this.#context === undefined) this.#context = measuringContext(this.doc);
@@ -204,17 +205,8 @@ class DocumentMeasurer implements TextMeasurer {
         state.font = style.font;
       }
       if (state.spaced) {
-        const { letterSpacing: letter, wordSpacing: word } = style;
-        if (state.letterSpacing !== letter) {
-          const css = `${letter}px`;
-          if (state.letterSpacing !== css) c.letterSpacing = css;
-          state.letterSpacing = letter;
-        }
-        if (state.wordSpacing !== word) {
-          const css = `${word}px`;
-          if (state.wordSpacing !== css) c.wordSpacing = css;
-          state.wordSpacing = word;
-        }
+        applySpacing(state, 'letterSpacing', style.letterSpacing);
+        applySpacing(state, 'wordSpacing', style.wordSpacing);
       }
       width = c.measureText(text).width;
     } else {
@@ -229,8 +221,8 @@ class DocumentMeasurer implements TextMeasurer {
       }
     }
     if (cache.size >= MEASUREMENT_CACHE_LIMIT) {
-      cache = this.cache = newMeasurementCache();
-      widths = widthsFor(cache, style);
+      cache = this.cache = new MeasurementCache();
+      widths = cache.widthsFor(style);
     }
     widths.set(text, width);
     cache.size++;
@@ -299,6 +291,16 @@ export function register<K extends object, S, H extends Subscriptions<S>>(
   };
 }
 
+function unsubscribe<K extends object, S, H extends Subscriptions<S>>(
+  hubs: WeakMap<K, H>, key: K, subscriber: S, teardown: (hub: H) => void,
+): void {
+  const hub = hubs.get(key);
+  if (hub && hub.subscribers.delete(subscriber) && !hub.subscribers.size) {
+    hubs.delete(key);
+    teardown(hub);
+  }
+}
+
 export function teardownHub(hub: { teardown(): void }): void {
   hub.teardown();
 }
@@ -323,7 +325,12 @@ const envHubs = new WeakMap<Window, EnvHub>();
  * Listeners are shared per window and released as soon as the last subscriber stops.
  */
 export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; motion(): void; fonts(): void }): () => void {
-  return register<Window, EnvSubscriber, EnvHub>(envHubs, win, envHubFor(win), new EnvRegistration(handlers), teardownHub);
+  return subscribeEnvironment(win, new EnvRegistration(handlers));
+}
+
+/** The browser host already owns the subscriber and records its undo alongside the other subscriptions. */
+export function subscribeEnvironment(win: Window, subscriber: EnvSubscriber): () => void {
+  return register<Window, EnvSubscriber, EnvHub>(envHubs, win, envHubFor(win), subscriber, teardownHub);
 }
 
 /**
@@ -336,10 +343,7 @@ export function joinEnvironment(win: Window, subscriber: EnvSubscriber): void {
 
 /** Ends `joinEnvironment`; the last subscriber's leaving removes the window's listeners. Idempotent. */
 export function leaveEnvironment(win: Window, subscriber: EnvSubscriber): void {
-  const hub = envHubs.get(win);
-  if (!hub || !hub.subscribers.delete(subscriber) || hub.subscribers.size) return;
-  envHubs.delete(win);
-  hub.teardown();
+  unsubscribe(envHubs, win, subscriber, teardownHub);
 }
 
 function envHubFor(win: Window): EnvHub {
@@ -413,13 +417,78 @@ export interface GeometryListener {
   geometryChanged(entries: readonly ResizeObserverEntry[]): void;
 }
 
-interface GeometryHub {
+interface ResizeHub<R extends Targets> {
   readonly observer: ResizeObserver;
-  readonly index: WeakMap<Element, GeometryRegistration>;
+  readonly index: WeakMap<Element, R>;
   count: number;
   delivery: number;
+  disconnect(): void;
 }
 
+function resizeHub<R extends Targets>(
+  hubs: WeakMap<Document, ResizeHub<R>>, win: Window & typeof globalThis, doc: Document,
+  deliver: (hub: ResizeHub<R>, entries: readonly ResizeObserverEntry[], doc: Document) => void,
+): ResizeHub<R> {
+  const existing = hubs.get(doc);
+  if (existing) return existing;
+  const hub: ResizeHub<R> = {
+    observer: new win.ResizeObserver(entries => deliver(hub, entries, doc)),
+    index: new WeakMap(), count: 0, delivery: 0,
+    disconnect() {
+      if (hubs.get(doc) === hub) hubs.delete(doc);
+      hub.observer.disconnect();
+    },
+  };
+  hubs.set(doc, hub);
+  return hub;
+}
+
+/** The successful prefix is enough to roll back a partially observed chart. */
+abstract class Targets {
+  live = true;
+  #observed = 0;
+  readonly #targets: Element | readonly Element[];
+
+  constructor(private readonly hub: ResizeHub<Targets>, targets: Element | readonly Element[]) {
+    this.#targets = targets;
+  }
+  #at(i: number): Element {
+    return Array.isArray(this.#targets) ? this.#targets[i]! : this.#targets as Element;
+  }
+  observe(disconnectOnFailure: boolean): this {
+    const hub = this.hub;
+    const count = Array.isArray(this.#targets) ? this.#targets.length : 1;
+    try {
+      while (this.#observed < count) {
+        const target = this.#at(this.#observed);
+        hub.index.set(target, this);
+        this.#observed++;
+        hub.observer.observe(target);
+      }
+    } catch (error) {
+      release(() => this.#detach(disconnectOnFailure && !hub.count));
+      throw error;
+    }
+    hub.count++;
+    return this;
+  }
+  release(): void {
+    if (this.live) this.#detach(--this.hub.count === 0);
+  }
+  #detach(last: boolean): void {
+    this.live = false;
+    const hub = this.hub, count = this.#observed;
+    this.#observed = 0;
+    for (let i = 0; i < count; i++) {
+      const target = this.#at(i);
+      if (hub.index.get(target) === this) hub.index.delete(target);
+    }
+    if (last) hub.disconnect();
+    else for (let i = 0; i < count; i++) hub.observer.unobserve(this.#at(i));
+  }
+}
+
+type GeometryHub = ResizeHub<GeometryRegistration>;
 const geometryHubs = new WeakMap<Document, GeometryHub>();
 
 function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry[]): void {
@@ -451,61 +520,10 @@ function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry
  * One chart's targets on the document's shared ResizeObserver. A class, so a chart's registration is one
  * object and its release is a shared method rather than closures made per chart.
  */
-export class GeometryRegistration {
-  live = true;
-  /** The delivery this registration last heard of, so several of its targets in one delivery count once. */
+export class GeometryRegistration extends Targets {
   stamp = 0;
-  /** This registration's own entries of the delivery being dispatched; empty between deliveries. */
   readonly entries: ResizeObserverEntry[] = [];
-  /** How many of `targets`, from the first, are observed. */
-  #observed = 0;
-
-  constructor(
-    private readonly doc: Document, private readonly hub: GeometryHub, private readonly targets: readonly Element[],
-    readonly listener: GeometryListener,
-  ) {}
-
-  /** Observes every target; one that cannot be observed leaves none of this chart's behind (and no empty hub). */
-  observe(): void {
-    const hub = this.hub;
-    try {
-      for (const target of this.targets) {
-        hub.index.set(target, this);
-        this.#observed++;
-        hub.observer.observe(target);
-      }
-    } catch (error) {
-      this.live = false;
-      try { this.#unobserve(); } catch { /* the original failure matters more */ }
-      throw error;
-    }
-    hub.count++;
-  }
-
-  /** Unobserves the targets; the last release disconnects the observer and forgets the hub. Idempotent. */
-  release(): void {
-    if (!this.live) return;
-    this.live = false;
-    this.hub.count--;
-    this.#unobserve();
-  }
-
-  #unobserve(): void {
-    const hub = this.hub;
-    const targets = this.targets;
-    const observed = this.#observed;
-    this.#observed = 0;
-    for (let i = 0; i < observed; i++) {
-      const target = targets[i]!;
-      if (hub.index.get(target) === this) hub.index.delete(target);
-    }
-    if (hub.count === 0) {
-      if (geometryHubs.get(this.doc) === hub) geometryHubs.delete(this.doc);
-      hub.observer.disconnect();
-    } else {
-      for (let i = 0; i < observed; i++) hub.observer.unobserve(targets[i]!);
-    }
-  }
+  constructor(hub: GeometryHub, targets: readonly Element[], readonly listener: GeometryListener) { super(hub, targets); }
 }
 
 /**
@@ -516,18 +534,7 @@ export class GeometryRegistration {
 export function observeGeometry(
   win: Window & typeof globalThis, doc: Document, targets: readonly Element[], listener: GeometryListener,
 ): GeometryRegistration {
-  let hub = geometryHubs.get(doc);
-  if (!hub) {
-    const created: GeometryHub = {
-      observer: new win.ResizeObserver(entries => deliverGeometry(created, entries)),
-      index: new WeakMap(), count: 0, delivery: 0,
-    };
-    hub = created;
-    geometryHubs.set(doc, hub);
-  }
-  const registration = new GeometryRegistration(doc, hub, targets, listener);
-  registration.observe();
-  return registration;
+  return new GeometryRegistration(resizeHub(geometryHubs, win, doc, deliverGeometry), targets, listener).observe(true);
 }
 
 /** What a chart's font probe reports to: whether a change counts now, and the change itself. */
@@ -536,15 +543,10 @@ export interface FontProbeListener {
   fontProbeChanged(): void;
 }
 
-interface ProbeHub {
-  readonly observer: ResizeObserver;
-  readonly index: WeakMap<Element, ProbeRegistration>;
-  count: number;
-}
-
+type ProbeHub = ResizeHub<ProbeRegistration>;
 const probeHubs = new WeakMap<Document, ProbeHub>();
 
-function deliverProbes(doc: Document, hub: ProbeHub, entries: readonly ResizeObserverEntry[]): void {
+function deliverProbes(hub: ProbeHub, entries: readonly ResizeObserverEntry[], doc: Document): void {
   let changed: ProbeRegistration[] | null = null;
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!;
@@ -582,34 +584,11 @@ function notifyLive<R extends { readonly live: boolean }>(list: readonly R[], no
 }
 
 /** One chart's font probe on the document's shared probe observer; `release` is a shared method. */
-export class ProbeRegistration {
-  live = true;
-  /** The probe's last delivered content box; NaN until the first delivery, which only sets the baseline. */
+export class ProbeRegistration extends Targets {
+  /** The first probe box establishes its baseline. */
   width = NaN;
   height = NaN;
-
-  constructor(
-    private readonly doc: Document, private readonly hub: ProbeHub, private readonly probe: Element,
-    readonly listener: FontProbeListener,
-  ) {}
-
-  /** Idempotent; the last release disconnects the observer. */
-  release(): void {
-    if (this.live) this.detach(--this.hub.count === 0);
-  }
-
-  /** Stops observing the probe; the `last` one disconnects the observer and lets its hub go. */
-  detach(last: boolean): void {
-    this.live = false;
-    const { hub, probe, doc } = this;
-    if (hub.index.get(probe) === this) hub.index.delete(probe);
-    if (last) {
-      if (probeHubs.get(doc) === hub) probeHubs.delete(doc);
-      hub.observer.disconnect();
-    } else {
-      hub.observer.unobserve(probe);
-    }
-  }
+  constructor(hub: ProbeHub, probe: Element, readonly listener: FontProbeListener) { super(hub, probe); }
 }
 
 /**
@@ -621,28 +600,9 @@ export class ProbeRegistration {
 export function observeFontProbe(
   win: Window & typeof globalThis, doc: Document, probe: Element, listener: FontProbeListener,
 ): ProbeRegistration {
-  let hub = probeHubs.get(doc);
-  const fresh = !hub;
-  if (!hub) {
-    const created: ProbeHub = {
-      observer: new win.ResizeObserver(entries => deliverProbes(doc, created, entries)),
-      index: new WeakMap(), count: 0,
-    };
-    hub = created;
-    probeHubs.set(doc, hub);
-  }
-  const shared = hub;
-  const registration = new ProbeRegistration(doc, shared, probe, listener);
-  shared.index.set(probe, registration);
-  try {
-    shared.observer.observe(probe);
-  } catch (error) {
-    // As for geometry: nothing of this probe stays observed, and a hub it created goes with it.
-    try { registration.detach(fresh && shared.count === 0); } catch { /* the original failure matters more */ }
-    throw error;
-  }
-  shared.count++;
-  return registration;
+  const fresh = !probeHubs.has(doc);
+  const hub = resizeHub(probeHubs, win, doc, deliverProbes);
+  return new ProbeRegistration(hub, probe, listener).observe(fresh);
 }
 
 /** The parent that supplies inherited styles and language, including through a slot. */
@@ -841,11 +801,7 @@ export class LanguageWatch implements SharedTreeSubscriber {
     this.#root = null;
     this.#stopShadow = null;
     shadow?.();
-    if (root === null) return;
-    const hub = langRootHubs.get(root);
-    if (!hub || !hub.subscribers.delete(this) || hub.subscribers.size) return;
-    langRootHubs.delete(root);
-    disconnect(hub);
+    if (root !== null) unsubscribe<Node, SharedTreeSubscriber, RootMutationHub>(langRootHubs, root, this, disconnect);
   }
 }
 

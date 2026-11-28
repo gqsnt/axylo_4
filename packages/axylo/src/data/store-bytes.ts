@@ -5,7 +5,7 @@ import type { FrameBuffers } from './store-buffers';
 import type { RawRows, RowRevisions } from './store-rows';
 import { existingSharedStates } from './store-statistics';
 import type { Column } from './store-window';
-import type { Table } from './table';
+import { borrowColumns, borrowedBuffers, type Table } from './table';
 
 /** The buffers a store holds for one purpose. */
 export interface OwnedBuffer {
@@ -26,27 +26,13 @@ export interface OwnedBytes {
   readonly buffers: readonly OwnedBuffer[];
 }
 
-/**
- * Every buffer behind a typed column a caller has given any chart. A buffer the caller gave is never the
- * library's, whichever frame or store is counted. Weak, so remembering one never keeps it alive.
- */
-const given = new WeakSet<ArrayBufferLike>();
-
-/** Records the buffers of the caller's typed columns (called where the caller's data is read). */
-export function borrowColumns(columns: Readonly<Record<string, unknown>>): void {
-  for (const key of Object.keys(columns)) {
-    const column = columns[key];
-    if (ArrayBuffer.isView(column)) given.add(column.buffer);
-  }
-}
-
 /** The buffers behind a table's typed columns, and every buffer a caller has given. */
 export class CallerBuffers {
   add(table: Table): void {
     if (table.columns) borrowColumns(table.columns);
   }
 
-  has(buffer: ArrayBufferLike): boolean { return given.has(buffer); }
+  has(buffer: ArrayBufferLike): boolean { return borrowedBuffers.has(buffer); }
 }
 
 /**
@@ -119,9 +105,8 @@ export class ByteCount {
 
 export function countBuffers(buffers: FrameBuffers, bytes: ByteCount): void {
   bytes.add('x', buffers.x);
-  const flags = buffers['observedFlags'];
+  const [flags, categories] = buffers.auxiliaryColumns;
   if (flags) bytes.add('observed', flags);
-  const categories = buffers['categoryPositions'];
   if (categories.length) bytes.add('category positions', categories);
   for (const [key, series] of buffers.series) {
     bytes.add(`series ${key} y`, series.y);
@@ -137,8 +122,9 @@ export function countColumn<T extends Float64Array | Int32Array | Uint8Array>(co
 }
 
 function countRaw(rows: RawRows, bytes: ByteCount, name: string): void {
-  for (const [, block] of rows['columns']) {
-    const columns = block.table.columns!;
+  if (!rows.columnBlocks) return;
+  for (const [, block] of rows.columnBlocks) {
+    const columns = block.columns;
     for (const key of Object.keys(columns)) {
       const column = columns[key];
       if (ArrayBuffer.isView(column)) bytes.add(name, column);
@@ -147,11 +133,11 @@ function countRaw(rows: RawRows, bytes: ByteCount, name: string): void {
 }
 
 export function countRevisions(revisions: RowRevisions, bytes: ByteCount): void {
-  for (const window of revisions['windows']) {
+  for (const window of [revisions.current, ...revisions['older'] ?? []]) {
     const rows = window['rows'];
     if (rows) {
-      bytes.add('x positions of the first rows', rows['seedPositions']);
-      countRaw(rows['retained'], bytes, 'rows');
+      bytes.add('x positions of the first rows', rows.initialPositions);
+      countRaw(rows, bytes, 'rows');
     }
     countRaw(window['archived'], bytes, 'rows kept for earlier frames');
   }

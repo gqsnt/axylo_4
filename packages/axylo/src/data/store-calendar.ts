@@ -4,9 +4,10 @@ import { StoreMap } from './store-map';
 import { calendarIntervals } from './steps';
 
 export class CalendarWindow {
-  #rows = new StoreMap<number, true>();
-  #utcBreaks = new StoreMap<number, true>();
-  #localBreaks = new StoreMap<number, true>();
+  #rows: StoreMap<number, true> = new StoreMap();
+  // Evictions walk the ordered window from the front. When its newest break leaves, every older break has left.
+  #utcBreak = -Infinity;
+  #localBreak = -Infinity;
   #last = -Infinity;
   #distinct = 0;
 
@@ -15,25 +16,23 @@ export class CalendarWindow {
   fork(): CalendarWindow {
     const draft = new CalendarWindow(this.zone);
     draft.#rows = this.#rows.fork();
-    draft.#utcBreaks = this.#utcBreaks.fork();
-    draft.#localBreaks = this.#localBreaks.fork();
+    draft.#utcBreak = this.#utcBreak;
+    draft.#localBreak = this.#localBreak;
     draft.#last = this.#last;
     draft.#distinct = this.#distinct;
     return draft;
   }
 
   commit(): void {
-    this.#rows.commit();
-    this.#utcBreaks.commit();
-    this.#localBreaks.commit();
+    this.#rows = this.#rows.commit();
   }
 
   observe(position: number): void {
     if (position === this.#last) return;
     if (this.#distinct) {
       const interval = calendarIntervals(this.#last, position, this.zone);
-      if (!(interval & 1)) this.#utcBreaks.set(this.#last, true);
-      if (!(interval & 2)) this.#localBreaks.set(this.#last, true);
+      if (!(interval & 1)) this.#utcBreak = this.#last;
+      if (!(interval & 2)) this.#localBreak = this.#last;
     }
     this.#last = position;
     this.#distinct++;
@@ -44,8 +43,8 @@ export class CalendarWindow {
   }
 
   evictPosition(position: number): void {
-    this.#utcBreaks.delete(position);
-    this.#localBreaks.delete(position);
+    if (position === this.#utcBreak) this.#utcBreak = -Infinity;
+    if (position === this.#localBreak) this.#localBreak = -Infinity;
     if (--this.#distinct === 0) this.#last = -Infinity;
   }
 
@@ -54,7 +53,7 @@ export class CalendarWindow {
   }
 
   #matches(): number {
-    return (this.#utcBreaks.size ? 0 : 1) | (this.#localBreaks.size ? 0 : 2);
+    return (this.#utcBreak === -Infinity ? 1 : 0) | (this.#localBreak === -Infinity ? 2 : 0);
   }
 
   #firstRows(): number[] {
@@ -76,27 +75,16 @@ export class CalendarWindow {
       : null;
   }
 
-  preview(field: string, first: number, positions: Float64Array, nextRow: number): DiagnosticInput | null {
-    let matches = this.#matches();
-    if (!matches || this.#distinct > 0 && !Number.isFinite(first)) return null;
-    let last = this.#last;
-    let distinct = this.#distinct;
-    let appended = 0;
-    const rows = this.#firstRows();
+  append(field: string, first: number, positions: Float64Array, nextRow: number): DiagnosticInput | null {
+    const visible = !this.#distinct || Number.isFinite(first);
+    const before = this.#rows.size;
     for (let i = 0; i < positions.length; i++) {
       const position = positions[i]!;
-      if (!Number.isFinite(position)) continue;
-      if (position !== last) {
-        if (distinct) matches &= calendarIntervals(last, position, this.zone);
-        if (!matches) return null;
-        distinct++;
-        last = position;
+      if (Number.isFinite(position)) {
+        this.observe(position);
+        this.record(nextRow + i);
       }
-      appended++;
-      if (rows.length < 10) rows.push(nextRow + i);
     }
-    return appended && distinct >= 2
-      ? createDiagnostic('AX111', 'none', { field, count: this.#rows.size + appended, rows })
-      : null;
+    return visible && this.#rows.size > before ? this.diagnostic(field, 0) : null;
   }
 }

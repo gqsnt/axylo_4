@@ -4,122 +4,98 @@ const noKey = Symbol();
 
 function sameKey(a: unknown, b: unknown): boolean { return a === b || a !== a && b !== b; }
 
-export class StoreMap<K, V> {
+// Committed reads and writes are ordinary Map operations. Only a preparation needs an overlay.
+export interface StoreMap<K, V> extends Iterable<[K, V]> {
+  readonly size: number;
+  get(key: K): V | undefined;
+  has(key: K): boolean;
+  set(key: K, value: V): void;
+  delete(key: K): void;
+  keys(): IterableIterator<K>;
+  fork(): StoreMap<K, V>;
+  commit(): StoreMap<K, V>;
+}
+export const StoreMap = class<K, V> extends Map<K, V> implements StoreMap<K, V> {
+  fork(): StoreMap<K, V> { return new DraftMap(this); }
+  commit(): this { return this; }
+};
+
+class DraftMap<K, V> implements StoreMap<K, V> {
   #key: K | typeof noKey = noKey;
   #value: V | undefined;
   #deleted: K | typeof noKey = noKey;
   #changes: Map<K, V> | null = null;
   #removed: Set<K> | null = null;
-  #count = -1;
+  size: number;
 
-  constructor(private readonly data = new Map<K, V>()) {}
+  readonly #data: StoreMap<K, V>;
+  constructor(data: StoreMap<K, V>) { this.#data = data; this.size = data.size; }
 
-  fork(): StoreMap<K, V> {
-    const draft = new StoreMap(this.data);
-    draft.#count = this.data.size;
-    return draft;
+  fork(): StoreMap<K, V> { return this.#data.fork(); }
+
+  commit(): StoreMap<K, V> {
+    if (this.#deleted !== noKey) this.#data.delete(this.#deleted);
+    if (this.#removed) for (const key of this.#removed) this.#data.delete(key);
+    if (this.#key !== noKey) this.#data.set(this.#key, this.#value!);
+    if (this.#changes) for (const [key, value] of this.#changes) this.#data.set(key, value);
+    return this.#data;
   }
 
-  commit(): void {
-    if (this.#count < 0) return;
-    if (this.#removed) {
-      for (const key of this.#removed) this.data.delete(key);
-    } else if (this.#deleted !== noKey) this.data.delete(this.#deleted);
-    if (this.#changes) {
-      for (const [key, value] of this.#changes) this.data.set(key, value);
-    } else if (this.#key !== noKey) this.data.set(this.#key, this.#value!);
-    this.#count = -1;
-    this.#key = this.#deleted = noKey;
-    this.#value = undefined;
-    this.#changes = this.#removed = null;
-  }
-
-  get size(): number { return this.#count < 0 ? this.data.size : this.#count; }
-
-  #hasChange(key: K): boolean {
-    return this.#changes ? this.#changes.has(key) : sameKey(key, this.#key);
+  #changed(key: K): boolean {
+    return sameKey(key, this.#key) || !!this.#changes?.has(key);
   }
 
   #isRemoved(key: K): boolean {
-    return this.#removed ? this.#removed.has(key) : sameKey(key, this.#deleted);
+    return sameKey(key, this.#deleted) || !!this.#removed?.has(key);
   }
 
   get(key: K): V | undefined {
-    if (this.#count < 0) return this.data.get(key);
-    if (this.#changes) {
-      if (this.#changes.has(key)) return this.#changes.get(key);
-    } else if (sameKey(key, this.#key)) return this.#value;
-    return this.#isRemoved(key) ? undefined : this.data.get(key);
+    if (sameKey(key, this.#key)) return this.#value;
+    if (this.#changes?.has(key)) return this.#changes.get(key);
+    if (this.#isRemoved(key)) return;
+    return this.#data.get(key);
   }
 
   has(key: K): boolean {
-    return this.#count < 0 ? this.data.has(key)
-      : this.#hasChange(key) || !this.#isRemoved(key) && this.data.has(key);
+    return this.#changed(key) || !this.#isRemoved(key) && this.#data.has(key);
   }
 
   set(key: K, value: V): void {
-    if (this.#count < 0) {
-      this.data.set(key, value);
-      return;
-    }
-    if (!this.has(key)) this.#count++;
-    if (this.#changes) this.#changes.set(key, value);
-    else if (this.#key === noKey || sameKey(key, this.#key)) {
+    if (!this.has(key)) this.size++;
+    // The first write and first removal fit inline for a sliding single-row window.
+    // Spill subsequent writes in insertion order, including reinsertion after deletion.
+    if (sameKey(key, this.#key) || this.#key === noKey && !this.#changes?.size) {
       this.#key = key;
       this.#value = value;
-    } else {
-      this.#changes = new Map<K, V>();
-      this.#changes.set(this.#key, this.#value!);
-      this.#changes.set(key, value);
-      this.#key = noKey;
-      this.#value = undefined;
-    }
+    } else (this.#changes ??= new Map()).set(key, value);
   }
 
   delete(key: K): void {
-    if (this.#count < 0) {
-      this.data.delete(key);
-      return;
-    }
-    const existing = this.data.has(key);
-    if (this.#changes) {
-      if (!this.#changes.delete(key) && (!existing || this.#isRemoved(key))) return;
-    } else if (sameKey(key, this.#key)) {
+    if (!this.has(key)) return;
+    this.size--;
+    if (sameKey(key, this.#key)) {
       this.#key = noKey;
       this.#value = undefined;
-    } else if (!existing || this.#isRemoved(key)) return;
-    this.#count--;
-    if (!existing) return;
-    if (this.#removed) this.#removed.add(key);
-    else if (this.#deleted === noKey) this.#deleted = key;
-    else if (!sameKey(key, this.#deleted)) {
-      this.#removed = new Set<K>().add(this.#deleted).add(key);
-      this.#deleted = noKey;
+    } else this.#changes?.delete(key);
+    if (this.#data.has(key) && !this.#isRemoved(key)) {
+      if (this.#deleted === noKey) this.#deleted = key;
+      else (this.#removed ??= new Set()).add(key);
     }
   }
 
   *[Symbol.iterator](): IterableIterator<[K, V]> {
-    if (this.#count < 0) {
-      yield* this.data;
-      return;
+    for (const [key, value] of this.#data) {
+      if (!this.#isRemoved(key)) yield [key, this.#changed(key) ? this.get(key)! : value];
     }
-    for (const [key, value] of this.data) {
-      if (this.#isRemoved(key)) continue;
-      yield [key, this.#hasChange(key) ? this.get(key)! : value];
-    }
-    if (this.#changes) {
-      for (const [key, value] of this.#changes) {
-        if (!this.data.has(key) || this.#isRemoved(key)) yield [key, value];
-      }
-    } else {
-      const key = this.#key;
-      if (key !== noKey && (!this.data.has(key) || this.#isRemoved(key))) yield [key === 0 ? 0 as K : key, this.#value!];
+    const key = this.#key;
+    if (key !== noKey && (!this.#data.has(key) || this.#isRemoved(key))) yield [key === 0 ? 0 as K : key, this.#value!];
+    if (this.#changes) for (const entry of this.#changes) {
+      if (!this.#data.has(entry[0]) || this.#isRemoved(entry[0])) yield entry;
     }
   }
 
   *keys(): IterableIterator<K> {
-    if (this.#count < 0) yield* this.data.keys();
-    else for (const [key] of this) yield key;
+    for (const [key] of this) yield key;
   }
 }
 
