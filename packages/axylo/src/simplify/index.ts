@@ -492,11 +492,15 @@ function pack(indexes: Uint32Array | null, breaks: Uint32Array | null, input: Pa
     const { start: xs, origin: xo, span: xn, extent: xe } = xExact;
     const { start: ys, end: ye, origin: yo, span: yn, extent: yx, bounded, scale } = yExact;
     const low = yn > 0 ? ys : ye, high = yn > 0 ? ye : ys;
-    for (let i = 0; i < length; i++) {
-      const idx = indexes ? indexes[i]! : start + i;
+    const put = (idx: number, out: number) => {
       const val = y[idx]!;
-      xy[2 * i] = xo + (x[idx]! - xs) / xn * xe;
-      xy[2 * i + 1] = bounded || (val >= low && val <= high) ? yo + (val - ys) / yn * yx : position(scale, val);
+      xy[out] = xo + (x[idx]! - xs) / xn * xe;
+      xy[out + 1] = bounded || (val >= low && val <= high) ? yo + (val - ys) / yn * yx : position(scale, val);
+    };
+    if (indexes) {
+      for (let i = 0; i < length; i++) put(indexes[i]!, 2 * i);
+    } else {
+      for (let i = 0; i < length; i++) put(start + i, 2 * i);
     }
     return xy;
   }

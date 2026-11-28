@@ -1,7 +1,7 @@
 import { SLOT_ABSENT_FIELD, SLOT_INVALID, SLOT_NULL, SLOT_VALUE, type DiagnosticSink, type SlotState } from '../core/contracts';
 import type { ResolvedValueField } from './options';
 import { Reports } from './reports';
-import type { FullStatistics } from './store-statistics';
+import { withSignedZeros, type FullStatistics } from './store-statistics';
 import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
@@ -53,35 +53,28 @@ export function readValues(
   let allValid = !included;
   if (borrowed && !included) {
     // Values and typed NaNs can stay in the caller's storage without generic row validation.
-    if (counts && keepAllValidSlots && table.length >= 256) {
-      let min = column[0]!, max = min;
-      if (Number.isFinite(min)) {
-        // Interior values and exact repeats leave both finite extrema unchanged.
-        // Opposite zero signs still go through Math.min/max.
-        for (i = 1; i < table.length; i++) {
-          const value = column[i]!;
-          if ((value > min && value < max) || Object.is(value, min) || Object.is(value, max)) continue;
-          if (!Number.isFinite(value)) break;
-          min = Math.min(min, value);
-          max = Math.max(max, value);
-        }
+    if (counts && keepAllValidSlots && table.length) {
+      let min = Infinity, max = -Infinity;
+      for (; i < table.length; i++) {
+        const value = column[i]!;
+        if (value >= min && value <= max) continue;
+        if (!Number.isFinite(value)) break;
+        if (value < min) min = value;
+        if (value > max) max = value;
       }
       if (i === table.length) {
-        const last = column[table.length - 1]!;
-        const signed = { min, max, last };
-        let ordered = signed;
-        if (min === 0 || max === 0) {
-          // The reader keeps the first zero on a tie, including its sign.
+        const ordered = { min, max, last: column[i - 1]! };
+        let zeros = 0;
+        if (min === 0 && !Object.is(min, -0) || Object.is(max, -0)) {
+          // Strict comparisons kept the reader's first zero. Only a zero of the opposite sign can change the domain.
+          const firstZero = min === 0 ? min : max;
           for (let row = 0; row < i; row++) {
             const value = column[row]!;
-            if (value === 0) {
-              ordered = { min: min === 0 ? value : min, max: max === 0 ? value : max, last };
-              break;
-            }
+            if (value === 0 && !Object.is(value, firstZero)) { zeros = 3; break; }
           }
         }
-        counts.other += table.length;
-        return { y, slot: null, allValid: true, statistics: { ordered, signed } };
+        counts.other += i;
+        return { y, slot: null, allValid: true, statistics: withSignedZeros(ordered, zeros) };
       }
     }
     let missing = 0;

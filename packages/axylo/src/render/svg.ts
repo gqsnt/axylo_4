@@ -58,9 +58,9 @@ function writeAttr(n: SvgNode, name: string, key: string | number, text = String
 
 function setPath(n: SvgNode, value: string): void {
   const cached = n.attrs?.d;
-  // For long paths the DOM owns the text. Equal lengths need an exact comparison only
-  // after the source geometry changes. Reading the attribute does not read layout.
-  const key = value.length > 64 ? value.length : value;
+  // Equal-length streaming paths can differ at the newest point. Keep text in the DOM and compare it exactly on a key collision.
+  const size = value.length;
+  const key = size > 64 ? size * 65536 + value.charCodeAt(size - 2) * 256 + value.charCodeAt(size - 1) : value;
   if (key === cached && (typeof key === 'string' || n.el.getAttribute('d') === value)) return;
   writeAttr(n, 'd', key, value);
 }
@@ -156,6 +156,8 @@ const NUMBER_BYTES = 24;
 const XY_BYTES = 50; // Two worst-case numbers, a command and a space.
 const XY_ESTIMATE = 26;
 function ensureBuf(need: number): Uint8Array {
+  // Large paths belong to this call, even if encoding exits early or decoding throws.
+  if (need > MAX_RETAINED_BUF) return new Uint8Array(need);
   if (!pathBuf || pathBuf.length < need) {
     const capacity = pathBuf ? Math.min(pathBuf.length * 2, MAX_RETAINED_BUF) : 4096;
     pathBuf = new Uint8Array(Math.max(capacity, need));
@@ -168,10 +170,10 @@ function viewOf(buf: Uint8Array): DataView {
   return pathView?.buffer === buf.buffer ? pathView : pathView = new DataView(buf.buffer);
 }
 
-function growBuf(used: number, need: number): Uint8Array {
-  const next = new Uint8Array(Math.max(pathBuf!.length * 2, need));
-  next.set(pathBuf!.subarray(0, used));
-  return pathBuf = next;
+function growBuf(buf: Uint8Array, used: number, need: number): Uint8Array {
+  const next = ensureBuf(Math.max(buf.length * 2, need));
+  next.set(buf.subarray(0, used));
+  return next;
 }
 
 function writeText(b: Uint8Array, pos: number, s: string): number {
@@ -208,24 +210,27 @@ function writeXY(b: Uint8Array, pos: number, cmd: number, x: number, y: number):
   return writeCmd(b, writeCmd(b, pos, cmd, x), 32, y);
 }
 
-function decodeBuf(len: number): string {
-  const buf = pathBuf!;
-  const out = len === 0 ? '' : (pathDecoder ??= new TextDecoder()).decode(buf.subarray(0, len));
-  if (buf.length > MAX_RETAINED_BUF) pathBuf = null;
-  return out;
+function decodeBuf(buf: Uint8Array, len: number): string {
+  return len === 0 ? '' : (pathDecoder ??= new TextDecoder()).decode(buf.subarray(0, len));
 }
 
 let decimalWords: Uint32Array | null = null;
 
+// Low bytes hold ASCII digits in order. The high byte gives the next free byte.
+function appendDigit(word: number, digit: number): number {
+  return word + (1 << 24) + ((48 + digit) << (8 * (word >>> 24)));
+}
+
 function decimalTable(): Uint32Array {
   const words = new Uint32Array(1100);
-  // Low bytes hold ASCII, high byte its length. Both integer and fractional
-  // parts use the same layout, including an empty fraction at index 1000.
-  const bytes = new Uint8Array(4), view = new DataView(bytes.buffer);
-  for (let i = 0; i < words.length; i++) {
-    const digits = i < 1000 ? String(i) : String((i - 1000) / 100).slice(1);
-    bytes[3] = writeText(bytes, 0, digits);
-    words[i] = view.getUint32(0, true);
+  for (let i = 0; i < 1000; i++) {
+    words[i] = appendDigit(i < 10 ? 0 : words[i / 10 | 0]!, i % 10);
+  }
+  // Fraction zero stays empty. A trailing zero takes no space in a nonempty fraction.
+  const dot = (1 << 24) | 46;
+  for (let i = 1; i < 100; i++) {
+    const tenth = appendDigit(dot, i / 10 | 0);
+    words[1000 + i] = i % 10 ? appendDigit(tenth, i % 10) : tenth;
   }
   return words;
 }
@@ -238,6 +243,10 @@ function writePixel(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: num
   // Float32 coordinates at these magnitudes have enough precision in a double for
   // the half-cent addition to preserve which side of the rounding boundary they occupy.
   const cents = (value * 100 + 0.5) | 0;
+  return writePackedCents(bytes, words, pos, prefix, cents);
+}
+
+function writePackedCents(bytes: DataView, words: Uint32Array, pos: number, prefix: number, cents: number): number {
   const whole = (cents / 100) | 0;
   const integer = words[whole]!;
   // The following write overwrites padding. Callers reserve a worst-case coordinate pair.
@@ -271,17 +280,17 @@ export function pathData(xy: Float32Array): string {
     if (lifted(x) || lifted(y)) { pen = false; continue; }
     if (pos + XY_BYTES > b.length) {
       if (chunked) {
-        prefix += (pathDecoder ??= new TextDecoder()).decode(b.subarray(0, pos));
+        prefix += decodeBuf(b, pos);
         pos = 0;
       } else {
-        b = growBuf(pos, pos + XY_BYTES);
+        b = growBuf(b, pos, pos + XY_BYTES);
         bytes = viewOf(b);
       }
     }
     pos = writePixelPair(b, bytes, words, pos, pen ? 76 : 77, x, y);
     pen = true;
   }
-  return prefix + decodeBuf(pos);
+  return prefix + decodeBuf(b, pos);
 }
 
 export function areaData(mark: AreaMark): string {
@@ -306,7 +315,7 @@ export function areaData(mark: AreaMark): string {
       const x = arr[2 * k]!, y = arr[2 * k + 1]!;
       if (lifted(x) || lifted(y)) continue;
       if (pos + XY_BYTES + 1 > b.length) {
-        b = growBuf(pos, pos + XY_BYTES + 1);
+        b = growBuf(b, pos, pos + XY_BYTES + 1);
         bytes = viewOf(b);
       }
       pos = writePixelPair(b, bytes, words, pos, pos > runStart ? 76 : 77, x, y);
@@ -318,39 +327,23 @@ export function areaData(mark: AreaMark): string {
     emit(lower, le - 1, ls - 1, -1);
     if (pos > runStart) b[pos++] = 90;
   });
-  return decodeBuf(pos);
+  return decodeBuf(b, pos);
 }
 
-const TENTH_COUNT = 10_000;
 const DENSE_COORD_LIMIT = 10_000;
 const DENSE_RADIUS_LIMIT = 100;
-let tenthsTable: { bytes: Float64Array; lengths: Uint8Array } | null = null;
-
-function packedTenths() {
-  // Each entry contains ASCII bytes. A word store replaces the digit writes at an unaligned position.
-  const bytes = new Float64Array(TENTH_COUNT), lengths = new Uint8Array(TENTH_COUNT);
-  const scratch = new Uint8Array(8), view = new DataView(scratch.buffer);
-  for (let i = 0; i < TENTH_COUNT; i++) {
-    lengths[i] = writeFixed(scratch, 0, i * 10);
-    bytes[i] = view.getFloat64(0, true);
-  }
-  return { bytes, lengths };
-}
-
-/** Up to 24 ASCII bytes copied with word stores in the dense circle loop. */
-function packArc(text: string) {
-  const bytes = new Uint8Array(24), view = new DataView(bytes.buffer);
+function packCircle(radius: number) {
+  const r = fstr(radius), diameter = fstr(2 * radius), arc = `a${r} ${r} 0 11`;
+  const text = `${arc}-${diameter} 0${arc}${diameter} 0`;
+  // Radius < 100 with one fractional digit: the longest pair (r = 99.9) is 45 ASCII bytes.
+  const bytes = new Uint8Array(48);
   writeText(bytes, 0, text);
-  return { length: text.length, first: view.getFloat64(0), second: view.getFloat64(8), third: view.getFloat64(16) };
+  const view = new DataView(bytes.buffer), words: number[] = [];
+  for (let at = 0; at < text.length; at += 8) words.push(view.getFloat64(at));
+  return { radius, length: text.length, words };
 }
 
-let denseArcs: { radius: number; forward: ReturnType<typeof packArc>; back: ReturnType<typeof packArc> } | undefined;
-
-function packedArcs(radius: number) {
-  if (denseArcs?.radius === radius) return denseArcs;
-  const r = fstr(radius), prefix = `${r} ${r} 0 11`;
-  return denseArcs = { radius, forward: packArc('A' + prefix), back: packArc(`a${prefix}${fstr(2 * radius)} 0`) };
-}
+let denseArc: ReturnType<typeof packCircle> | undefined;
 
 let absoluteArc: { radius: number; arc: string; bytes?: Uint8Array } | undefined;
 
@@ -360,23 +353,19 @@ function absoluteArcFor(radius: number) {
 }
 
 function denseCircles(xy: Float32Array, radius: number): string | null {
-  const { forward, back } = packedArcs(radius);
-  // The final word may extend up to seven bytes beyond its logical end.
-  const b = ensureBuf((xy.length >> 1) * (35 + forward.length + back.length) + 7);
+  const arc = denseArc?.radius === radius ? denseArc : denseArc = packCircle(radius);
+  const { length, words } = arc;
+  // Even a one-digit radius takes 25 bytes. Keep the four common words outside the point loop.
+  const first = words[0]!, second = words[1]!, third = words[2]!, fourth = words[3]!;
+  // Each signed coordinate fits seven characters in this range. The final word can overrun by seven bytes.
+  const b = ensureBuf((xy.length >> 1) * (16 + length) + 7);
   const view = viewOf(b);
-  const arcAt = (pos: number, arc: typeof forward) => {
-    view.setFloat64(pos, arc.first);
-    view.setFloat64(pos + 8, arc.second);
-    if (arc.length > 16) view.setFloat64(pos + 16, arc.third);
-    return pos + arc.length;
-  };
-  const { bytes, lengths } = tenthsTable ??= packedTenths();
-  const write = (at: number, value: number): number => {
-    const magnitude = Math.abs(value);
-    if (magnitude >= TENTH_COUNT) return writeFixed(b, at, value * 10);
-    if (value < 0) b[at++] = 45;
-    view.setFloat64(at, bytes[magnitude]!, true);
-    return at + lengths[magnitude]!;
+  const decimals = decimalWords ??= decimalTable();
+  const write = (pos: number, prefix: number, tenths: number): number => {
+    const cents = tenths * 10;
+    if (tenths >= 0 && tenths < 10000) return writePackedCents(view, decimals, pos, prefix, cents);
+    b[pos++] = prefix;
+    return writeFixed(b, pos, cents);
   };
   const radiusTenths = radius * 10;
   let pos = 0;
@@ -389,20 +378,17 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
     }
     const cx = x >= 0 ? (x * 10 + 0.5) | 0 : Math.round(x * 10);
     const cy = y >= 0 ? (y * 10 + 0.5) | 0 : Math.round(y * 10);
-    b[pos++] = 77;
-    pos = write(pos, cx + radiusTenths);
-    b[pos++] = 32;
-    const yStart = pos;
-    pos = write(pos, cy);
-    const yLength = pos - yStart;
-    pos = write(arcAt(pos, forward), cx - radiusTenths);
-    if (cy >= 0) b[pos++] = 32;
-    view.setFloat64(pos, view.getFloat64(yStart, true), true);
-    pos += yLength;
-    // The second arc returns by one diameter. The fill closes the subpath.
-    pos = arcAt(pos, back);
+    pos = write(pos, 77, cx + radiusTenths);
+    pos = write(pos, 32, cy);
+    view.setFloat64(pos, first);
+    view.setFloat64(pos + 8, second);
+    view.setFloat64(pos + 16, third);
+    view.setFloat64(pos + 24, fourth);
+    if (length > 32) view.setFloat64(pos + 32, words[4]!);
+    if (length > 40) view.setFloat64(pos + 40, words[5]!);
+    pos += length;
   }
-  return decodeBuf(pos);
+  return decodeBuf(b, pos);
 }
 
 /** Both polygon and circle markers use the same finite-coordinate and buffer bounds checks. */
@@ -412,11 +398,11 @@ function pointPaths(xy: Float32Array, estimate: number, maxPoint: number,
   for (let i = 0; i + 1 < xy.length; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) continue;
-    if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
+    if (pos + maxPoint > b.length) b = growBuf(b, pos, pos + maxPoint);
     pos = emit(b, pos, x, y);
     b[pos++] = 90;
   }
-  return decodeBuf(pos);
+  return decodeBuf(b, pos);
 }
 
 function pointData(mark: PointMark): string {
@@ -474,7 +460,7 @@ function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): stri
   for (let i = 0; i + 3 < q.length; i += 4) {
     const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
     if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
-    if (pos + maxBox > b.length) b = growBuf(pos, pos + maxBox);
+    if (pos + maxBox > b.length) b = growBuf(b, pos, pos + maxBox);
     missingBox(x, y, w, h, box, clip);
     const bx = f(box[0]!), by = f(box[1]!), bw = f(box[2]!), bh = f(box[3]!);
     pos = writeXY(b, pos, 77, bx, by);
@@ -485,7 +471,7 @@ function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): stri
     pos = writeXY(b, pos, 77, bx, by + bh);
     pos = writeXY(b, pos, 76, bx + bw, by);
   }
-  return decodeBuf(pos);
+  return decodeBuf(b, pos);
 }
 
 /** Two semicircles, with the opposite winding for a donut's inner edge. */
@@ -587,7 +573,7 @@ function slidingPath(source: unknown[], xy: Float32Array): string | null {
     pos += lengths[y]!;
     y = y + 2 >= length ? 1 : y + 2;
   }
-  return decodeBuf(pos);
+  return decodeBuf(b, pos);
 }
 
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
@@ -739,11 +725,6 @@ function trim(list: SvgNode[], count: number): void {
   while (list.length > count) list.pop()!.el.remove();
 }
 
-const SVG_STYLE = [
-  'position', 'absolute', 'left', '0', 'top', '0', 'display', 'block',
-  'overflow', 'hidden', 'pointer-events', 'none', 'forced-color-adjust', 'none',
-];
-
 class SvgRenderer implements MarkRenderer, SvgContext {
   readonly kind = 'svg';
   readonly element: SVGSVGElement;
@@ -767,16 +748,13 @@ class SvgRenderer implements MarkRenderer, SvgContext {
     this.#marks = marks;
     this.#batchRules = marks.rule === svgRule;
     const svg = this.element = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
-    const style = svg.style;
-    for (let i = 0; i < SVG_STYLE.length; i += 2) style.setProperty(SVG_STYLE[i]!, SVG_STYLE[i + 1]!);
+    svg.style.cssText = 'position:absolute;left:0;top:0;display:block;overflow:hidden;pointer-events:none;forced-color-adjust:none';
 
     const defs = this.defs = svgElement(doc, 'defs');
     this.#sceneClip = clipPath(doc, defs);
     // The author's --axylo-background, painted behind everything and live; transparent when unset.
     const background = this.#background = svgElement(doc, 'rect', { class: 'axylo-background', x: '0', y: '0' });
-    background.style.setProperty('stroke', 'none');
-    background.style.setProperty('color', 'var(--axylo-background, transparent)');
-    background.style.setProperty('fill', 'currentColor');
+    background.style.cssText = 'stroke:none;color:var(--axylo-background, transparent);fill:currentColor';
     const sceneGroup = this.#sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
     const overlayNode = this.#overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
     const overlayGroup = overlayNode.el;
@@ -793,13 +771,17 @@ class SvgRenderer implements MarkRenderer, SvgContext {
   draw(scene: BarScene, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void {
     const element = this.element, slots = this.#slots, sceneGroup = this.#sceneGroup;
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-    if (scene.width !== this.#width || scene.height !== this.#height) {
-      const { width, height } = scene;
-      element.setAttribute('width', String(width));
-      element.setAttribute('height', String(height));
+    const { width, height } = scene;
+    if (width !== this.#width || height !== this.#height) {
+      if (width !== this.#width) {
+        element.setAttribute('width', String(width));
+        this.#background.setAttribute('width', String(Math.max(0, width)));
+      }
+      if (height !== this.#height) {
+        element.setAttribute('height', String(height));
+        this.#background.setAttribute('height', String(Math.max(0, height)));
+      }
       element.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      if (width !== this.#width) this.#background.setAttribute('width', String(Math.max(0, width)));
-      if (height !== this.#height) this.#background.setAttribute('height', String(Math.max(0, height)));
       this.#width = width;
       this.#height = height;
     }
@@ -1035,18 +1017,18 @@ function ruleRunEnd(marks: readonly Mark[], start: number, first: RuleMark, bind
 
 function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: number, first: RuleMark, color: string | null, dpr: number, s: Float64Array): void {
   const source = n.source ??= [];
-  let same = source[0] === dpr && source.length === end - start + 2;
+  let same = source[0] === dpr && source.length === end - start + 1;
   for (let i = start; same && i < end; i++) {
-    const old = source[i - start + 2] as RuleMark, m = marks[i] as RuleMark;
+    const old = source[i - start + 1] as RuleMark, m = marks[i] as RuleMark;
     same = sameRuleShape(old, m);
   }
   if (!same) {
-    source.length = end - start + 2;
+    source.length = end - start + 1;
     source[0] = dpr;
     let d = '', orthogonal = false;
     for (let i = start; i < end; i++) {
       const m = marks[i] as RuleMark;
-      source[i - start + 2] = m;
+      source[i - start + 1] = m;
       snapMark(m, dpr, s);
       const h = s[1] === s[3], v = !h && s[0] === s[2];
       if (h || v) orthogonal = true;
@@ -1055,9 +1037,8 @@ function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: num
     // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
     if (!orthogonal) d += 'M0 0H0';
     setPath(n, d);
-    source[1] = first.strokeWidth > 0 ? s[4]! : 0;
+    attr(n, 'stroke-width', first.strokeWidth > 0 ? s[4]! : 0);
   }
-  attr(n, 'stroke-width', source[1] as number);
   setRuleDash(n, first);
   paint(n, 'stroke', color);
 }

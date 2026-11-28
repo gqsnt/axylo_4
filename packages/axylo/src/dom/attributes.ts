@@ -1,6 +1,6 @@
 /** Writes an attribute only when it changes; null removes it. Shared by the figure and its controls. */
-export function setAttr(el: Element, name: string, value: string | null): void {
-  if (el.getAttribute(name) === value) return;
+export function setAttr(el: Element, name: string, value: string | null, fresh = false): void {
+  if ((fresh ? null : el.getAttribute(name)) === value) return;
   if (value === null) el.removeAttribute(name);
   else el.setAttribute(name, value);
 }
@@ -128,8 +128,8 @@ export function placeChildren(host: Node, wanted: readonly Node[]): void {
   let at: ChildNode | null = host.firstChild;
   for (let i = 0; i < wanted.length; i++) {
     const node = wanted[i]!;
-    if (at !== node) host.insertBefore(node, at);
-    at = (node as ChildNode).nextSibling;
+    if (at === node) at = at.nextSibling;
+    else host.insertBefore(node, at);
   }
   while (at) {
     const next: ChildNode | null = at.nextSibling;

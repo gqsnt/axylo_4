@@ -70,8 +70,9 @@ export function resolveLocale(option: unknown, doc: Document | null, lang = doc?
 
 /** A computed length in pixels, or `fallback` for one that is not a number ('', 'normal'). */
 function pixels(value: string, fontSize: number, fallback: number): number {
+  if (value === 'normal') return fallback;
   const n = parseFloat(value);
-  const px = Number.isFinite(n) && !value.endsWith('px') ? n * fontSize : n;
+  const px = value.endsWith('px') ? n : n * fontSize;
   return Number.isFinite(px) ? px : fallback;
 }
 
@@ -106,61 +107,47 @@ interface MeasuringContext {
   readonly ctx: SpacingContext;
   /** The context sets letter and word spacing itself (else they are added the way CSS adds them). */
   readonly spaced: boolean;
-  font: string;
-  letterSpacing: string;
-  wordSpacing: string;
-  /** The font epoch the context last resolved its font in; -1 before its first measurement. */
-  epoch: number;
+  /** Null after a font load, until the canvas has resolved its font again. */
+  font: string | null;
+  /** Initial CSSOM strings become numeric pixels after their first comparison. */
+  letterSpacing: string | number;
+  wordSpacing: string | number;
 }
 
-const contexts = new WeakMap<Document, MeasuringContext | null>();
 type Widths = Map<string, number>;
 interface MeasurementCache {
   readonly styles: WeakMap<TextStyle, Widths>;
-  readonly fonts: Map<string, Map<number, Map<number, Widths>>>;
+  readonly fonts: Map<string, Widths>;
   size: number;
   /** The style measured last and its widths: consecutive labels of one style skip the lookups. */
   lastStyle: TextStyle | null;
   lastWidths: Widths | null;
 }
 /** Measured widths per document, for every style together, so the bound holds for the whole page. */
-const caches = new WeakMap<Document, MeasurementCache>();
-const fontEpochs = new WeakMap<Document, number>();
+const measurers = new WeakMap<Document, DocumentMeasurer>();
 export const MEASUREMENT_CACHE_LIMIT = 8192;
 
-/**
- * Web fonts finished loading in `doc`: widths measured with a fallback font are wrong now. Every chart of
- * the document calls this on the same event; the first clears the cache and the epoch moves on.
- */
 export function noteFontLoad(doc: Document): void {
-  fontEpochs.set(doc, (fontEpochs.get(doc) ?? 0) + 1);
-  caches.delete(doc);
+  measurers.get(doc)?.invalidate();
 }
 
 /** How many widths the document's cache holds (for tests of its bound). */
 export function measurementCacheSize(doc: Document): number {
-  return caches.get(doc)?.size ?? 0;
+  return measurers.get(doc)?.cache?.size ?? 0;
 }
 
-const measurers = new WeakMap<Document, TextMeasurer>();
-
-function newMeasurementCache(doc: Document): MeasurementCache {
-  const cache: MeasurementCache = { styles: new WeakMap(), fonts: new Map(), size: 0, lastStyle: null, lastWidths: null };
-  caches.set(doc, cache);
-  return cache;
+function newMeasurementCache(): MeasurementCache {
+  return { styles: new WeakMap(), fonts: new Map(), size: 0, lastStyle: null, lastWidths: null };
 }
 
 function widthsFor(cache: MeasurementCache, style: TextStyle): Widths {
   if (cache.lastStyle === style) return cache.lastWidths!;
   let widths = cache.styles.get(style);
   if (!widths) {
-    // Equivalent styles from different charts share measurements. Line height does not affect width.
-    let letters = cache.fonts.get(style.font);
-    if (!letters) cache.fonts.set(style.font, letters = new Map());
-    let words = letters.get(style.letterSpacing);
-    if (!words) letters.set(style.letterSpacing, words = new Map());
-    widths = words.get(style.wordSpacing);
-    if (!widths) words.set(style.wordSpacing, widths = new Map());
+    // Spacing values are numbers. Putting both before the font keeps arbitrary CSS font strings unambiguous.
+    const key = `${style.letterSpacing} ${style.wordSpacing} ${style.font}`;
+    widths = cache.fonts.get(key);
+    if (!widths) cache.fonts.set(key, widths = new Map());
     cache.styles.set(style, widths);
   }
   cache.lastStyle = style;
@@ -169,20 +156,11 @@ function widthsFor(cache: MeasurementCache, style: TextStyle): Widths {
 }
 
 function measuringContext(doc: Document): MeasuringContext | null {
-  let state = contexts.get(doc);
-  if (state === undefined) {
-    const ctx = doc.createElement('canvas').getContext('2d') as SpacingContext | null;
-    if (ctx) {
-      const spaced = typeof ctx.letterSpacing === 'string' && typeof ctx.wordSpacing === 'string';
-      // The context's own starting values, read once: nothing but this module changes them afterwards.
-      state = {
-        ctx, spaced, font: ctx.font, letterSpacing: spaced ? ctx.letterSpacing! : '', wordSpacing: spaced ? ctx.wordSpacing! : '',
-        epoch: -1,
-      };
-    } else state = null;
-    contexts.set(doc, state);
-  }
-  return state;
+  const ctx = doc.createElement('canvas').getContext('2d') as SpacingContext | null;
+  if (!ctx) return null;
+  const letter = ctx.letterSpacing, word = ctx.wordSpacing;
+  const spaced = typeof letter === 'string' && typeof word === 'string';
+  return { ctx, spaced, font: null, letterSpacing: letter ?? '', wordSpacing: word ?? '' };
 }
 
 /**
@@ -191,69 +169,79 @@ function measuringContext(doc: Document): MeasuringContext | null {
  * does for the text layer; otherwise they are added the way CSS adds them (after every character, and
  * after every space). Cached per document, font epoch, style and string.
  */
+class DocumentMeasurer implements TextMeasurer {
+  cache?: MeasurementCache;
+  #context?: MeasuringContext | null;
+
+  constructor(private readonly doc: Document) {}
+
+  invalidate(): void {
+    this.cache = undefined;
+    if (this.#context) this.#context.font = null;
+  }
+
+  readonly width = (text: string, style: TextStyle): number => {
+    let cache = this.cache ??= newMeasurementCache();
+    let widths = widthsFor(cache, style);
+    const hit = widths.get(text);
+    if (hit !== undefined) return hit;
+    if (this.#context === undefined) this.#context = measuringContext(this.doc);
+    const state = this.#context;
+    let width: number;
+    if (state) {
+      const c = state.ctx;
+      if (state.font === null) {
+        // WebKit keeps the font it resolved when `font` was assigned and does not resolve it again when the
+        // same string is assigned: after a font load, a different font is assigned first, so the wanted one
+        // is resolved anew (the engines report, WebKit section). Once per load; Chrome and Firefox measure the
+        // same either way. The live value is read here, once per load, so the toggle always differs from it.
+        const toggle = c.font === '10px serif' ? '10px sans-serif' : '10px serif';
+        c.font = toggle;
+        state.font = toggle;
+      }
+      if (state.font !== style.font) {
+        c.font = style.font;
+        state.font = style.font;
+      }
+      if (state.spaced) {
+        const { letterSpacing: letter, wordSpacing: word } = style;
+        if (state.letterSpacing !== letter) {
+          const css = `${letter}px`;
+          if (state.letterSpacing !== css) c.letterSpacing = css;
+          state.letterSpacing = letter;
+        }
+        if (state.wordSpacing !== word) {
+          const css = `${word}px`;
+          if (state.wordSpacing !== css) c.wordSpacing = css;
+          state.wordSpacing = word;
+        }
+      }
+      width = c.measureText(text).width;
+    } else {
+      width = text.length * parseFloat(/(\d+(?:\.\d+)?)px/.exec(style.font)?.[1] ?? '12') * 0.6;
+    }
+    if (!state?.spaced) {
+      if (style.letterSpacing !== 0) width += style.letterSpacing * [...text].length;
+      if (style.wordSpacing !== 0) {
+        let spaces = 0;
+        for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 32) spaces++;
+        width += style.wordSpacing * spaces;
+      }
+    }
+    if (cache.size >= MEASUREMENT_CACHE_LIMIT) {
+      cache = this.cache = newMeasurementCache();
+      widths = widthsFor(cache, style);
+    }
+    widths.set(text, width);
+    cache.size++;
+    return width;
+  };
+}
+
 export function createMeasurer(doc: Document): TextMeasurer {
   let measurer = measurers.get(doc);
   if (measurer) return measurer;
-  measurer = {
-    width(text: string, style: TextStyle): number {
-      let cache = caches.get(doc) ?? newMeasurementCache(doc);
-      let widths = widthsFor(cache, style);
-      const hit = widths.get(text);
-      if (hit !== undefined) return hit;
-      const state = measuringContext(doc);
-      let width: number;
-      let spaced = false;
-      if (state) {
-        const c = state.ctx;
-        const epoch = fontEpochs.get(doc) ?? 0;
-        if (state.epoch !== epoch) {
-          // WebKit keeps the font it resolved when `font` was assigned and does not resolve it again when the
-          // same string is assigned: after a font load, a different font is assigned first, so the wanted one
-          // is resolved anew (the engines report, WebKit section). Once per load; Chrome and Firefox measure the
-          // same either way. The live value is read here, once per load, so the toggle always differs from it.
-          const toggle = c.font === '10px serif' ? '10px sans-serif' : '10px serif';
-          c.font = toggle;
-          state.font = toggle;
-          state.epoch = epoch;
-        }
-        if (state.font !== style.font) {
-          c.font = style.font;
-          state.font = style.font;
-        }
-        if (state.spaced) {
-          const letter = `${style.letterSpacing}px`;
-          const word = `${style.wordSpacing}px`;
-          if (state.letterSpacing !== letter) {
-            c.letterSpacing = letter;
-            state.letterSpacing = letter;
-          }
-          if (state.wordSpacing !== word) {
-            c.wordSpacing = word;
-            state.wordSpacing = word;
-          }
-          spaced = true;
-        }
-        width = c.measureText(text).width;
-      } else {
-        width = text.length * parseFloat(/(\d+(?:\.\d+)?)px/.exec(style.font)?.[1] ?? '12') * 0.6;
-      }
-      if (!spaced) {
-        if (style.letterSpacing !== 0) width += style.letterSpacing * [...text].length;
-        if (style.wordSpacing !== 0) {
-          let spaces = 0;
-          for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 32) spaces++;
-          width += style.wordSpacing * spaces;
-        }
-      }
-      if (cache.size >= MEASUREMENT_CACHE_LIMIT) {
-        cache = newMeasurementCache(doc);
-        widths = widthsFor(cache, style);
-      }
-      widths.set(text, width);
-      cache.size++;
-      return width;
-    },
-  };
+  measurer = new DocumentMeasurer(doc);
   measurers.set(doc, measurer);
   return measurer;
 }
@@ -658,9 +646,13 @@ export function observeFontProbe(
 }
 
 /** The parent that supplies inherited styles and language, including through a slot. */
-export function composedParent(element: Element): Element | null {
-  const parent = element.parentNode;
-  return element.assignedSlot ?? element.parentElement ?? (parent && parent.nodeType === 11 && 'host' in parent ? (parent as ShadowRoot).host : null);
+export function composedParent(element: Element, roots?: Node[]): Element | null {
+  const parent = element.assignedSlot ?? element.parentElement;
+  if (parent) return parent;
+  const root = element.parentNode;
+  if (!root || root.nodeType !== 11 || !('host' in root)) return null;
+  if (roots && !roots.includes(root)) roots.push(root);
+  return (root as ShadowRoot).host;
 }
 
 export function holds(target: Node, element: Element): boolean {
@@ -687,10 +679,9 @@ function observeRoots(observer: MutationObserver, roots: readonly Node[], option
 
 function treesOf(element: Element): Node[] {
   const trees: Node[] = [element.ownerDocument.documentElement];
-  for (let el: Element | null = element; el; el = composedParent(el)) {
-    const parent = el.parentNode;
-    if (parent && parent.nodeType === 11 && 'host' in parent && !trees.includes(parent)) trees.push(parent);
-  }
+  // A light-DOM ancestor can enter a shadow tree through a slot even when element.getRootNode() is the document.
+  let el: Element | null = element;
+  while (el) el = composedParent(el, trees);
   return trees;
 }
 
@@ -716,23 +707,25 @@ function dispatchMutations(
   records: readonly MutationRecord[],
 ): void {
   if (subscribers.size === 0 || records.length === 0) return;
-  const targets = new Set<Node>();
-  let styles: Map<Node, MutationRecord[]> | undefined;
+  const targets = new Map<Node, boolean | MutationRecord[]>();
+  // Only a chart's own style filter needs old declarations. An ancestor's style always counts.
+  if (kind === 'theme') {
+    for (const sub of subscribers) if (sub.styleChanged) targets.set(sub.element, false);
+  }
   for (const record of records) {
     const { target } = record;
-    if (kind === 'theme' && record.attributeName === 'style') {
-      styles ??= new Map();
-      let list = styles.get(target);
-      if (!list) styles.set(target, list = []);
-      list.push(record);
-    } else targets.add(target);
+    const own = targets.get(target);
+    if (record.attributeName === 'style' && own !== undefined && own !== true) {
+      if (own === false) targets.set(target, [record]);
+      else own.push(record);
+    } else targets.set(target, true);
   }
   for (const sub of [...subscribers]) {
     if (!subscribers.has(sub)) continue;
     const own = sub.element;
     for (let el: Element | null = own; el; el = composedParent(el)) {
-      const records = styles?.get(el);
-      if (targets.has(el) || (records && (el !== own || !sub.styleChanged || sub.styleChanged(records)))) {
+      const change = targets.get(el);
+      if (change && (change === true || el !== own || !sub.styleChanged || sub.styleChanged(change))) {
         sub.onChange();
         break;
       }
@@ -837,7 +830,7 @@ export class LanguageWatch implements SharedTreeSubscriber {
       rootHubFor(langRootHubs, 'lang', win, root, LANG_OPTIONS).subscribers.add(this);
       this.#root = root;
     } else {
-      this.#stopShadow = watchLanguage(element, () => this.onChange());
+      this.#stopShadow = watchShadowLanguage(win, trees, element, () => this.onChange());
     }
   }
 
@@ -863,6 +856,10 @@ export function watchLanguage(element: Element, onChange: () => void): () => voi
   if (trees.length === 1) {
     return subscribeRoot(langRootHubs, 'lang', win, trees[0]!, LANG_OPTIONS, { element, onChange });
   }
+  return watchShadowLanguage(win, trees, element, onChange);
+}
+
+function watchShadowLanguage(win: Window & typeof globalThis, trees: Node[], element: Element, onChange: () => void): () => void {
   // Inside shadow DOM, keep one dedicated observer across the composed trees so teardown disconnects once
   // and never perturbs the shared documentElement hub used by light-DOM charts.
   const observer = new win.MutationObserver(records => {

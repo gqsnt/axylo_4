@@ -55,7 +55,6 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   const { x, table } = options;
   const kind = x.type ?? inferKind(table, x.field, options.series) ?? (categories ? 'category' : 'number');
   const parser = new XParser(x, kind, env, type === 'scatter', categories);
-  const reports = new Reports(x.field, sink);
   const dateUnits = kind === 'date' ? { day: 0, month: 0, year: 0 } : null;
   const input = table.columns?.[x.field];
   let positions = input instanceof Float64Array && (kind === 'number' || kind === 'time')
@@ -91,6 +90,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
       last = value;
     }
   }
+  const reports = new Reports(x.field, sink);
   let valid = i;
   for (; i < table.length; i++) {
     const value = readPosition(parser, table, i, options.series, options.values.length, reports, dateUnits, 0, input);
@@ -160,16 +160,19 @@ interface Group {
   readonly key: string;
   readonly label: string;
   readonly value: ResolvedValueField;
-  readonly order: Int32Array | null;
+  order: Int32Array | null;
+  gaps: Float64Array | null;
+  drawable: boolean;
+  sparse?: number;
+}
+
+function groupOf(key: string, label: string, value: ResolvedValueField, order: Int32Array | null): Group {
+  return { key, label, value, order, gaps: null, drawable: true };
 }
 
 function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group[] {
   const { table, series } = options;
-  if (series === null) {
-    return options.values.map(value => ({
-      key: value.field, label: value.label, value, order: x.order,
-    }));
-  }
+  if (series === null) return options.values.map(value => groupOf(value.field, value.label, value, x.order));
 
   const indexes = new Map<string, number>();
   const counts: number[] = [];
@@ -205,30 +208,24 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group
     counts[index] = counts[index]! + 1;
   }
   const value = options.values[0]!;
-  return Array.from(indexes, ([key, index]) => ({ key, label: key, value, order: orders[index]! }));
-}
-
-interface AlignedGroup {
-  readonly group: Group;
-  readonly order: Int32Array | null;
-  readonly gaps: Float64Array | null;
-  readonly drawable: boolean;
-  readonly sparse?: number;
+  return Array.from(indexes, ([key, index]) => groupOf(key, key, value, orders[index]!));
 }
 
 function sameStep(positions: Float64Array): boolean {
   if (positions.length < 3) return true;
-  const step = positions[1]! - positions[0]!;
+  let previous = positions[1]!;
+  const step = previous - positions[0]!;
   for (let i = 2; i < positions.length; i++) {
-    if (positions[i]! - positions[i - 1]! !== step) return false;
+    const current = positions[i]!;
+    if (current - previous !== step) return false;
+    previous = current;
   }
   return true;
 }
 
-function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink, grid?: AlignedGroup): AlignedGroup {
+function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink, grid?: Group): void {
   const { positions } = x;
   let order = group.order;
-  let drawable = true;
   if (order) {
     const duplicates = new Reports(field, sink);
     let distinct = 0;
@@ -241,26 +238,26 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
         duplicates.add('AX108', 'series-disabled', table.rowIndex(row), undefined, undefined, {
           series: group.label, position: positionName(axis, position),
         });
-        if (drawable) kept = order.slice();
-        drawable = false;
+        if (group.drawable) kept = order.slice();
+        group.drawable = false;
       } else {
         kept[distinct++] = row;
         previous = position;
       }
     }
     duplicates.flush(sink);
-    order = kept.subarray(0, distinct);
+    group.order = order = kept.subarray(0, distinct);
   }
-  if (grid) return { group, order, drawable, gaps: grid.gaps, sparse: grid.sparse };
+  if (grid) {
+    group.gaps = grid.gaps;
+    group.sparse = grid.sparse;
+    return;
+  }
   // Category axes have no inferred steps. Numeric, instant and wall-clock steps depend only on deltas.
-  if (!order && (axis.kind === 'category' || axis.kind !== 'date' && (x.regular || sameStep(positions)))) {
-    return { group, order, drawable, gaps: null };
-  }
-  let sparse: number | undefined;
-  const gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!,
+  if (!order && (axis.kind === 'category' || axis.kind !== 'date' && sameStep(positions))) return;
+  group.gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!,
     (gap, a, b, step) => snapGap(gap, a, b, step, x.order?.length ?? positions.length, i => positions[x.order?.[i] ?? i]!),
-    count => { sparse = count; });
-  return { group, order, gaps, drawable, sparse };
+    count => { group.sparse = count; });
 }
 
 function distinctPositions(sorted: Float64Array): Float64Array {
@@ -321,31 +318,29 @@ function isImputable(state: number): boolean {
   return state === SLOT_NULL || state === SLOT_ABSENT_FIELD;
 }
 
-function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, values: Values): Series {
-  const { group, order, gaps, drawable } = aligned;
-  const { value } = group;
+function alignedSeries(group: Group, axis: XColumn, x: XData, table: Table, values: Values): Series {
+  const { order, gaps, drawable, value } = group;
   const zero = value.missing === 'zero';
   const description = seriesDescription(group.key, group.label, value);
 
   if (order === null && axis.values === x.positions) {
     let row = table.columns ? null : sourceRows(table);
-    const slots = values.slot;
-    if (zero && slots) {
-      for (let i = 0; i < slots.length; i++) {
-        if (!isImputable(slots[i]!)) continue;
+    let slot = values.slot;
+    if (zero && slot) {
+      for (let i = 0; i < slot.length; i++) {
+        if (!isImputable(slot[i]!)) continue;
         row ??= sourceRows(table);
         row[i] = -1;
-        slots[i] = SLOT_VALUE;
+        slot[i] = SLOT_VALUE;
       }
     }
-    let series: Series;
-    if (slots) series = { ...description, drawable, y: values.y, slot: slots, row };
-    else if (values.y.length < LAZY_SLOTS) {
+    if (!slot && values.y.length < LAZY_SLOTS) {
       // A few kilobytes at most: an ordinary column keeps the series a plain data object.
-      const slot = new Uint8Array(values.y.length);
+      slot = new Uint8Array(values.y.length);
       denseSlots.set(slot, 'fresh');
-      series = { ...description, drawable, y: values.y, slot, row };
-    } else series = denseSeries({ ...description, drawable, y: values.y, row });
+    }
+    const series = slot ? { ...description, drawable, y: values.y, slot, row }
+      : denseSeries({ ...description, drawable, y: values.y, row });
     if (values.statistics) fullStatistics.set(series, values.statistics);
     return series;
   }
@@ -396,39 +391,44 @@ export function alignedFrame(
 ): AlignedFrame {
   const axis = x.parser.column(x.positions);
   const { table } = options;
-  const frame = {
-    ...base(table, version), shape: 'aligned' as const,
-    xLabel: options.x.label, yLabel: options.values.length === 1 ? options.values[0]!.label : null,
-  };
-  const empty = () => ({ ...frame, x: { ...axis, values: new Float64Array(), categories: axis.categories && [] }, length: 0, series: [] });
+  const { epoch, revision } = version;
+  const xLabel = options.x.label, yLabel = options.values.length === 1 ? options.values[0]!.label : null;
+  const frame = (x: XColumn, series: Series[]): AlignedFrame => ({
+    epoch, revision, source: table, shape: 'aligned', xLabel, yLabel, x, length: x.values.length, series,
+  });
+  const empty = () => frame({ ...axis, values: new Float64Array(), categories: axis.categories && [] }, []);
   let observed = x.positions;
   if (x.order) {
     const sorted = new Float64Array(x.order.length);
     for (let i = 0; i < sorted.length; i++) sorted[i] = x.positions[x.order[i]!]!;
     observed = distinctPositions(sorted);
   }
-  const groupsBySeries = groups(options, x, sink);
-  if (!alignmentFits(groupsBySeries.length, observed.length, sink)) return empty();
-  const aligned: AlignedGroup[] = [];
-  for (const group of groupsBySeries) {
-    aligned.push(alignGroup(group, x, axis, options.x.field, table, sink, options.series === null ? aligned[0] : undefined));
+  const aligned = groups(options, x, sink);
+  if (!alignmentFits(aligned.length, observed.length, sink)) return empty();
+  let positions = observed;
+  // readX certifies strictly increasing regular numeric or time positions only for wide input.
+  if (!x.regular) {
+    const wide = options.series === null;
+    for (let i = 0; i < aligned.length; i++) {
+      alignGroup(aligned[i]!, x, axis, options.x.field, table, sink, wide && i > 0 ? aligned[0] : undefined);
+    }
+    positions = mergeGaps(observed, aligned, wide);
+    if (positions !== observed && !alignmentFits(aligned.length, positions.length, sink)) return empty();
   }
-  const positions = mergeGaps(observed, aligned, options.series === null);
-  if (!alignmentFits(aligned.length, positions.length, sink)) return empty();
-  const column = { ...axis, values: positions };
+  const column = positions === axis.values ? axis : { ...axis, values: positions };
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
   const shared = options.series === null ? undefined : readValues(table, options.values[0]!, sink, true, 0, undefined, included);
   const series = aligned.map(group => {
-    const value = group.group.value;
+    const { value } = group;
     const count = counts ? { decimal: 0, other: 0 } : undefined;
     const values = shared ?? readValues(table, value, sink, true, 0, undefined, included, undefined, count);
     if (count) counts!.set(value.field, count);
     return alignedSeries(group, column, x, table, values);
   });
-  for (const { group, gaps, sparse } of aligned) {
-    reportGaps(sink, options.x.field, group.value.missing === 'zero', gaps, axis, group.label, sparse, group.key);
+  if (!x.regular) for (const group of aligned) {
+    reportGaps(sink, options.x.field, group.value.missing === 'zero', group.gaps, axis, group.label, group.sparse, group.key);
   }
-  return { ...frame, x: column, length: positions.length, series };
+  return frame(column, series);
 }
 
 function orderedTies(x: Float64Array, y: Values['y']): boolean {
