@@ -926,13 +926,18 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installAlignedExtras();
     const { table, ...fields } = options;
     const data = this.#data = new AlignedData(type, environment, fields, namedFields(fields), this.rows);
-    const seed = normalized && alignedSeed(normalized);
-    const reusable = seed?.type === type && sameNormalization(seed.options, options);
-    data.init(table, version, reusable ? normalized : undefined, true);
+    this.adoptNormalized(type, options, table, version, normalized);
     this.latest = data.latest;
     this.publish(data.current);
     data.current = this.current;
     forwardDiagnostics(this.latest, sink);
+  }
+
+  // Reuses a static frame's normalization only when it came from the same chart type and options.
+  adoptNormalized(type: AlignedChartType, options: ResolvedOptions, table: Table, version: FrameVersion, normalized?: AlignedFrame): void {
+    const seed = normalized && alignedSeed(normalized);
+    const reusable = seed?.type === type && sameNormalization(seed.options, options);
+    this.#data.init(table, version, reusable ? normalized : undefined, true);
   }
 
   /**
