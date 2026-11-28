@@ -7,7 +7,7 @@
 import type { CommonOptions, Diagnostic, Target, ValueField, XField, XValue } from './public.js';
 import type { StaticChart } from './static.js';
 import { createStaticChart } from './core/chart';
-import { forwardSync } from './core/peer';
+import { forwardSeams } from './export/contract';
 import type { Composition } from './core/composition';
 import type { Layout } from './core/contracts';
 import { createTimeReadout } from './format/time';
@@ -139,20 +139,21 @@ function createCartesianComposition(
   stateRef: CartesianStateRef,
   pendingIssues: { list: readonly { readonly code: 'AX170' | 'AX173' | 'AX174'; readonly field?: string; readonly detail: string }[] },
 ): Composition {
-  const layout = createCartesianLayoutStage(stateRef);
-  const reader = createCartesianReader(stateRef);
-  const overlay = createCartesianOverlay(stateRef);
+  // The factories only make closures over the state, so the order they run in does not matter.
   return {
     kind: 'line',
     resolve: createCartesianResolver(stateRef, pendingIssues),
-    normalize: ((kind, resolved, env, sink, version) => normalizeCartesian(stateRef, kind, resolved, env, sink, version)) as Composition['normalize'],
-    view: ((frame, state, sink) => buildCartesianView(stateRef, frame as never, state as never, sink)) as Composition['view'],
-    layout,
+    // Each stage takes the chart's state first and then the controller's arguments; it declares a fixed list
+    // and reads no more (lookup ignores the locale and ratio), so passing them on as they come is the same
+    // call, in fewer bytes in every bundle with axylo/cartesian.
+    normalize: ((...a: Parameters<Composition['normalize']>) => normalizeCartesian(stateRef, ...a as [never, never, never, never, never])) as Composition['normalize'],
+    view: ((...a: [never, never, never]) => buildCartesianView(stateRef, ...a)) as Composition['view'],
+    layout: createCartesianLayoutStage(stateRef),
     timeReadout: createTimeReadout,
-    scene: (view, lay, dpr) => buildCartesianScene(stateRef, view, lay, dpr),
-    lookup: (view, lay, formatters, messages) => createCartesianLookup(stateRef, view, lay, formatters, messages),
-    reader,
-    interaction: { overlay, swatch: createMarkSwatch(stateRef), stepInSeries: null, sliceList: null },
+    scene: (...a) => buildCartesianScene(stateRef, ...a),
+    lookup: ((...a: [never, never, never, never]) => createCartesianLookup(stateRef, ...a)) as Composition['lookup'],
+    reader: createCartesianReader(stateRef),
+    interaction: { overlay: createCartesianOverlay(stateRef), swatch: createMarkSwatch(stateRef), stepInSeries: null, sliceList: null },
     svg: { area: svgArea, band: svgBand, path: svgPath, points: svgPoints, rects: svgRects, rule: svgRule },
   };
 }
@@ -209,21 +210,17 @@ export function cartesian<Row, const Axes extends AxesRecord>(
         throw err;
       }
     },
-    zoom(range) {
-      inner.zoom(range as never);
-    },
-    on(event, listener) {
-      return inner.on(event as never, listener as never);
-    },
+    // The inner handle's methods are bound to their chart and memoized (core/controller-wrappers.ts), so they
+    // are the same functions a call through the wrapper would reach.
+    zoom: inner.zoom as StaticCartesianChart<Row, Axes>['zoom'],
+    on: inner.on as StaticCartesianChart<Row, Axes>['on'],
     get diagnostics() {
       return inner.diagnostics;
     },
-    destroy() {
-      inner.destroy();
-    },
+    destroy: inner.destroy,
   };
-  // axylo/sync reaches the chart through the inner handle's seam (core/peer.ts).
-  forwardSync(handle, inner);
+  // axylo/sync and axylo/export reach the chart through the inner handle's seams (core/peer.ts, export/contract.ts).
+  forwardSeams(handle, inner);
   // The benchmark and test hook (core/instrument.ts) lives on the inner handle; a production build drops this.
   if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
     const hook = (inner as { __bench?: { describe?: () => unknown } }).__bench;

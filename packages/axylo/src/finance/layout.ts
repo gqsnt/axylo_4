@@ -122,8 +122,6 @@ export function priceView(view: Aligned, meta: FinanceMeta): Aligned {
   return derived;
 }
 
-const DRAWN = FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC;
-
 /** What drawing reads per slot: drawable candles and volumes, and the dense bins when the view needs them. */
 export function candleData(view: Aligned, meta: FinanceMeta, xScale: XScale, left: number, width: number, withVolume: boolean): {
   readonly bins: OhlcvBins | null;
@@ -135,7 +133,9 @@ export function candleData(view: Aligned, meta: FinanceMeta, xScale: XScale, lef
   const xs = view.frame.x.values;
   const { start, end } = view.visibleSlots;
   const vol = withVolume && volume ? volume : null;
-  const candle = (i: number) => (flags[i]! & DRAWN) === 0;
+  // Folded in the function, not a module constant: `a | b` at the top level is an expression a bundler keeps
+  // when side-effect hints are ignored, so a bare import of axylo/finance would not bundle to nothing.
+  const candle = (i: number) => (flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) === 0;
   const drawableVolume = (i: number) => vol !== null && candle(i) && (flags[i]! & FLAG_INVALID_VOLUME) === 0 &&
     vol.slot[i] === SLOT_VALUE && vol.y[i]! >= 0 && Number.isFinite(vol.y[i]!);
   if (end - start > denseThreshold(width)) {
