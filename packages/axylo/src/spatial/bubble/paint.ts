@@ -73,11 +73,14 @@ const OFF = 5e-7;
 /** Centre distances within this of a tangency are treated as touching at one point. */
 const TOUCH = 1e-6;
 
-const norm = (a: number): number => { a %= TAU; return a < 0 ? a + TAU : a; };
+const norm = (a: number): number => {
+  if (a <= -TAU || a >= TAU) a %= TAU;
+  return a < 0 ? a + TAU : a;
+};
 
 
-/** One oriented piece of a circle: from angle a to b (a < b) traversed increasing (dir 1) or decreasing (-1). */
-interface Piece { cx: number; cy: number; rho: number; a: number; b: number; dir: 1 | -1 }
+/** The start and end angles retain the winding of this owner’s boundary. */
+interface Piece { cx: number; cy: number; rho: number; from: number; to: number }
 
 // The three/five bands include BELOW on the unoccupied side of each marker.
 const DISC = [SELF, NONE, BELOW];
@@ -163,14 +166,6 @@ function crossing(rho: number, d: number, r: number): number {
 
 let maps: WeakMap<BubbleGeometry, PaintedMap> | undefined;
 
-const STRIDES = [7919, 104729, 1299709, 15485863];
-function gcd(a: number, b: number): number { while (b) [a, b] = [b, a % b]; return a; }
-function strideFor(count: number): number {
-  if (count < 3) return 1;
-  for (const p of STRIDES) { const s = p % count; if (s > 0 && gcd(s, count) === 1) return s; }
-  return 1;
-}
-
 /**
  * The visible map of a geometry: per frame series index, the path of what it shows. Cost: per bubble, the
  * shapes whose occupied area can meet its own (a uniform grid of centres); per circle, the higher of those until
@@ -202,30 +197,39 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
   }
   const left = Math.floor(minX - reach), top = Math.floor(minY - reach);
   const hidden = coveredShapes(g, outer, paintedList, left, top, Math.floor(maxX + reach - left) + 1, Math.floor(maxY + reach - top) + 1);
-  // On a visible outer arc a buried disc cannot own the outward sample. Its
-  // covering solid either clips the arc from above, or outranks it below.
-  // Small circles, holes and unbounded coordinates use every lower neighbour.
-  const pruneLower = hidden && g.r.every(r => r >= 1);
+  // The certificate covers the whole disc with higher solid interiors, with more margin than EPS.
+  // Those interiors already clip any arc the buried disc would clip. Its lower edges still supply cuts.
+  const pruneBuried = hidden && g.r.every(r => r >= 1);
   const cell = Math.max(4, reach / 2);
   const cols = pn ? Math.floor((maxX - minX) / cell) + 1 : 1, rowsN = pn ? Math.floor((maxY - minY) / cell) + 1 : 1;
-  const heads = new Uint32Array(cols * rowsN), next = new Uint32Array(g.count);
-  for (let q = pn - 1; q >= 0; q--) {
-    const b = paintedList[q]!;
-    const c = Math.floor((gy[b]! - minY) / cell) * cols + Math.floor((gx[b]! - minX) / cell);
-    next[b] = heads[c]!;
-    heads[c] = b + 1;
+  // Prefix sums put consecutive cells in one contiguous range. A miss needs only x, y and outer radius.
+  // The fourth field records the shape index, complemented when the coverage certificate applies.
+  const heads = new Uint32Array(cols * rowsN + 1);
+  const cellOf = (j: number) =>
+    Math.floor((gy[j]! - minY) / cell) * cols + Math.floor((gx[j]! - minX) / cell);
+  for (const j of paintedList) heads[cellOf(j)]!++;
+  for (let c = 1; c < heads.length; c++) heads[c]! += heads[c - 1]!;
+  const coords = new Float64Array(4 * pn);
+  for (const j of paintedList) {
+    const cellIndex = cellOf(j);
+    const p = --heads[cellIndex]!;
+    coords[4 * p] = gx[j]!;
+    coords[4 * p + 1] = gy[j]!;
+    coords[4 * p + 2] = outer[j]!;
+    coords[4 * p + 3] = pruneBuried && hidden[j] ? ~j : j;
   }
   const pieces: Piece[][] = Array.from({ length: S }, () => []);
   const full: Piece[][] = Array.from({ length: S }, () => []);
-  const cand = new Int32Array(pn), buried = new Int32Array(pn);
+  const buried = new Int32Array(pn);
   const distance = new Float64Array(g.count);
-  let count = 0, buriedCount = 0;
   let cuts = new Float64Array(64);
   const vis = new Arcs();
   let culled = 0, circles = 0;
 
-  // The lower shapes that meet the circle being split, by rank from the top down.
-  const lower = new Int32Array(pn);
+  // Only visible edges need the lower neighbours in painter order.
+  const higher = new Int32Array(pn),
+    ranks = new Int32Array(pn),
+    lower = new Int32Array(pn);
   const probes: number[] = [];
   const probeRadius = 0.01;
   let lowerCount = 0;
@@ -237,7 +241,7 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
   const ownerAt = (px: number, py: number, b: number, outward: boolean): number => {
     const reachB = outer[b]!;
     for (let k = lowerCount - 1; k >= 0; k--) {
-      const j = order[lower[k]!]!;
+      const j = lower[k]!;
       const dx = px - gx[j]!, dy = py - gy[j]!, d = Math.sqrt(dx * dx + dy * dy);
       const r = g.r[j]!, codes = bands(r);
       if (!(d < outer[j]!) || (!r && d <= zeroInner)) continue;
@@ -263,24 +267,41 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
       circles += edges; culled += edges;
       continue;
     }
+    // The cell range includes the current bubble.
+    pairs--;
     const span = own + reach;
     const c0 = Math.max(0, Math.floor((cx - span - minX) / cell)), c1 = Math.min(cols - 1, Math.floor((cx + span - minX) / cell));
     const r0 = Math.max(0, Math.floor((cy - span - minY) / cell)), r1 = Math.min(rowsN - 1, Math.floor((cy + span - minY) / cell));
-    count = 0;
+    let higherCount = 0,
+      lowerRanks = 0,
+      neighbourCount = 0;
+    let buriedCount = 0;
     for (let ry = r0; ry <= r1; ry++) {
-      for (let rx = c0; rx <= c1; rx++) {
-        const c = ry * cols + rx;
-        for (let j = heads[c]! - 1; j >= 0; j = next[j]! - 1) {
-          if (j === b) continue;
-          pairs++;
-          const dx = gx[j]! - cx, dy = gy[j]! - cy, reachJ = own + outer[j]!;
-          const d2 = dx * dx + dy * dy;
-          if (d2 >= reachJ * reachJ) continue;
-          cand[count++] = j;
+      const first = heads[ry * cols + c0]!,
+        end = heads[ry * cols + c1 + 1]!;
+      pairs += end - first;
+      for (let p = first; p < end; p++) {
+        const dx = coords[4 * p]! - cx,
+          dy = coords[4 * p + 1]! - cy,
+          reachJ = own + coords[4 * p + 2]!;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= reachJ * reachJ) continue;
+        const id = coords[4 * p + 3]!;
+        if (id === b) continue;
+        neighbourCount++;
+        if (id < 0) {
+          const j = ~id;
+          // With only solid discs, BELOW is on the outer edge. A lower disc is at least as large,
+          // so its edges can meet this circle only if the circle reaches its inner radius.
+          if (rank[j]! < rb && Math.sqrt(d2) + own >= g.r[j]! - TOUCH) buried[buriedCount++] = j;
+        } else {
+          distance[id] = Math.sqrt(d2);
+          if (rank[id]! < rb) ranks[lowerRanks++] = rank[id]!;
+          else higher[higherCount++] = id;
         }
       }
     }
-    const stride = strideFor(count);
+    const stride = Math.ceil(higherCount / 8);
     for (let ci = 0; ci + 1 < codes.length; ci++) {
       const rho = edge(radius, ci);
       if (rho <= 0) continue;
@@ -289,31 +310,32 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
       const outerOwner = codes[ci + 1] === SELF ? s : codes[ci + 1]!;
       // 1. Remove what higher shapes cover, until nothing is left.
       vis.reset();
-      // Visited in a scattered order (a stride coprime with the count), so shapes all around the circle come
-      // early and a covered circle, the common case when bubbles are dense, is known covered after few.
-      for (let i = 0, k = 0; i < count && vis.length; i++, k = k + stride >= count ? k + stride - count : k + stride) {
-        const j = cand[k]!;
-        if (rank[j]! <= rb) continue;
-        const dx = gx[j]! - cx, dy = gy[j]! - cy, d2 = dx * dx + dy * dy;
-        const R = outer[j]!, h = g.r[j] ? -1 : zeroInner;
-        if (h <= 0 && R > rho && R < 1e7 && d2 <= (R - rho) ** 2) { vis.length = 0; break; }
-        const d = Math.sqrt(d2);
-        // The hole of an annulus meets the circle only when it crosses it.
-        const holeCrosses = h > 0 && !(d + rho <= h - EPS) && !(d >= rho + h + EPS) && !(d + h <= rho - EPS);
-        if (d + rho <= R + EPS) {
-          if (h <= 0) { vis.length = 0; break; }
-          if (d + rho <= h - EPS) continue;
-          if (!holeCrosses) { vis.length = 0; break; }
-          vis.cutAround(Math.atan2(dy, dx) + Math.PI, Math.PI - crossing(rho, d, h));
-          continue;
+      // Interleave eight sections of the spatial list. Dense circles often close after a few neighbours
+      // from different sides. Each index belongs to exactly one starting offset.
+      for (let start = 0; start < stride && vis.length; start++) {
+        for (let k = start; k < higherCount && vis.length; k += stride) {
+          const j = higher[k]!;
+          const dx = gx[j]! - cx, dy = gy[j]! - cy;
+          const R = outer[j]!, h = g.r[j] ? -1 : zeroInner;
+          if (h <= 0 && R > rho && R < 1e7 && dx * dx + dy * dy <= (R - rho) ** 2) { vis.length = 0; break; }
+          const d = distance[j]!;
+          // The hole of an annulus meets the circle only when it crosses it.
+          const holeCrosses = h > 0 && !(d + rho <= h - EPS) && !(d >= rho + h + EPS) && !(d + h <= rho - EPS);
+          if (d + rho <= R + EPS) {
+            if (h <= 0) { vis.length = 0; break; }
+            if (d + rho <= h - EPS) continue;
+            if (!holeCrosses) { vis.length = 0; break; }
+            vis.cutAround(Math.atan2(dy, dx) + Math.PI, Math.PI - crossing(rho, d, h));
+            continue;
+          }
+          if (d >= rho + R - EPS || d + R <= rho + EPS) continue;
+          const om = Math.atan2(dy, dx), oh = crossing(rho, d, R);
+          if (!holeCrosses) { vis.cutAround(om, oh); continue; }
+          const hh = crossing(rho, d, h);
+          // Concentric bands: the hole's interval is centred on the same direction, inside the outer one.
+          vis.cutAround(om - (oh + hh) / 2, (oh - hh) / 2);
+          vis.cutAround(om + (oh + hh) / 2, (oh - hh) / 2);
         }
-        if (d >= rho + R - EPS || d + R <= rho + EPS) continue;
-        const om = Math.atan2(dy, dx), oh = crossing(rho, d, R);
-        if (!holeCrosses) { vis.cutAround(om, oh); continue; }
-        const hh = crossing(rho, d, h);
-        // Concentric bands: the hole's interval is centred on the same direction, inside the outer one.
-        vis.cutAround(om - (oh + hh) / 2, (oh - hh) / 2);
-        vis.cutAround(om + (oh + hh) / 2, (oh - hh) / 2);
       }
       if (!vis.length) { culled++; continue; }
       const visible = vis.list;
@@ -328,18 +350,12 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
       }
       // 2. Split the visible angles where lower circles cross or touch, and find the lower owner of each piece.
       const offset = rho + (innerOwner === BELOW ? -OFF : OFF);
-      buriedCount = lowerCount = 0;
-      for (let k = 0; k < count; k++) {
-        const j = cand[k]!;
-        if (rank[j]! >= rb) continue;
-        const dx = gx[j]! - cx, dy = gy[j]! - cy, d = Math.sqrt(dx * dx + dy * dy);
-        if (d > rho + outer[j]! + TOUCH || d + outer[j]! < rho - TOUCH) continue;
-        distance[j] = d;
-        if (pruneLower && hidden[j]) {
-          if (d + rho >= g.r[j]! - TOUCH) buried[buriedCount++] = j;
-        } else lower[lowerCount++] = rank[j]!;
+      ranks.subarray(0, lowerRanks).sort();
+      lowerCount = 0;
+      for (let i = 0; i < lowerRanks; i++) {
+        const j = order[ranks[i]!]!, d = distance[j]!;
+        if (d <= rho + outer[j]! + TOUCH && d + outer[j]! >= rho - TOUCH) lower[lowerCount++] = j;
       }
-      lower.subarray(0, lowerCount).sort();
       let m = 0;
       const push = (t: number) => {
         if (m === cuts.length) { const grown = new Float64Array(m * 2); grown.set(cuts); cuts = grown; }
@@ -354,7 +370,7 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
       // cut is already closer. Four times the arc distance also covers a shifted
       // crossing entering from outside the visible interval. Include room for
       // the reference's skipped 1e-12 intervals, TOUCH, and floating point.
-      const rounding = 8 * EPS + rho * count * 8e-12;
+      const rounding = 8 * EPS + rho * neighbourCount * 8e-12;
       let guard = rounding;
       probes.length = 0;
       // A higher-ranked candidate occupying the whole guard neighbourhood hides the
@@ -363,31 +379,33 @@ export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
       const probe = (t: number, k: number) => {
         const x = cx + rho * Math.cos(t), y = cy + rho * Math.sin(t);
         for (let i = lowerCount - 1; i > k; i--) {
-          const j = order[lower[i]!]!, dx = x - gx[j]!, dy = y - gy[j]!;
+          const j = lower[i]!, dx = x - gx[j]!, dy = y - gy[j]!;
           if (dx * dx + dy * dy < (outer[j]! - probeRadius) ** 2) return;
         }
         probes.push(x, y);
       };
       if (buriedCount) for (let v = 0; v < vis.length; v++) probe(visible[v]!, lowerCount);
       // The potentially owning edges establish the probes before cutter-only edges use them.
-      for (let i = 0; i < lowerCount + buriedCount; i++) {
-        const k = lowerCount - 1 - i;
-        const j = k < 0 ? buried[-1 - k]! : order[lower[k]!]!;
+      for (let k = lowerCount - 1; k >= -buriedCount; k--) {
+        const j = k < 0 ? buried[-1 - k]! : lower[k]!;
         if (k < 0 && guard < probeRadius) {
           const rr = g.r[j]! ** 2, RR = outer[j]! ** 2, tolerance = guard * (2 * outer[j]! + guard);
           let hit = false;
+          const x = gx[j]!, y = gy[j]!;
           for (let e = 0; e < probes.length; e += 2) {
-            const dx = probes[e]! - gx[j]!, dy = probes[e + 1]! - gy[j]!, d2 = dx * dx + dy * dy;
+            const dx = probes[e]! - x, dy = probes[e + 1]! - y, d2 = dx * dx + dy * dy;
             if (Math.min(Math.abs(d2 - rr), Math.abs(d2 - RR)) <= tolerance) { hit = true; break; }
           }
           if (!hit) continue;
         }
-        const dx = gx[j]! - cx, dy = gy[j]! - cy, d = distance[j]!;
+        const dx = gx[j]! - cx, dy = gy[j]! - cy;
+        const d = k < 0 ? Math.sqrt(dx * dx + dy * dy) : distance[j]!;
         if (d < TOUCH) { if (k >= 0) guard = Infinity; continue; }
-        const toward = Math.atan2(dy, dx);
+        let toward: number | undefined;
         for (let c = 0; c < (g.r[j] ? 2 : 4); c++) {
           const R = edge(g.r[j]!, c);
           if (R <= 0 || d > rho + R + TOUCH || d < Math.abs(rho - R) - TOUCH) continue;
+          toward ??= Math.atan2(dy, dx);
           let t0: number, t1 = NaN;
           if (Math.abs(d - (rho + R)) <= TOUCH) t0 = toward;
           else if (Math.abs(d - Math.abs(rho - R)) <= TOUCH) t0 = rho > R ? toward : toward + Math.PI;
@@ -482,8 +500,7 @@ function concentricMap(g: BubbleGeometry, outer: Float64Array, list: Uint32Array
  */
 function distinctShapes(g: BubbleGeometry): Uint32Array {
   const n = g.count, { x, y, r, rank } = g;
-  const byShape = new Uint32Array(n);
-  for (let b = 0; b < n; b++) byShape[b] = b;
+  const byShape = g.order.slice(0, n);
   byShape.sort((a, b) => (x[a]! - x[b]!) || (y[a]! - y[b]!) || (r[a]! - r[b]!) || (rank[b]! - rank[a]!));
 
   let m = 0;
@@ -501,8 +518,8 @@ function distinctShapes(g: BubbleGeometry): Uint32Array {
 /** Adds visible angle pairs as pieces: increasing for the inner owner, decreasing for the outer owner. */
 function emitPiece(cx: number, cy: number, rho: number, a: number, b: number, inner: number, outer: number, pieces: Piece[][], full: Piece[][]): void {
   const to = b - a >= TAU - 1e-12 ? full : pieces;
-  if (inner >= 0) to[inner]!.push({ cx, cy, rho, a, b, dir: 1 });
-  if (outer >= 0) to[outer]!.push({ cx, cy, rho, a, b, dir: -1 });
+  if (inner >= 0) to[inner]!.push({ cx, cy, rho, from: a, to: b });
+  if (outer >= 0) to[outer]!.push({ cx, cy, rho, from: b, to: a });
 }
 
 /** A point of a piece's circle, written at that circle's precision (finer below 1 px: geometry.scaleFor). */
@@ -516,7 +533,8 @@ function at(p: Piece, angle: number): string {
  * points are rounded to 0.01 px (the radius keeps 7 digits: geometry.writeRadius); an arc near a half turn would turn that into a centre shift of a large
  * fraction of a pixel (the renderer scales the radius to the chord), at 2π/3 it stays within 0.01 px.
  */
-function arcs(p: Piece, from: number, to: number): string {
+function arcs(p: Piece): string {
+  const { from, to } = p;
   const span = to - from, parts = Math.max(1, Math.ceil(Math.abs(span) / ARC_LIMIT - 1e-9));
   const rr = writeRadius(p.rho), sweep = span > 0 ? 1 : 0;
   let d = '';
@@ -531,7 +549,7 @@ function assemble(list: Piece[], whole: Piece[]): PaintedSeries {
   for (const p of whole) {
     // Relative semicircles whose diameter is exactly twice the written radius: the start point may round to the
     // lattice, but the radius and closure stay exact, so the painted area matches the size (A ∝ v).
-    const rr = writeRadius(p.rho), dd = String(2 * Number(rr)), sweep = p.dir > 0 ? 1 : 0;
+    const rr = writeRadius(p.rho), dd = String(2 * Number(rr)), sweep = p.to > p.from ? 1 : 0;
     d += `M${writeNum(p.cx - Number(rr), scaleFor(p.rho))} ${writeNum(p.cy, scaleFor(p.rho))}a${rr} ${rr} 0 1 ${sweep} ${dd} 0a${rr} ${rr} 0 1 ${sweep} -${dd} 0Z`;
     contours++; count++;
   }
@@ -541,30 +559,44 @@ function assemble(list: Piece[], whole: Piece[]): PaintedSeries {
   // only the contours they are read into change, which the nonzero rule does not see.
   const m = list.length;
   const qx = new Int32Array(m * 2), qy = new Int32Array(m * 2);
-  for (let i = 0; i < m; i++) {
-    const p = list[i]!;
-    const a0 = p.dir > 0 ? p.a : p.b, a1 = p.dir > 0 ? p.b : p.a;
-    qx[2 * i] = Math.round((p.cx + p.rho * Math.cos(a0)) * 100); qy[2 * i] = Math.round((p.cy + p.rho * Math.sin(a0)) * 100);
-    qx[2 * i + 1] = Math.round((p.cx + p.rho * Math.cos(a1)) * 100); qy[2 * i + 1] = Math.round((p.cy + p.rho * Math.sin(a1)) * 100);
-  }
-  // End points within JOIN lattice steps of each other are one vertex, transitively (union-find), so the vertex
-  // a joined contour meets is the same whichever of its pieces is read first.
+  // Union-find makes the join transitive even when the middle endpoint belongs to a discarded short arc.
   const parent = new Int32Array(m * 2);
-  for (let e = 0; e < m * 2; e++) parent[e] = e;
+  for (let e = 0; e < m * 2; e++) {
+    const p = list[Math.floor(e / 2)]!, angle = e % 2 ? p.to : p.from;
+    qx[e] = Math.round((p.cx + p.rho * Math.cos(angle)) * 100);
+    qy[e] = Math.round((p.cy + p.rho * Math.sin(angle)) * 100);
+    parent[e] = e;
+  }
   const root = (e: number): number => { while (parent[e] !== e) { parent[e] = parent[parent[e]!]!; e = parent[e]!; } return e; };
   const key = (x: number, y: number) => x * 4194304 + y;
-  const seen = new Map<number, number>();
+  // At most two distinct keys per piece. Half occupancy leaves an empty slot in every probe cycle.
+  // Hash the high and low portions, then compare the original numeric key even on extreme layouts.
+  let size = 1;
+  while (size < m * 4) size *= 2;
+  const seen = new Uint32Array(size),
+    keys = new Float64Array(2 * m);
+  const slot = (k: number) => {
+    let i = (Math.imul(Math.floor(k / 4194304), 2654435761) ^ k) & (size - 1);
+    while (seen[i] && keys[seen[i]! - 1] !== k) i = (i + 1) & (size - 1);
+    return i;
+  };
   for (let e = 0; e < m * 2; e++) {
-    const x = qx[e]!, y = qy[e]!;
-    const same = seen.get(key(x, y));
-    if (same !== undefined && Math.abs(x) < 2 ** 30 && qx[same] === x && qy[same] === y) { parent[e] = root(same); continue; }
+    const x = qx[e]!,
+      y = qy[e]!;
+    keys[e] = key(x, y);
+    const home = slot(keys[e]!);
+    const same = seen[home]! - 1;
+    if (same >= 0 && Math.abs(x) < 2 ** 30 && qx[same] === x && qy[same] === y) {
+      parent[e] = root(same);
+      continue;
+    }
     for (let dx = -JOIN; dx <= JOIN; dx++) {
       for (let dy = -JOIN; dy <= JOIN; dy++) {
-        const other = seen.get(key(x + dx, y + dy));
-        if (other !== undefined) { const a = root(other), b = root(e); if (a !== b) parent[a] = b; }
+        const other = seen[slot(key(x + dx, y + dy))]! - 1;
+        if (other >= 0) parent[root(other)] = e;
       }
     }
-    if (same === undefined) seen.set(key(x, y), e);
+    if (same < 0) seen[home] = e + 1;
   }
   const links = new Int32Array(m);
   const starts = new Int32Array(2 * m);
@@ -572,7 +604,7 @@ function assemble(list: Piece[], whole: Piece[]): PaintedSeries {
   for (let i = 0; i < m; i++) {
     const p = list[i]!;
     // A piece shorter than the precision joins its neighbours at one vertex.
-    if (root(2 * i) === root(2 * i + 1) && p.b - p.a < Math.PI) continue;
+    if (root(2 * i) === root(2 * i + 1) && Math.abs(p.to - p.from) < Math.PI) continue;
     keep[i] = 1; count++;
     const v = root(2 * i);
     links[i] = starts[v]!;
@@ -580,14 +612,14 @@ function assemble(list: Piece[], whole: Piece[]): PaintedSeries {
   }
   for (let i = 0; i < m; i++) {
     if (!keep[i]) continue;
-    const p0 = list[i]!;
-    d += 'M' + at(p0, p0.dir > 0 ? p0.a : p0.b);
+    const firstPiece = list[i]!;
+    d += 'M' + at(firstPiece, firstPiece.from);
     const first = root(2 * i);
     let k = i;
     for (;;) {
       keep[k] = 0;
       const p = list[k]!;
-      d += p.dir > 0 ? arcs(p, p.a, p.b) : arcs(p, p.b, p.a);
+      d += arcs(p);
       const end = root(2 * k + 1);
       if (end === first) break;
       let next = starts[end]! - 1;
