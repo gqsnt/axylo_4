@@ -18,6 +18,11 @@ import { record } from '../../finance/host';
 
 const empty = [{ x: 0, y: null, s: 1 }, { x: 1, y: null, s: 37 }, { x: 2, y: null, s: 100 }];
 const ax160 = (list: readonly { code: string; field?: string }[]) => list.filter(d => d.code === 'AX160').map(d => d.field);
+// Spec A4 / TableModel.row: null outside the range, on both sides, whatever the reader keeps pending.
+function outOfRange(table: { readonly rowCount: number; row(i: number): readonly string[] | null }) {
+  expect(table.rowCount).toBe(empty.length);
+  for (const i of [-1, -2, table.rowCount, table.rowCount + 1]) expect(table.row(i)).toBeNull();
+}
 
 function open(options: Record<string, unknown>) {
   const rec = record({ width: 720, height: 420 });
@@ -67,11 +72,17 @@ describe('AX160 for a CSV export while an onDiagnostic-only update is pending', 
     const before = core().drawn!;
     const noteBefore = before.reader.note;
     chart.update({ onDiagnostic: (d: { code: string; field?: string }) => second.push(d) } as never);
+    const table = before.reader.table!;
+    outOfRange(table);
     // Pending: the drawn table is the older revision's, so this read is not the newer revision's to report.
     const early = exportCsv(chart as never);
     const fallback = early.split('\r\n')[2]!.split(',').at(-1);
     expect(fallback).not.toBe('37 u');
     const formatted = calls;
+    expect(ax160(chart.diagnostics)).toEqual([]);
+    expect(second).toEqual([]);
+    // Still pending: an out-of-range read stays null and does not report the fallback the export cached.
+    outOfRange(table);
     expect(ax160(chart.diagnostics)).toEqual([]);
     expect(second).toEqual([]);
     rec.frames();
@@ -99,6 +110,14 @@ describe('AX160 for a CSV export while an onDiagnostic-only update is pending', 
     rec.frames();
     expect(ax160(chart.diagnostics)).toEqual(['s']);
     expect(ax160(second)).toEqual(['s']);
+
+    // After publication (checked last: looking `row` up is itself the deferred offer, so an earlier check would be
+    // the first owned read): still null outside the range, and still nothing reported twice.
+    outOfRange(table);
+    rec.frames();
+    expect(ax160(chart.diagnostics)).toEqual(['s']);
+    expect(ax160(second)).toEqual(['s']);
+    expect(first).not.toContain('AX160');
   });
 });
 

@@ -732,17 +732,25 @@ function readerWith(state: BubbleState): ReaderParts {
       // Every row read names its table, so a size format failure is reported only for the table that owns it.
       // The controller caches each row once per table (it replaces `row`), so a failure a read could not report
       // (the table was not the accepted revision's yet) is offered again on any later read (every read looks `row`
-      // up), as a read of this table under the same guard.
-      // A negative ordinal is that offer: a missed failure is the meta's, read as this table's.
+      // up), as a read of this table under the same guard. The offer lives in the getter, not in `row`, so every
+      // ordinal keeps the contract's answer (null outside the range).
+      // The guard is written out at each site (no shared callback helper) so an uncached row read allocates nothing.
       const read: TableModel['row'] = i => {
         const outer = state.reading;
         state.reading = table;
-        try { return i < 0 ? (missed?.has(table) && sizeMissed(meta)) as never : built.row(i); } finally { state.reading = outer; }
+        try { return built.row(i); } finally { state.reading = outer; }
       };
       let row = read;
       const table: TableModel = {
         ...built,
-        get row() { return read(-1), row; },
+        get row() {
+          if (missed?.has(table)) {
+            const outer = state.reading;
+            state.reading = table;
+            try { sizeMissed(meta); } finally { state.reading = outer; }
+          }
+          return row;
+        },
         set row(kept) { row = kept; },
       };
       const c = state.controller;
