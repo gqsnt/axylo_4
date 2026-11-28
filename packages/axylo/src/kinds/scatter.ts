@@ -11,7 +11,7 @@ import { scatterLookupFor } from '../lookup';
 import { scatterReader } from '../reader';
 import { createTimeReadout } from '../format/time';
 import { pointSwatch } from '../dom/swatch';
-import { svgBand, svgPoints, svgRule } from '../render/svg';
+import { svgBand, svgScatterPoints, svgRule } from '../render/svg';
 
 let layout: Composition['layout'] | undefined;
 
@@ -27,7 +27,7 @@ export const SCATTER: Composition = {
   reader: scatterReader,
   interaction: { overlay: scatterTargetMarks, swatch: pointSwatch, stepInSeries, sliceList: null },
   // Points and highlighted points, references, axes and the focus ring (rules).
-  svg: { points: svgPoints, rule: svgRule, band: svgBand },
+  svg: { points: svgScatterPoints, rule: svgRule, band: svgBand },
 };
 
 /**
@@ -46,5 +46,5 @@ export const SCATTER_STATIC: Composition = {
   reader: scatterReader,
   interaction: { overlay: scatterTargetMarks, swatch: pointSwatch, stepInSeries, sliceList: null },
   // Points and highlighted points, references, axes and the focus ring (rules).
-  svg: { points: svgPoints, rule: svgRule, band: svgBand },
+  svg: { points: svgScatterPoints, rule: svgRule, band: svgBand },
 };

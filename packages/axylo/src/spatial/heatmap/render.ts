@@ -16,7 +16,7 @@ import {
 } from '../../core/contracts';
 import type { OverlayInput } from '../../core/focus';
 import type { Messages } from '../../public';
-import { svgRule, svgRects, type SvgMark, type SvgMarks } from '../../render/svg';
+import { setPath, svgRule, svgRects, type SvgMark, type SvgMarks } from '../../render/svg';
 import { binColor } from '../color-scale';
 import { cellGeometry, type CellGeometry } from './layout';
 import { invalidText, matrixOf, NO_BIN, type MatrixFrame } from './core';
@@ -183,7 +183,7 @@ export const heatmapRects: SvgMark<RectMark> = (c, n, mark, bindings, dpr, clip)
   const el = n.el;
   const source = n.source ??= [];
   if (source[0] !== mark.xywh || source[1] !== tag.kind) {
-    el.setAttribute('d', boxPaths(mark.xywh, tag.kind === 'bin' ? undefined : tag.kind === 'invalid'));
+    setPath(n, boxPaths(mark.xywh, tag.kind === 'bin' ? undefined : tag.kind === 'invalid'));
     source[0] = mark.xywh;
     source[1] = tag.kind;
   }

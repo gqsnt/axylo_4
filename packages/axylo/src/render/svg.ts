@@ -1,8 +1,8 @@
 /**
  * SVG mark renderer (plan 2.3). Paints with `bindings`, CSS expressions such as
  * `var(--axylo-series-color-1)`, through style properties, so the browser restyles the marks on a theme
- * change. On redraw, dense bars also use the resolved color to decide whether overlapping rectangles
- * can be merged. Dash patterns switch under `prefers-contrast: more` and forced colors through the stylesheet.
+ * change. Dense bars and scatter circles also use the resolved color to decide whether
+ * overlapping geometry can be reduced. Dash patterns switch under `prefers-contrast: more` and forced colors through the stylesheet.
  *
  * Every paint goes through the `color` property and is used as `currentColor` for fill or stroke. So a
  * series color is always a color, never an SVG paint server (`url(#…)`), exactly as for the canvas
@@ -16,13 +16,13 @@
  */
 import { sameKey } from '../core/axes';
 import type {
-  AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, PaintBindings, PathMark, PointMark, Rect, RectMark, ResolvedTheme, RuleMark, Scene,
+  AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, Paint, PaintBindings, PathMark, PointMark, Rect, RectMark, ResolvedTheme, RuleMark, Scene,
 } from '../core/contracts';
 import {
   DOT_RADIUS, DOT_TILE, dashText, lifted, MARKER_POLYGONS, PATTERN_LINE, PATTERN_TILE, MISSING_STROKE, missingBox, paintOf, sector, SECTOR_APEX, SECTOR_ARCS, SECTOR_NONE, SECTOR_RING, snapRule, unclippedRule,
 } from './geometry';
 
-import { svgElement } from '../dom/attributes';
+import { setAttr, svgElement } from '../dom/attributes';
 
 let ids = 0;
 
@@ -56,13 +56,19 @@ function writeAttr(n: SvgNode, name: string, key: string | number, text = String
   n.el.setAttribute(name, text);
 }
 
-function setPath(n: SvgNode, value: string): void {
+export function setPath(n: SvgNode, value: string): void {
   const cached = n.attrs?.d;
   // Equal-length streaming paths can differ at the newest point. Keep text in the DOM and compare it exactly on a key collision.
   const size = value.length;
   const key = size > 64 ? size * 65536 + value.charCodeAt(size - 2) * 256 + value.charCodeAt(size - 1) : value;
   if (key === cached && (typeof key === 'string' || n.el.getAttribute('d') === value)) return;
   writeAttr(n, 'd', key, value);
+}
+
+function hasHeavyPath(n: SvgNode): boolean {
+  // The low two bytes of a long path key are its ASCII suffix.
+  const d = n.attrs?.d;
+  return typeof d === 'number' && d >= 65536 * 65536;
 }
 
 function attr(n: SvgNode, name: string, input: number | string | null): void {
@@ -90,37 +96,32 @@ function trustedColor(value: string): boolean {
 
 // Style properties, not presentation attributes: those do not accept var(), and CSSOM writes are allowed
 // under a Content Security Policy without 'unsafe-inline' (spec DX8).
-function setCss(style: CSSStyleDeclaration, name: string, value: string, trusted = false): boolean {
+function setCss(style: CSSStyleDeclaration, name: string, value: string | null, trusted = false): string | null {
+  if (value === null) {
+    style.removeProperty(name);
+    return null;
+  }
   if (trusted || (name === 'color' && trustedColor(value))) {
     style.setProperty(name, value);
-    return true;
+    return value;
   }
   // Validate independently of any prior declaration so a rejected assignment cannot inherit its value.
   const before = style.getPropertyValue(name);
   style.setProperty(name, value);
   const after = style.getPropertyValue(name);
-  if (after !== '' && after !== before) return true;
+  if (after && after !== before) return value;
   style.removeProperty(name);
   style.setProperty(name, value);
-  if (style.getPropertyValue(name) !== '') return true;
-  if (before !== '') style.setProperty(name, before);
-  return false;
+  if (style.getPropertyValue(name)) return value;
+  if (before) style.setProperty(name, before);
+  return null;
 }
 
 function css(n: SvgNode, name: string, value: string | null, trusted = false): void {
-  const cached = n.styles?.[name];
-  if (value === null) {
-    if (cached !== undefined) {
-      delete n.styles![name];
-      n.el.style.removeProperty(name);
-    }
-  } else if (cached !== value) {
-    if (!setCss(n.el.style, name, value, trusted)) {
-      if (n.styles) delete n.styles[name];
-      return;
-    }
-    (n.styles ??= propertyCache())[name] = value;
-  }
+  if ((n.styles?.[name] ?? null) === value) return;
+  const applied = setCss(n.el.style, name, value, trusted);
+  if (applied === null) delete n.styles?.[name];
+  else (n.styles ??= propertyCache())[name] = applied;
 }
 
 /** Paints `role` ('fill' or 'stroke') with a CSS color expression, through `color` and currentColor. */
@@ -405,8 +406,8 @@ function pointPaths(xy: Float32Array, estimate: number, maxPoint: number,
   return decodeBuf(b, pos);
 }
 
-function pointData(mark: PointMark): string {
-  const { xy, size } = mark;
+function pointData(mark: PointMark, xy = mark.xy): string {
+  const { size } = mark;
   const count = xy.length >> 1;
   if (!(size > 0) || !count) return '';
   if (mark.shape === 'circle') {
@@ -501,9 +502,11 @@ function sectorData(cx: number, cy: number, r0: number, r1: number, a0: number, 
   return d + 'Z';
 }
 
-const TAGS: Readonly<Record<string, keyof SVGElementTagNameMap>> = {
-  path: 'path', area: 'path', bars: 'g', missing: 'path', points: 'path', arcs: 'g', rule: 'line', rules: 'path', band: 'rect',
-};
+function slotTag(key: string): keyof SVGElementTagNameMap {
+  if (key === 'bars' || key === 'arcs') return 'g';
+  if (key === 'rule') return 'line';
+  return key === 'band' ? 'rect' : 'path';
+}
 
 /** What a mark handler uses besides its node: the document, the shared definitions, scratch space. */
 export interface SvgContext {
@@ -636,6 +639,78 @@ export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
   paint(n, 'fill', paintOf(mark.fill, bindings));
 };
 
+// Each byte stores eight unit tiles. Uint16 loads span a byte boundary even when
+// a witness or its bounding box straddles the last bit of a byte.
+function coveredCircles(xy: Float32Array, clip: Rect): Float32Array {
+  const left = Math.floor(clip.x), top = Math.floor(clip.y);
+  const width = Math.ceil(clip.x + clip.width - left), height = Math.ceil(clip.y + clip.height - top);
+  if (!(width > 8 && height > 8 && width * height <= 4_000_000 && Math.abs(left) + width + Math.abs(top) + height < 2 ** 24)) return xy;
+  const stride = (width >> 3) + 2;
+  const tiles = new DataView(new ArrayBuffer(stride * height));
+  const keep = new Uint8Array(xy.length / 2);
+  let interior = 0;
+  // The farthest tile corner includes half a tile, half an eighth-pixel bin
+  // and half the SVG encoder's tenth-pixel rounding step on each axis.
+  const masks = new Uint8Array(64 * 5);
+  const far = (tile: number, phase: number) => Math.abs(tile - 1.5 - (phase + 0.5) / 8) + 0.6125;
+  for (let q = 0; q < 64; q++) {
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+      if (far(c, q & 7) ** 2 + far(r, q >> 3) ** 2 <= 9) masks[q * 5 + r]! |= 1 << c;
+    }
+  }
+  // Spread the first witnesses across x-sorted input. Every centre is visited once.
+  for (let pass = 0; pass < 17; pass++) for (let i = pass; i < keep.length; i += 17) {
+    const x = xy[i * 2]! - left, y = xy[i * 2 + 1]! - top;
+    if (!(x >= 4 && x < width - 4 && y >= 4 && y < height - 4)) {
+      keep[i] = 1;
+      continue;
+    }
+    interior++;
+    const col = (x | 0) - 2, shift = col & 7;
+    const q = (((x * 8) & 7) + ((y * 8) & 7) * 8) * 5;
+    let row = ((y | 0) - 2) * stride + (col >> 3);
+    for (let r = 0; r < 5; r++, row += stride) {
+      const before = tiles.getUint16(row, true), mask = masks[q + r]! << shift;
+      if ((before & mask) !== mask) {
+        keep[i] = 1;
+        tiles.setUint16(row, before | mask, true);
+      }
+    }
+  }
+  if (interior <= 2000) return xy;
+  const retained = new Float32Array(xy.length);
+  let out = 0;
+  for (let i = 0; i < keep.length; i++) {
+    const x = xy[2 * i]!, y = xy[2 * i + 1]!;
+    if (!keep[i] && interior > 2000) {
+      const col = Math.floor(x - left) - 3;
+      let row = (Math.floor(y - top) - 3) * stride + (col >> 3);
+      const mask = 127 << (col & 7);
+      let covered = mask;
+      for (let r = 0; r < 7; r++, row += stride) covered &= tiles.getUint16(row, true);
+      if (covered === mask || x === retained[out - 2] && y === retained[out - 1]) {
+        interior--;
+        continue;
+      }
+    }
+    retained[out++] = x;
+    retained[out++] = y;
+  }
+  return retained.subarray(0, out);
+}
+
+export const svgScatterPoints: SvgMark<PointMark> = (c, n, mark, bindings, dpr, clip, paints) => {
+  const { xy, shape, size } = mark;
+  if (shape !== 'circle' || size !== 6 || xy.length <= 4000) return svgPoints(c, n, mark, bindings, dpr, clip);
+  const opaque = isOpaquePaint(mark.fill, paints);
+  const source = [xy, shape, size, opaque, clip?.x, clip?.y, clip?.width, clip?.height];
+  if (!sameKey(n.source, source)) {
+    setPath(n, pointData(mark, opaque && clip ? coveredCircles(xy, clip) : xy));
+    n.source = source;
+  }
+  paint(n, 'fill', paintOf(mark.fill, bindings));
+};
+
 export const svgArcs: SvgMark<ArcMark> = (c, n, mark, bindings) => updateArcs(c.doc, n, mark, bindings, c.scratch);
 
 function sameRuleShape(a: RuleMark, b: RuleMark): boolean {
@@ -678,10 +753,10 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
   let p = patterns.get(kind);
   if (p === undefined) {
     const id = `axylo-pattern-${++ids}`;
-    const tile = String(kind === 'dots' ? DOT_TILE : PATTERN_TILE);
+    const isDots = kind === 'dots';
+    const tile = String(isDots ? DOT_TILE : PATTERN_TILE);
     const el = node(c.doc, 'pattern', 'pattern', { id, patternUnits: 'userSpaceOnUse', x: '0', y: '0', width: tile, height: tile });
     const t = PATTERN_TILE;
-    const isDots = kind === 'dots';
     const d = isDots
       ? circlePath(DOT_TILE / 2, DOT_TILE / 2, DOT_RADIUS, 1)
       : `M0 ${t}L${t} 0M-1 1L1 -1M${t - 1} ${t + 1}L${t + 1} ${t - 1}`
@@ -698,7 +773,7 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
 }
 
 const ALL_MARKS: SvgMarks = {
-  path: svgPath, area: svgArea, rects: svgRects, points: svgPoints, arcs: svgArcs, rule: svgRule, band: svgBand,
+  path: svgPath, area: svgArea, rects: svgRects, points: svgScatterPoints, arcs: svgArcs, rule: svgRule, band: svgBand,
 };
 
 /** The SVG renderer with every mark handler (a chart kind's composition uses svgRendererWith and its own). */
@@ -708,7 +783,7 @@ export function createSvgRenderer(doc: Document = document): MarkRenderer {
 
 function slotAt(doc: Document, list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
   const old = list[i];
-  const n = old?.key === key ? old : node(doc, TAGS[key]!, key);
+  const n = old?.key === key ? old : node(doc, slotTag(key), key);
   attr(n, 'clip-path', clipUrl);
   return n;
 }
@@ -739,6 +814,7 @@ class SvgRenderer implements MarkRenderer, SvgContext {
   #overlaySlots?: SvgNode[];
   readonly #slots: SvgNode[] = [];
   readonly #batchRules: boolean;
+  #heavyScene = false;
   #width = -1;
   #height = -1;
 
@@ -756,9 +832,8 @@ class SvgRenderer implements MarkRenderer, SvgContext {
     const background = this.#background = svgElement(doc, 'rect', { class: 'axylo-background', x: '0', y: '0' });
     background.style.cssText = 'stroke:none;color:var(--axylo-background, transparent);fill:currentColor';
     const sceneGroup = this.#sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
-    const overlayNode = this.#overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
-    const overlayGroup = overlayNode.el;
-    svg.append(defs, background, sceneGroup, overlayGroup);
+    this.#overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
+    svg.append(defs, background, sceneGroup, this.#overlayNode.el);
   }
 
   #sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null, paints?: PaintBindings, scene?: BarScene): void {
@@ -805,6 +880,12 @@ class SvgRenderer implements MarkRenderer, SvgContext {
       i++;
     }
     trim(slots, slot);
+    // Isolate the scene only while hover updates would otherwise repaint a heavy path.
+    const heavy = slots.some(hasHeavyPath);
+    if (heavy !== this.#heavyScene) {
+      setCss(sceneGroup.style, 'will-change', heavy ? 'transform' : null, true);
+      this.#heavyScene = heavy;
+    }
   }
 
   drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
@@ -817,17 +898,16 @@ class SvgRenderer implements MarkRenderer, SvgContext {
       return;
     }
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-    const clipUrl = overlay.clipped.length
-      ? updateClip(this.#overlayClip ??= clipPath(this.doc, this.defs), overlay.clip)
-      : this.#overlayClip?.key ?? null;
+    const { clipped, unclipped, clip } = overlay;
+    const clipUrl = clipped.length ? updateClip(this.#overlayClip ??= clipPath(this.doc, this.defs), clip) : null;
     // The cursor, halo and marker all use the plot clip. A focus outline can extend past it.
-    const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
+    const groupClip = unclipped.length === 0;
     attr(this.#overlayNode, 'clip-path', groupClip ? clipUrl : null);
     const markClip = groupClip ? null : clipUrl;
     const overlaySlots = this.#overlaySlots ??= [];
     let i = 0;
-    for (const m of overlay.clipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
-    for (const m of overlay.unclipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
+    for (const m of clipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, clip);
+    for (const m of unclipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
     trim(overlaySlots, i);
   }
 
@@ -882,7 +962,7 @@ function paintBox(rect: SVGRectElement, q: Float32Array, i: number, old: Float32
   for (let d = 0; d < 4; d++) {
     const name = BOX_ATTRS[d]!, v = q[i + d]!;
     const text = bad ? '0' : fstr(d < 2 ? v + Math.min(0, q[i + d + 2]!) : Math.abs(v));
-    if (!old || rect.getAttribute(name) !== text) rect.setAttribute(name, text);
+    setAttr(rect, name, text, !old);
   }
 }
 
@@ -924,16 +1004,19 @@ function barEnvelope(q: Float32Array, baseline: number | undefined): Float32Arra
   return q;
 }
 
+// The canvas fallback serializes even ambiguous 8-bit alpha as rgba(..., 1).
+const OPAQUE_PAINT = /^(#[\da-f]{6}|rgb\(\d+, \d+, \d+\))$/;
+function isOpaquePaint(fill: Paint, paints?: PaintBindings): boolean {
+  return paints !== undefined && OPAQUE_PAINT.test(paintOf(fill, paints) ?? '');
+}
+
 function updateBars(c: SvgContext, g: SvgNode, mark: RectMark, bindings: PaintBindings, paints?: PaintBindings, scene?: BarScene): void {
   const doc = c.doc, input = mark.xywh, color = paintOf(mark.fill, bindings);
   const pattern = mark.pattern && mark.pattern !== 'none' ? patternUrl(c, mark.pattern, bindings) : null;
   paint(g, 'fill', color);
   let baseline: number | null | undefined = null;
   // More than 2048 bars of four floats each.
-  if (input.length > 8192 && !pattern && scene && paints && color && mark.fill.kind === 'series'
-      // Only forms that cannot carry alpha: a computed opaque color serializes as rgb(r, g, b), while
-      // theme/resolve's canvas fallback writes rgba() with 8-bit alpha, where 1 may hide a translucent color.
-      && /^(#[\da-f]{6}|rgb\(\d+, \d+, \d+\))$/.test(paintOf(mark.fill, paints)!)) {
+  if (input.length > 8192 && !pattern && scene && color && mark.fill.kind === 'series' && isOpaquePaint(mark.fill, paints)) {
     // Root groups have no stack metadata. A stack's first component can share zero
     // at every slot, so keep any multi-series root scene exact.
     if (scene.barBaselines) baseline = scene.barBaselines[mark.series] ?? null;
@@ -956,13 +1039,9 @@ function updateBars(c: SvgContext, g: SvgNode, mark: RectMark, bindings: PaintBi
     const fresh = k >= oldTotal, overlay = k >= count, wasOverlay = !fresh && k >= oldCount;
     const rect = rects[k] ?? svgElement(doc, 'rect');
     paintBox(rect, q, 4 * (overlay ? k - count : k), fresh ? undefined : oldBoxes, 4 * (wasOverlay ? k - oldCount : k));
-    if (overlay) {
-      if (!wasOverlay || oldPattern !== pattern) rect.style.setProperty('fill', pattern!);
-      if (color !== null && (!wasOverlay || oldColor !== color)) setCss(rect.style, 'color', color);
-      else if (wasOverlay && color === null && oldColor !== null) rect.style.removeProperty('color');
-    } else if (wasOverlay) {
-      rect.style.removeProperty('fill');
-      rect.style.removeProperty('color');
+    if (overlay || wasOverlay) {
+      if (overlay !== wasOverlay || oldPattern !== pattern) setCss(rect.style, 'fill', overlay ? pattern : null, true);
+      if (!overlay || (wasOverlay ? oldColor : null) !== color) setCss(rect.style, 'color', overlay ? color : null);
     }
     if (fresh) {
       (fragment ?? g.el).appendChild(rect);

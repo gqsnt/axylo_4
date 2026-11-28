@@ -172,9 +172,9 @@ export function checkKept(col, kept, { window, seriesY }, label) {
   return reasons;
 }
 
-// Axylo culls dense opaque circles (scene/lines.ts, >= 2,000 points) only when another drawn disk already paints
-// over them. Its witnesses are unit pixel tiles that lie entirely inside one retained disk; a centre is dropped
-// only if the whole 7 x 7 tile block around it is witnessed, or it coincides with the previous retained centre.
+// The SVG renderer can omit opaque circles while more than 2,000 interior centres remain.
+// Each witnessed unit tile lies wholly inside a retained disk. A dropped disk must have
+// its entire 7 x 7 tile block witnessed or coincide with the last retained centre.
 const DENSE_SCATTER = 2000;
 // The scene's marker radius; a readback claiming any other disk size is not evidence for its culling.
 const DISK_RADIUS = 3;
@@ -201,7 +201,7 @@ const inRange = v => Number.isFinite(v) && Math.abs(v) < COORD_LIMIT;
  */
 function uncoveredPoints(x, col, window, centers, plot, xDomain, yDomain, precision) {
   const radius = DISK_RADIUS, cell = 2 * radius, grid = new Map();
-  // scene/lines.ts coveredCircles floors the minimum range endpoint before defining its unit-tile grid.
+  // The SVG renderer anchors its unit-tile grid at the floored origin of the plot clip.
   const left = Math.floor(plot.x), top = Math.floor(plot.y);
   // Strings, not gx * 2^20 + gy: wide or negative grid indices would alias numeric keys.
   const key = (gx, gy) => `${gx}|${gy}`;
@@ -253,7 +253,7 @@ function uncoveredPoints(x, col, window, centers, plot, xDomain, yDomain, precis
     seen.add(self);
     const j = drawn.get(`${keyOf(precision, qx)}|${keyOf(precision, qy, false)}`);
     if (j !== undefined) { used.add(j); continue; }
-    // The scene floors its Float32 centre relative to the plot origin, once.
+    // The renderer floors each Float32 centre relative to the tile grid origin.
     if (!blockCovered(Math.floor(qx - left), Math.floor(qy - top))) { missing++; first ??= [qx, qy]; }
   }
   // Every drawn marker must be some datum's rendered centre (coincident copies share one witness).

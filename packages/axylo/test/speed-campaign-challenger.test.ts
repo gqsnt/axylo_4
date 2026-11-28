@@ -515,15 +515,48 @@ describe("C3: dense scatter coverage threshold, marker variants and lazy scatter
     return scatterPoints(view, proj100)[0]!;
   }
 
+  function renderPoints(
+    mark: ReturnType<typeof makeScatterMark>,
+    color = "#0f50be",
+    clip = { x: 0, y: 0, width: 100, height: 100 },
+  ) {
+    const renderer = createSvgRenderer(fakeDocument());
+    const bindings: PaintBindings = { tokens: TOKEN_BINDINGS, series: [color] };
+    renderer.draw(
+      { width: 160, height: 140, clip, marks: [mark] },
+      bindings,
+      { paints: bindings, scheme: "light", moreContrast: false, forcedColors: false },
+      1,
+    );
+    return (renderer.element as unknown as FakeElement).all().find((el) => el.tagName === "path")!;
+  }
+
+  function decodeCircles(d: string) {
+    // Decode every complete radius-3 relative circle subpath; the whole string must parse.
+    const circleRe = /M(-?[0-9.]+)[ ,]?(-?[0-9.]+)a3 3 0 11-6 0a3 3 0 116 0/gy;
+    const centers: number[] = [];
+    let consumed = 0;
+    for (let m = circleRe.exec(d); m; m = circleRe.exec(d)) {
+      centers.push((Number(m[1]) * 10 - 30) / 10, Number(m[2]));
+      consumed = circleRe.lastIndex;
+    }
+    expect(consumed).toBe(d.length);
+    return centers;
+  }
+
   it("activates circle coverage only above 2,000 points, keeps edges and all non-circle marker variants intact", () => {
     // Exactly 2,000 coincident interior circles: must NOT run coveredCircles (xy.length === 4000).
     const x2000 = new Float64Array(2000).fill(50.25);
     const y2000 = new Float64Array(2000).fill(50.25);
-    expect(makeScatterMark(x2000, y2000, "circle").xy.length / 2).toBe(2000);
+    expect(
+      decodeCircles(renderPoints(makeScatterMark(x2000, y2000)).getAttribute("d")!),
+    ).toHaveLength(2 * 2000);
     // 2,001 coincident interior circles: coverage runs and keeps exactly 2,000 witnesses.
     const x2001 = new Float64Array(2001).fill(50.25);
     const y2001 = new Float64Array(2001).fill(50.25);
-    expect(makeScatterMark(x2001, y2001, "circle").xy.length / 2).toBe(2000);
+    expect(
+      decodeCircles(renderPoints(makeScatterMark(x2001, y2001)).getAttribute("d")!),
+    ).toHaveLength(2 * 2000);
 
     // 2,001 interior points: coveredCircles runs, keeps >= 2,000 interior witnesses, and preserves boundary points.
     const n = 4096;
@@ -543,14 +576,16 @@ describe("C3: dense scatter coverage threshold, marker variants and lazy scatter
     x[3] = 97.5;
     y[3] = 97.5;
     const mark = makeScatterMark(x, y, "circle");
-    expect(mark.xy.length / 2).toBeGreaterThanOrEqual(2000);
-    expect(mark.xy.length / 2).toBeLessThan(n);
+    const centers = decodeCircles(renderPoints(mark).getAttribute("d")!);
+    expect(mark.xy.length / 2).toBe(n);
+    expect(centers.length / 2).toBeGreaterThanOrEqual(2000);
+    expect(centers.length / 2).toBeLessThan(n);
 
     // Every border point is retained verbatim.
     for (let b = 0; b < 4; b++) {
       let found = false;
-      for (let i = 0; i < mark.xy.length; i += 2) {
-        if (mark.xy[i] === Math.fround(x[b]!) && mark.xy[i + 1] === Math.fround(y[b]!)) {
+      for (let i = 0; i < centers.length; i += 2) {
+        if (centers[i] === Math.fround(x[b]!) && centers[i + 1] === Math.fround(y[b]!)) {
           found = true;
           break;
         }
@@ -559,31 +594,10 @@ describe("C3: dense scatter coverage threshold, marker variants and lazy scatter
     }
 
     // Translucent single-path SVG render uses fill-rule nonzero (one composited path) with valid relative arcs.
-    const doc = fakeDocument();
-    const renderer = createSvgRenderer(doc);
-    const bindings: PaintBindings = { tokens: TOKEN_BINDINGS, series: ["rgba(15, 80, 190, 0.45)"] };
-    renderer.draw(
-      { width: 100, height: 100, clip: { x: 0, y: 0, width: 100, height: 100 }, marks: [mark] },
-      bindings,
-      { paints: bindings, scheme: "light", moreContrast: false, forcedColors: false },
-      1,
-    );
-    const pathEl = (renderer.element as unknown as FakeElement)
-      .all()
-      .find((el) => el.tagName === "path")!;
-    expect(pathEl.style.getPropertyValue("color")).toBe("rgba(15, 80, 190, 0.45)");
-    expect(pathEl.getAttribute("d")!).toContain("a3 3 0 11-6 0a3 3 0 116 0");
-    // Decode every complete radius-3 relative circle subpath; the whole string must parse.
-    const d = pathEl.getAttribute("d")!;
-    const circleRe = /M(-?[0-9.]+)[ ,]?(-?[0-9.]+)a3 3 0 11-6 0a3 3 0 116 0/gy;
-    const centers: number[] = [];
-    let consumed = 0;
-    for (let m = circleRe.exec(d); m; m = circleRe.exec(d)) {
-      centers.push(Number(m[1]) - 3, Number(m[2]));
-      consumed = circleRe.lastIndex;
-    }
-    expect(consumed).toBe(d.length);
-    expect(centers.length / 2).toBe(mark.xy.length / 2);
+    const alpha = "rgba(15, 80, 190, 0.45)";
+    const translucent = renderPoints(mark, alpha);
+    expect(translucent.style.getPropertyValue("color")).toBe(alpha);
+    expect(decodeCircles(translucent.getAttribute("d")!)).toHaveLength(2 * n);
     // Probe grid offset from integer/quarter ties; compare decoded union to all original centers.
     const step = 0.25;
     const side = 400;
@@ -641,7 +655,8 @@ describe("C3: dense scatter coverage threshold, marker variants and lazy scatter
       "triangle-down",
       "star",
     ] as const) {
-      expect(makeScatterMark(x2500, y2500, shape).xy.length / 2, shape).toBe(2500);
+      const d = renderPoints(makeScatterMark(x2500, y2500, shape)).getAttribute("d")!;
+      expect(d.split("M").length - 1, shape).toBe(2500);
     }
 
     // Reversed SVG y-axis [120.25, 20.25] with offset x-axis [42.5, 142.5]: every elided disk's unit squares stay covered.
@@ -657,16 +672,18 @@ describe("C3: dense scatter coverage threshold, marker variants and lazy scatter
       scatterView(rData, { cues: [{ marker: "circle", dash: { normal: [], contrast: [] } }] }),
       revProj,
     )[0]!;
-    expect(rMark.xy.length / 2).toBeLessThan(4096);
+    const offsetClip = { x: 42.5, y: 20.25, width: 100, height: 100 };
+    const reversed = decodeCircles(renderPoints(rMark, "#0f50be", offsetClip).getAttribute("d")!);
+    expect(reversed.length / 2).toBeLessThan(4096);
     const left = Math.floor(42.5),
       top = Math.floor(20.25),
       w = 102,
       h = 102;
     const cov = new Uint8Array(w * h);
     const keptSet = new Set<string>();
-    for (let i = 0; i < rMark.xy.length; i += 2) {
-      const cx = Math.round(rMark.xy[i]! * 10) / 10;
-      const cy = Math.round(rMark.xy[i + 1]! * 10) / 10;
+    for (let i = 0; i < reversed.length; i += 2) {
+      const cx = reversed[i]!,
+        cy = reversed[i + 1]!;
       keptSet.add(`${cx},${cy}`);
       for (let r = Math.floor(cy) - 3; r <= cy + 3; r++) {
         for (let c = Math.floor(cx) - 3; c <= cx + 3; c++) {

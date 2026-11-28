@@ -29,7 +29,7 @@ import { pointerOnPlot } from '../../lookup/geometry';
 import { scatterReader, type ReaderParts } from '../../reader';
 import { linearScale } from '../../scale';
 import { cartesianScene, type DataLayers } from '../../scene';
-import { svgBand, svgPoints, svgRule, type SvgMark } from '../../render/svg';
+import { setPath, svgBand, svgPoints, svgRule, type SvgMark } from '../../render/svg';
 import { pointSwatch } from '../../dom/swatch';
 import { buildScatterView } from '../../view';
 import type { Messages } from '../../public';
@@ -249,13 +249,11 @@ export const svgBubbles: SvgMark<PointMark> = (c, n, mark, bindings, dpr, clip) 
   }
   const source = n.source ??= [];
   const el = n.el;
-  // This drawer writes the element directly: the stock drawers' caches of what they wrote no longer hold, so a
-  // stock mark reusing this node later writes everything again.
-  if (n.attrs) delete n.attrs.d;
+  // A stock mark reusing this node must reapply styles after the direct paint writes below.
   n.styles = null;
   if (source[0] !== bubble.geometry || source[1] !== bubble.members || source[2] !== bubble.paint || source[3] !== mark.series) {
     const g = bubble.geometry;
-    el.setAttribute('d', bubble.paint === 'series' ? paintedMap(g, bubble.seriesCount).series[mark.series]?.d ?? ''
+    setPath(n, bubble.paint === 'series' ? paintedMap(g, bubble.seriesCount).series[mark.series]?.d ?? ''
       : circlesPath(g, bubble.members, bubble.paint === 'halo' ? 2 : 0));
     // What the path holds, for tests and export: its paint role and the frame series index.
     el.setAttribute('data-bubble', bubble.paint);

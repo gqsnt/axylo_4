@@ -320,17 +320,21 @@ test('Axylo options produce the expected native chart and admitted rectangle geo
       }
       if (kind === 'donut') assert.equal(rec.committed.view.total, fix.total);
       if (kind === 'scatter') {
-        // Dense opaque circles may be culled where other drawn disks paint over them; the frame keeps every point.
+        // The recording host sees scene geometry before the SVG renderer considers resolved paint.
         assert.equal(rec.committed.lookup.count, fix.x.length);
         const xy = marks.find(m => m.type === 'points').xy;
-        assert.ok(xy.length > 0 && xy.length <= fix.x.length * 2, `drawn ${xy.length / 2} of ${fix.x.length} centres`);
+        assert.equal(xy.length, fix.x.length * 2);
         const d = handle.chart.__bench.describe();
-        // As drawn (raw Float32, the host's proved radius-three marks), and as the dense SVG encoder serialises them.
-        for (const [centers, precision] of [[Array.from(xy), 'float32'], [Array.from(xy, v => Math.round(v * 10) / 10), 10]]) {
-          const reasons = checkScatterPoints(fix.x, fix.ys[0], { plot: d.plot, centers, cover: { radius: 3, precision } },
-            d.xDomain, d.yDomain, fix.extreme, 'scatter');
-          assert.deepEqual(reasons, [], String(precision));
+        const { plot, xDomain: [x0, x1], yDomain: [y0, y1] } = d;
+        for (let i = 0; i < fix.x.length; i++) {
+          const px = plot.x + (fix.x[i] - x0) / (x1 - x0) * plot.width;
+          const py = plot.y + plot.height - (fix.ys[0][i] - y0) / (y1 - y0) * plot.height;
+          assert.equal(xy[2 * i], Math.fround(px));
+          assert.equal(xy[2 * i + 1], Math.fround(py));
         }
+        const reasons = checkScatterPoints(fix.x, fix.ys[0], { plot: d.plot, centers: Array.from(xy) },
+          d.xDomain, d.yDomain, fix.extreme, 'scatter');
+        assert.deepEqual(reasons, []);
       }
       if (kind === 'histogram' || kind === 'bar') {
         const d = handle.chart.__bench.describe();

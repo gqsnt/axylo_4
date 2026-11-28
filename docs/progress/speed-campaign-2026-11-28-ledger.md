@@ -141,3 +141,19 @@ Sources:
    - the DX12 rehearsal.
 
    Carry the numbers above into that work.
+
+## 7. Post-campaign cleanup addendum
+
+The cleanup on top of `d6b8923` moves scatter disk coverage to SVG draw time. The scene retains every projected center. Dense size-6 circles share the bar renderer’s resolved-opacity check, so changing the paint to an alpha-capable form restores every circle on the same scene. In a headless comparison against `d6b8923`, the opaque path data matched byte for byte for 200,000-point uniform and clustered fixtures with forward and reversed axes.
+
+The renderer sets `will-change: transform` on the scene group when an active slot first reaches 65,536 path bytes and clears the hint when the last such slot disappears. Overlay draws leave the hint alone. The 65,535/65,536-byte transition and sparse redraw were checked in Node. The GPU hover target of 36 ms awaits a new hardware sweep.
+
+Earlier worker measurements were 137,971 B for cartesian, 140,891 B for static everything and 159,120 B for root everything (packed, gzip-9), with 0 raw bytes for all ten bare imports. The initial Loupe run recorded 3,188 passes and three failures. The revised offset test checks all 4,990 interior and 10 clipped centers before rendering. The candidate immediately preceding the spatial repair passed Loupe with `dist closure ok` and `PASS: 3192 tests`. Earlier Node runs passed bench 151/151 and acceptance 71/71 with a private npm cache.
+
+Bubble and heatmap now write their direct scene paths through the shared SVG path setter. The production-drawer tests check every disc and cell in their 4,096-item paths, the scene hint, a repeated draw without a DOM read of `d`, and removal of the hint when the same path element draws a single item.
+
+The spatial repair passed scoped lint, typecheck and 242 tests. A fresh worker tarball measured 137,971 B for cartesian, 140,891 B for static everything, 159,120 B for root everything, 142,608 B for spatial and 21,588 B for hierarchy (gzip-9). All ten production bare imports emitted 0 raw bytes with esbuild annotations ignored.
+
+Director Loupe log `turn-8-astra-6.2-high__20261128T184848Z.log` records `dist closure ok` and `PASS: 3194 tests` for this candidate. A same-tree reviewer ran acceptance 71/71. On a writable workspace with the source unchanged, a workspace-local npm cache (`.prism-cache/npm`) and temporary directory (`.prism-cache/tmp`), `node --test bench/test/*.test.mjs` passed 151/151 (`fail 0`) and `node --test acceptance/test/*.test.mjs` passed 71/71 (`fail 0`). The earlier 147/151 and 67/71 counts came from sandbox limits (bench's fixed `bench/.scratch` root in a read-only workspace, loopback listen denial, CLI child processes), so they are superseded. `packages/axylo/src/public.ts` and `packages/axylo/src/core/contracts.ts` have the same SHA-256 hashes as at `d6b8923`.
+
+The packed sizes above come from worker fixtures. The official Director-only `node scripts/size.mjs --check` and `npm run test:dist` receipts are still pending. This candidate has no GPU hover measurement, and the 36 ms target is unmeasured.
