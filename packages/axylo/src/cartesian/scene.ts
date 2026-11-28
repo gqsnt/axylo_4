@@ -2,7 +2,7 @@
  * Mixed-layer dual-axis scene builder for `axylo/cartesian` (C4.3, RFC §5.2).
  * Paint order:
  *   1. Reference bands + left-axis gridlines, shaded annotations and `range` bands
- *   2. `bar` layers, then `boxplot` boxes, whiskers and medians
+ *   2. `bar` layers, then `boxplot` boxes, whiskers and medians, then `violin` outlines and inner boxes
  *   3. `area` layers
  *   3b. `errorBar` whiskers/centres, box outliers, `scatter` points
  *   4. `line` layers (topmost data marks)
@@ -22,6 +22,7 @@ import { buildBarSlotLayout, writeBarRect, xSlotPixel } from './bar-geom';
 import { buildCartesianAnnotationMarks } from './annotations';
 import { repeatsIn, repeatsOf, visitRepeats } from './repeats';
 import type { CartesianMeta, CartesianStateRef } from './meta';
+import { projectViolin, violinMarks } from './violin';
 import {
   MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, axisOf, boxHalfWidth, isCompoundKind, markOf, physicalOf, projectCompound, type CompoundSink,
 } from './boxplot';
@@ -162,6 +163,7 @@ export function buildCartesianScene(
   const annMarks = !compact ? buildCartesianAnnotationMarks(view, projection, plot, meta) : { bands: [], foreground: [] };
   const ivBands: AreaMark[] = [], ivStrokes: PathMark[] = [], ivPoints: PointMark[] = [];
   const boxRects: RectMark[] = [], boxStrokes: PathMark[] = [], boxPoints: PointMark[] = [];
+  const violins: Mark[] = [];
   const boxHalf = boxHalfWidth(projection, view.frame.x.values, view.visibleSlots);
 
   for (let index = 0; index < view.frame.series.length; index++) {
@@ -173,6 +175,11 @@ export function buildCartesianScene(
       continue;
     }
     if (!m) continue;
+    if (m.kind === 'violin') {
+      const g = projectViolin(m, physical, index, projection, plot, boxHalf * 1.5);
+      if (g) violins.push(...violinMarks(index, g, start, end, xAt));
+      continue;
+    }
     const geometry = projectCompound(m, physical, index, projection, plot, boxHalf);
     if (!geometry) continue;
     const { rows, low, centre, cap } = geometry;
@@ -237,6 +244,8 @@ export function buildCartesianScene(
     }
   }
   marks.push(...boxRects, ...boxStrokes);
+  // 2b. Violins: filled outlines, strokes and inner boxes
+  marks.push(...violins);
 
   // 3. Areas
   const ratio = safeRatio(devicePixelRatio), limit = columnLimit(plot, ratio);

@@ -25,6 +25,7 @@ import { lowerBound } from '../data/search';
 import { MARKER_POLYGONS } from '../render/geometry';
 import { sameRef } from '../core/focus';
 import { repeatsIn, repeatsOf, valueAtRow, valuesText, visitRepeats } from './repeats';
+import { projectViolin, violinBox, violinCells, violinDistance, violinText } from './violin';
 
 const LINE_HIT_RADIUS = 12;
 const POINT_HIT_RADIUS = 24;
@@ -240,6 +241,9 @@ export function createCartesianLookup(
 
   const geometry = marks.map((m, i) => m && projection && plot
     ? projectCompound(m, physical, i, projection, plot, boxHalf) : null);
+  // Violins are drawn and picked from the same geometry the scene builds (half width 1.5 box halves).
+  const violins = marks.map((m, i) => m?.kind === 'violin' && projection && plot
+    ? projectViolin(m, physical, i, projection, plot, boxHalf * 1.5) : null);
 
   const kindOf = (sIdx: number): LogicalKind => marks[sIdx]?.kind ?? meta.seriesByField.get(series[sIdx]!.field)?.mark ?? 'line';
 
@@ -297,7 +301,10 @@ export function createCartesianLookup(
         if (role !== 'y' && part && state === SLOT_VALUE) state = part.slot[i]! as SlotState;
         return readout.cell(idx, i);
       };
-      if (mark.kind === 'boxplot') {
+      if (mark.kind === 'violin') {
+        for (const role of ['median', 'min', 'q1', 'q3', 'max'] as const) read(role);
+        value = state === SLOT_VALUE ? violinText(violinCells(mark, physical, sIdx, i, readout.cell, formatters)) : formatters.missing(state);
+      } else if (mark.kind === 'boxplot') {
         const median = read('median'), min = read('min'), q1 = read('q1'), q3 = read('q3'), max = read('max');
         if (state !== SLOT_VALUE) {
           value = formatters.missing(state);
@@ -344,6 +351,8 @@ export function createCartesianLookup(
   };
 
   const compoundBox = (sIdx: number, i: number): Rect | null => {
+    const v = violins[sIdx];
+    if (v) return v.rows[i] === SLOT_VALUE ? violinBox(v, i, xAt(i)) : null;
     const g = geometry[sIdx], mark = marks[sIdx];
     if (!g || !mark || g.rows[i] !== SLOT_VALUE) return null;
     const px = xAt(i), top = g.top(i), bottom = g.bottom(i);
@@ -512,6 +521,27 @@ export function createCartesianLookup(
 
   /** The slot and distance of the drawn compound geometry under/near the pointer, or null. */
   const compoundHit = (sIdx: number, i: number, xPx: number, yPx: number): SlotHit | null => {
+    const v = violins[sIdx];
+    if (v) {
+      // Every violin within its widest half width plus slack of the pointer's x, whatever the slot spacing: slot
+      // pixels are monotone in the slot index, so bisection finds the first and the scan stops past the last.
+      const reach = v.half + HIT_SLACK, up = xAt(end - 1) >= xAt(start), near = (px: number) => up ? px - xPx : xPx - px;
+      let lo = start, hi = end, hit: SlotHit | null = null, hitDx = Infinity;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (near(xAt(mid)) < -reach) lo = mid + 1; else hi = mid;
+      }
+      for (let j = lo; j < end; j++) {
+        const px = xAt(j), dx = Math.abs(px - xPx);
+        if (near(px) > reach) break;
+        if (v.rows[j] !== SLOT_VALUE) continue;
+        if (__DEV__) lastPickCandidates++;
+        const dist = violinDistance(v, j, px, xPx, yPx);
+        // The nearer, then the one centred nearer the pointer.
+        if (dist <= HIT_SLACK && (!hit || dist < hit[1] || (dist === hit[1] && dx < hitDx))) { hit = [j, dist]; hitDx = dx; }
+      }
+      return hit;
+    }
     const mark = marks[sIdx];
     const g = geometry[sIdx];
     if (!mark || !plot || !g) return null;

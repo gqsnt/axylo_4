@@ -9,7 +9,9 @@ import { normalizeAligned, type DataEnvironment, type FrameVersion } from '../da
 import type { ChartType, ResolvedOptions } from '../data/options';
 import { reportCartesian } from './diagnostics';
 import type { CartesianStateRef } from './meta';
-import { markOf } from './boxplot';
+import { logicalOf, markOf } from './boxplot';
+import { OUTLINE, violinReport } from './violin';
+import { report } from '../diagnostics/registry';
 import { collectRepeats, repeatsOf, visitRepeats } from './repeats';
 
 export function normalizeCartesian(
@@ -77,6 +79,35 @@ export function normalizeCartesian(
       axisIndex: spec.axisIndex,
     };
   });
+
+  // A violin grid is malformed where readViolin marked it (2), or where its outline is empty and the data had
+  // something to draw: a median this frame holds as a value, read by the chart's own parsing rules and x admission.
+  // One mask per grid field, so layers sharing a field and rows sorted by x still give one report: the full count
+  // and the first ten source rows, ascending (the sink would only append a second report's rows).
+  const masks = new Map<string, Uint8Array>();
+  for (const m of logicalOf(meta).marks) {
+    const v = m.violin;
+    if (!v) continue;
+    // The parse's AX106 rows on this field in any role (another layer's density, n, bandwidth) join the same mask,
+    // with their roles: a grid field another layer reads as n or bandwidth may lose only its readout.
+    const s = raw.series.find(c => c.field === m.fields[0]), e = v.empty, seed = v.notes?.get('AX106' + v.field)?.[2] ?? e.subarray(0, 0);
+    let bad = masks.get(v.field);
+    if (!bad || bad.length < e.length || bad.length < seed.length) {
+      const grown = new Uint8Array(Math.max(e.length, seed.length));
+      if (bad) grown.set(bad);
+      masks.set(v.field, bad = grown);
+    }
+    for (let r = 0; r < e.length; r++) if (e[r] === 2) bad[r]! |= OUTLINE;
+    for (let r = 0; r < seed.length; r++) bad[r]! |= seed[r]!;
+    if (s) for (let i = 0; i < raw.length; i++) {
+      const r = s.row ? s.row[i]! : i;
+      if (s.slot[i] === SLOT_VALUE && e[r] === 1) bad[r]! |= OUTLINE;
+    }
+  }
+  for (const [field, bad] of masks) {
+    const found = violinReport(field, bad);
+    if (found.count) report(sink, 'AX106', 'omitted', found);
+  }
 
   // C5.1: validate range/errorBar intervals for reversed bounds (`low > high`) without copying borrowed columns.
   if (meta.intervals.length > 0) {

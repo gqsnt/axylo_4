@@ -66,6 +66,18 @@ const BOX_SHAPE: SwatchShape = {
   },
 };
 
+const VIOLIN_SHAPE: SwatchShape = {
+  key: 'violin',
+  draw(svg, spec) {
+    const d = 'M10 1C12 4 15 5 12 7C11 8 11 10 10 11C9 10 9 8 8 7C5 5 8 4 10 1Z';
+    if (spec.hollow) shapePath(svg, d, 'axylo-swatch-chip', BACKGROUND, { stroke: 'currentColor', 'stroke-width': '1.5' });
+    else {
+      shapePath(svg, d, 'axylo-swatch-chip', 'currentColor');
+      shapePath(svg, 'M8 6H12', 'axylo-swatch-median', 'none', { stroke: BACKGROUND, 'stroke-width': '1.5' });
+    }
+  },
+};
+
 interface Drawing { readonly paint: number; readonly shape: SwatchShape | 'line' | 'point' | 'bar' }
 const LINE: Drawing = { paint: -1, shape: 'line' };
 
@@ -80,6 +92,7 @@ function drawingOf(stateRef: CartesianStateRef, index: number, view: View): Draw
   if (kind === 'bar') return { paint: index, shape: 'bar' };
   if (kind === 'area') return { paint: index, shape: AREA_SHAPE };
   if (kind === 'boxplot') return { paint: index, shape: BOX_SHAPE };
+  if (kind === 'violin') return { paint: index, shape: VIOLIN_SHAPE };
   if (kind === 'range') return { paint: index, shape: BAND_SHAPE };
   const physical = physicalOf(view as AlignedView);
   const centre = mark ? partIndex(mark, physical, index, 'y') : -1;
@@ -103,7 +116,7 @@ export function createMarkSwatch(stateRef: CartesianStateRef): SeriesSwatch {
     },
     legendForOne: (view: View): boolean => {
       const shape = view.kind !== 'donut' && view.frame.series.length === 1 ? drawingOf(stateRef, 0, view).shape : null;
-      return shape === BAND_SHAPE || (typeof shape === 'object' && !!shape?.key.startsWith('errorBar'));
+      return shape === BAND_SHAPE || shape === VIOLIN_SHAPE || (typeof shape === 'object' && !!shape?.key.startsWith('errorBar'));
     },
   });
 }

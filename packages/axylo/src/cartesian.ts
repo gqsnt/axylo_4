@@ -4,7 +4,7 @@
  * value scales, and mixed `bar` / `area` / `line` layers sharing one `AlignedFrame` with 0 B tax
  * on legacy root (`axylo`), `axylo/static`, and `axylo/stream` consumers.
  */
-import type { CommonOptions, Diagnostic, Target, ValueField, XField, XValue } from './public.js';
+import type { CommonOptions, Diagnostic, NumberKey, Target, ValueField, XField, XValue } from './public.js';
 import type { StaticChart } from './static.js';
 import { createStaticChart } from './core/chart';
 import { forwardSync } from './core/peer';
@@ -79,7 +79,8 @@ export type CartesianLayerOptions<Row, Axes extends AxesRecord> =
   | { readonly type: 'range'; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string }
   | { readonly type: 'errorBar'; readonly y?: ValueField<Row>; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string; readonly capWidth?: number }
   | ScatterLayerOptions<Row, Axes>
-  | BoxplotLayerOptions<Row, Axes>;
+  | BoxplotLayerOptions<Row, Axes>
+  | ViolinLayerOptions<Row, Axes>;
 
 /** Points at their own y; rows that share an x are separate points (spec F11). Omitted `yAxis` is the left axis. */
 export interface ScatterLayerOptions<Row, Axes extends AxesRecord> {
@@ -111,6 +112,31 @@ export interface BoxplotLayerOptions<Row, Axes extends AxesRecord> {
   /** Outlier marker size in CSS px (default 3.5, at most 24). */
   readonly size?: number;
   readonly outliers?: NumberListKey<Row>;
+}
+
+/**
+ * A mirrored density outline per x from a precomputed payload: pass `axylo/stats` violinData(...).data as `data`
+ * with `x: 'x'`, and every field defaults to its column name. Each row needs `grid` and `density` lists of equal
+ * length (>= 2, finite, grid strictly increasing, density >= 0; other rows are reported and their outline is not
+ * drawn) and the five numbers; `n` and `bandwidth` are read out when the data has them. The violins of one layer
+ * share one width scale (the layer's largest density), so `normalize: 'area'` compares areas and `'width'` shapes.
+ * Linear axes only: the density is estimated on a linear scale (AX173 at run time).
+ */
+export interface ViolinLayerOptions<Row, Axes extends AxesRecord> {
+  readonly type: 'violin';
+  readonly yAxis: LinearAxisId<Axes>;
+  readonly label?: string;
+  readonly min?: ValueField<Row>;
+  readonly q1?: ValueField<Row>;
+  readonly median?: ValueField<Row>;
+  readonly q3?: ValueField<Row>;
+  readonly max?: ValueField<Row>;
+  readonly grid?: NumberListKey<Row>;
+  readonly density?: NumberListKey<Row>;
+  readonly n?: NumberKey<Row>;
+  readonly bandwidth?: NumberKey<Row>;
+  /** `'box'` (default): Q1–Q3 box, min–max line and median bar inside each violin. `'none'`: the outline only. */
+  readonly inner?: 'box' | 'none';
 }
 
 export interface CartesianOptions<Row, Axes extends AxesRecord> extends CommonOptions<Row> {

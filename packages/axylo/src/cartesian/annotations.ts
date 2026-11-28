@@ -26,9 +26,9 @@ function resolveX(view: AlignedView, raw: XValue, sink?: DiagnosticSink, field =
 export function validateCartesianAnnotations(view: AlignedView, meta: CartesianMeta, sink: DiagnosticSink): void {
   for (const issue of logicalOf(meta).optionIssues) {
     if (issue.code === 'AX171') reportCartesian(sink, 'AX171', 'none', { field: issue.field, count: 1, detail: issue.detail });
-    else report(sink, issue.code, 'none', {
+    else report(sink, issue.code, issue.effect ?? 'none', {
       field: issue.field, detail: issue.detail, count: issue.count, rows: issue.rows,
-      outcome: issue.field.startsWith('annotations') ? 'The annotation is not drawn; the other annotations are.' : undefined,
+      outcome: issue.outcome ?? (issue.field.startsWith('annotations') ? 'The annotation is not drawn; the other annotations are.' : undefined),
     });
   }
   for (const ann of meta.annotations) xFieldsOf(ann).forEach(([key, raw]) => resolveX(view, raw, sink, `${annotationPath(ann)}.${key}`));

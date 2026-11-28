@@ -18,6 +18,7 @@ import {
   type CartesianLayerMark, type CartesianMeta, type CartesianReferenceSpec, type CartesianSeriesSpec,
   type CartesianStateRef,
 } from './meta';
+import { flushViolin, readViolin, type ViolinNotes } from './violin';
 
 interface ValidationIssue {
   readonly code: 'AX170' | 'AX173' | 'AX174';
@@ -33,13 +34,15 @@ export interface ParsedCartesian {
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const fieldName = (spec: unknown): string | null => typeof spec === 'string' ? spec : isObj(spec) && typeof spec.field === 'string' ? spec.field : null;
-const LAYER_KINDS = ['bar', 'area', 'line', 'range', 'errorBar', 'scatter', 'boxplot'] as const;
+const LAYER_KINDS = ['bar', 'area', 'line', 'range', 'errorBar', 'scatter', 'boxplot', 'violin'] as const;
 const BOX_ROLES = ['median', 'min', 'q1', 'q3', 'max'] as const;
 
 export function parseCartesianInput(input: unknown, previous?: CartesianMeta | null): ParsedCartesian {
   const src = isObj(input) ? input : {};
   const issues: ValidationIssue[] = [];
   const optionIssues: OptionIssue[] = [];
+  // Violin payload omissions, pooled over the layers so a field two layers read is reported once (flushed below).
+  const violinNotes: ViolinNotes = new Map();
   const err = (code: ValidationIssue['code'], field: string, detail: string) => { issues.push({ code, field, detail }); };
   const opt = (code: OptionIssue['code'], field: string, detail: string) => { optionIssues.push({ code, field, detail }); };
   const rawAxes = isObj(src.axes) ? src.axes : null;
@@ -136,7 +139,7 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
     typeof v === 'number' && Number.isFinite(v) && v >= min ? Math.min(v, max) : fallback;
 
   for (let layerIndex = 0; layerIndex < rawLayers.length; layerIndex++) {
-    const rawLayer = rawLayers[layerIndex];
+    let rawLayer = rawLayers[layerIndex];
     const at = `layers[${layerIndex}]`;
     if (!isObj(rawLayer)) { err('AX174', at, 'Each layer must be an options object'); continue; }
     const kind = (rawLayer.type === 'point' ? 'scatter' : rawLayer.type) as LogicalKind;
@@ -146,15 +149,18 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       ? (rawLayer.yAxis === undefined || yAxisId === 'left' ? leftAxes[0] : yAxisId === 'right' ? rightAxes[0] : undefined)
       : undefined);
     if (!axis) { err('AX174', yAxisId || `${at}.yAxis`, `Layer references unknown yAxis '${yAxisId}'`); continue; }
-    if ((kind === 'bar' || kind === 'area') && axis.scale === 'log') err('AX173', axis.id, `${kind} layer cannot bind to log axis '${axis.id}'`);
+    if ((kind === 'bar' || kind === 'area' || kind === 'violin') && axis.scale === 'log') err('AX173', axis.id, `${kind} layer cannot bind to log axis '${axis.id}'`);
 
     const layerLabel = typeof rawLayer.label === 'string' && rawLayer.label.trim() ? rawLayer.label : null;
     const addMark = (label: string, roles: readonly PartRole[], fields: string[], capWidth = 0, size = 4, outliers: OutlierColumn | null = null) => {
       marks.push({ kind, label, axisId: axis.id, axisIndex: axis.index, roles, fields, capWidth, size, outliers });
     };
 
-    if (kind === 'range' || kind === 'errorBar' || kind === 'boxplot') {
-      const box = kind === 'boxplot';
+    if (kind === 'range' || kind === 'errorBar' || kind === 'boxplot' || kind === 'violin') {
+      const violin = kind === 'violin';
+      // A violin's fields default to the columns of axylo/stats violinData(), also when given as undefined.
+      if (violin) rawLayer = { ...rawLayer, ...Object.fromEntries(BOX_ROLES.map(role => [role, rawLayer[role] ?? role])) };
+      const box = kind === 'boxplot' || violin;
       const centerField = kind === 'errorBar' ? fieldName(rawLayer.y) : null;
       if (!box && rawLayer.y !== undefined && centerField === null) {
         opt('AX150', `${at}.y`, kind === 'range' ? "A range layer draws no centre; use an errorBar layer for 'y'." : "Name the centre's field in 'y'.");
@@ -176,7 +182,18 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       });
       if (fields.length !== roles.length) { if (!box) err('AX174', at, invalid); continue; }
 
-      if (box) {
+      if (violin) {
+        const name = (key: string) => {
+          const v = rawLayer[key];
+          if (v !== undefined && typeof v !== 'string') err('AX174', `${at}.${key}`, `violin '${key}' must name a field of the data`);
+          return typeof v === 'string' ? v : key;
+        };
+        if (rawLayer.inner !== undefined && rawLayer.inner !== 'box' && rawLayer.inner !== 'none') {
+          opt('AX150', `${at}.inner`, "Use inner: 'box' or 'none'.");
+        }
+        addMark(label, roles, fields);
+        marks[marks.length - 1] = { ...marks[marks.length - 1]!, violin: readViolin(src.data, fieldName(src.x), [name('grid'), name('density'), name('n'), name('bandwidth')], rawLayer.inner !== 'none', optionIssues, violinNotes) };
+      } else if (box) {
         const outlierField = typeof rawLayer.outliers === 'string' ? rawLayer.outliers : null;
         if (rawLayer.outliers !== undefined && outlierField === null) {
           err('AX174', `${at}.outliers`, "boxplot 'outliers' must name a field whose values are arrays of numbers");
@@ -198,12 +215,14 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
     }
   }
 
+  flushViolin(violinNotes, optionIssues, new Set(marks.map(m => m.violin?.field)));
+
   const translatedY = [...leading, ...trailing];
   if (translatedY[0]) {
     translatedY[0].__domainSig = axesDomainSignature(orderedAxes);
     // What the carriers do not say about a layer (its true mark, sizes, caps, outlier field): a change of any of
     // them is a change of encoding, so the core builds the view, scene and readers again (review finding 4).
-    translatedY[0].__layerSig = marks.map(m => `${m.kind}:${m.capWidth}:${m.size}:${m.outliers?.field ?? ''}`).join();
+    translatedY[0].__layerSig = marks.map(m => `${m.kind}:${m.capWidth}:${m.size}:${m.outliers?.field ?? ''}:${m.violin?.key ?? ''}`).join();
   }
 
   const rawAnnotations = Array.isArray(src.annotations) ? src.annotations : [];
