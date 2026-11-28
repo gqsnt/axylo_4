@@ -10,7 +10,7 @@ import { normalize, resolveOptions, type ChartType, type ResolvedOptions } from 
 import { object } from '../data/options';
 
 export { object };
-import { createDiagnostic, DiagnosticCollector, report } from '../diagnostics';
+import { createDiagnostic, DiagnosticCollector } from '../diagnostics';
 import { buildView, zeroBaseline, type ViewState } from '../view';
 import { fill, resolveMessages } from '../messages';
 import { sameValue, type OptionRecord } from './options';
@@ -135,9 +135,7 @@ export function completeViewDiagnostics(
 /** AX140 (spec A1): no title and no `labelledBy`. A `labelledBy` that names nothing is checked when drawn. */
 export function namingDiagnostics(options: OptionRecord): DiagnosticInput[] {
   if (titleOf(options) !== null || stringOption(options, 'labelledBy') !== null) return [];
-  const sink = new DiagnosticCollector();
-  report(sink, 'AX140', 'none');
-  return [...sink.inputs()];
+  return [createDiagnostic('AX140', 'none')];
 }
 
 /** resolveOptions reports AX100 and AX101; normalization may report them again. Keep one copy. */

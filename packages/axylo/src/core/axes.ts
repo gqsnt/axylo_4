@@ -43,10 +43,10 @@ const fullScales = { linear: linearScale, time: timeScale, temporalTicks, band: 
  * used at all) is about every tick.
  */
 class TickFailures {
-  private positions: Set<number> | null = null;
+  #positions: Set<number> | null = null;
   #always = false;
-  private at = NaN;
-  private seen = false;
+  #at = NaN;
+  #seen = false;
 
   /** The author's formatter, noting the position being labelled when it throws. */
   author(option: unknown): unknown {
@@ -56,8 +56,8 @@ class TickFailures {
       try {
         return format(...args);
       } catch (error) {
-        this.failed(this.at);
-        this.seen = true;
+        this.failed(this.#at);
+        this.#seen = true;
         throw error;
       }
     };
@@ -66,23 +66,23 @@ class TickFailures {
   /** A labeler that says which position it labels. */
   labeler<R extends unknown[]>(label: (position: number, ...rest: R) => string): (position: number, ...rest: R) => string {
     return (position, ...rest) => {
-      this.at = position;
+      this.#at = position;
       return label(position, ...rest);
     };
   }
 
   /** What a labeler reports: once per labeler, after the formatter's own throw or for the whole option. */
   report = (): void => {
-    if (this.seen) this.seen = false;
+    if (this.#seen) this.#seen = false;
     else this.#always = true;
   };
 
-  failed(at: number): void { (this.positions ??= new Set()).add(at); }
+  failed(at: number): void { (this.#positions ??= new Set()).add(at); }
 
   drawn(ticks: readonly { readonly value: number }[]): boolean {
     if (this.#always) return ticks.length > 0;
-    if (this.positions) for (const tick of ticks) {
-      if (this.positions.has(tick.value)) return true;
+    if (this.#positions) for (const tick of ticks) {
+      if (this.#positions.has(tick.value)) return true;
     }
     return false;
   }
@@ -103,10 +103,13 @@ const noFailures: FailureTracker = {
 };
 const NO_FAILURES: AxisFailures = { x: noFailures, y: noFailures };
 
+function tickOption(option: unknown, failures: FailureTracker): unknown {
+  return typeof option === 'function' || (option !== null && typeof option === 'object') ? failures.author(option) : null;
+}
+
 function numberTicks(domain: Span, ctx: AxisContext, option: unknown, scale: 'percent' | 'ratio' | null, failures: FailureTracker): TickCandidates {
   if (ctx.compact && option == null) return [];
-  const tickFormat = typeof option === 'function' || (option !== null && typeof option === 'object')
-    ? failures.author(option) as NumberFormatOption : null;
+  const tickFormat = tickOption(option, failures) as NumberFormatOption | null;
   const label = createNumberTickLabeler({ locale: ctx.locale, scale, tickFormat, onError: failures.report });
   return linearTickCandidates(domain, tickFormat ? failures.labeler(label) : label, !tickFormat);
 }
@@ -115,8 +118,7 @@ function temporalTicks(
   domain: Span, kind: 'time' | 'date' | 'wall', timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
   locale: string, option: unknown, failures: FailureTracker,
 ): TickCandidates {
-  const format = typeof option === 'function' || (option !== null && typeof option === 'object')
-    ? failures.author(option) as Parameters<typeof createTimeTickLabel>[0]['format'] : null;
+  const format = tickOption(option, failures) as Parameters<typeof createTimeTickLabel>[0]['format'];
   const label = format ? createTimeTickLabel({ kind, timeZone, locale, dateUnit, format, onError: failures.report }) : null;
   return timeTickCandidates(domain, { kind, timeZone, locale, dateUnit, label: label && failures.labeler(label) });
 }
@@ -155,23 +157,7 @@ type AxisParts = Record<string, unknown>;
  * cached or not, reports the same AX160 (finding 11).
  */
 interface AxisEntry {
-  /**
-   * What the parts were made from (appendAxisInputs' values, in its order), as fields: a chart keeps one entry
-   * per view, and fields cost less than a key array beside it.
-   */
-  readonly xField: string;
-  readonly xScale: unknown;
-  readonly xTickFormat: unknown;
-  readonly xUnit: unknown;
-  readonly xDomain: boolean;
-  readonly valueField: unknown;
-  readonly valueTickFormat: unknown;
-  readonly valueScale: unknown;
-  readonly valueDomain: boolean;
-  readonly locale: string;
-  readonly compact: boolean;
-  readonly xLabelGiven: boolean;
-  readonly valueTitle: string;
+  readonly inputs: readonly unknown[];
   readonly scales: AxisScales;
   readonly parts: AxisParts;
   readonly failures: AxisFailures;
@@ -183,34 +169,31 @@ let axisMemo: WeakMap<View, AxisEntry> | undefined;
  * the labels made for this view: an author tick formatter that updates the chart on every call can then not
  * stop every frame from publishing (verification, defect 3).
  */
-function appendAxisInputs(key: unknown[], ctx: AxisContext): void {
-  const { x } = ctx.resolved;
-  const value = ctx.resolved.values[0];
-  key.push(x.field, x.scale, x.tickFormat, x.unit, x.domain != null, value?.field, value?.tickFormat,
-    value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle);
+let contextInputs: WeakMap<AxisContext, readonly unknown[]> | undefined;
+
+function axisInputs(ctx: AxisContext): readonly unknown[] {
+  const cache = contextInputs ??= new WeakMap();
+  let inputs = cache.get(ctx);
+  if (inputs) return inputs;
+  const { x } = ctx.resolved, value = ctx.resolved.values[0];
+  inputs = [x.field, x.scale, x.tickFormat, x.unit, x.domain != null, value?.field, value?.tickFormat,
+    value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+  cache.set(ctx, inputs);
+  return inputs;
 }
 
 function axisParts(view: View, ctx: AxisContext, scales: AxisScales): AxisEntry {
-  const { x } = ctx.resolved;
-  const value = ctx.resolved.values[0];
   const cache = axisMemo ??= new WeakMap();
-  const hit = cache.get(view);
-  if (hit?.scales === scales) {
-    // Compare in appendAxisInputs order so cache hits need no temporary key.
-    if (hit.xField === x.field && hit.xScale === x.scale && hit.xTickFormat === x.tickFormat && hit.xUnit === x.unit &&
-        hit.xDomain === (x.domain != null) && hit.valueField === value?.field && hit.valueTickFormat === value?.tickFormat &&
-        hit.valueScale === value?.scale && hit.valueDomain === (value?.domain != null) && hit.locale === ctx.locale &&
-        hit.compact === ctx.compact && hit.xLabelGiven === ctx.xLabelGiven && hit.valueTitle === ctx.valueTitle) return hit;
-  }
+  const hit = cache.get(view), inputs = axisInputs(ctx);
+  // Contexts and their resolved fields are immutable. A new context for a title update can still share ticks.
+  if (hit?.scales === scales && (hit.inputs === inputs || inputs.every((v, i) => v === hit.inputs[i]))) return hit;
+  const { x } = ctx.resolved, value = ctx.resolved.values[0];
   const failures = x.tickFormat == null && value?.tickFormat == null ? NO_FAILURES : {
     x: x.tickFormat == null ? noFailures : new TickFailures(),
     y: value?.tickFormat == null ? noFailures : new TickFailures(),
   };
   const entry: AxisEntry = {
-    xField: x.field, xScale: x.scale, xTickFormat: x.tickFormat, xUnit: x.unit, xDomain: x.domain != null,
-    valueField: value?.field, valueTickFormat: value?.tickFormat, valueScale: value?.scale, valueDomain: value?.domain != null,
-    locale: ctx.locale, compact: ctx.compact, xLabelGiven: ctx.xLabelGiven, valueTitle: ctx.valueTitle,
-    scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures,
+    inputs, scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures,
   };
   cache.set(view, entry);
   return entry;
@@ -249,8 +232,8 @@ function layoutInputWith(
 ): LayoutInput {
   const { width, height } = size;
   if (view.kind === 'donut') return { width, height, kind: 'ring' };
-  const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
-  return { ...common, ...axisParts(view, ctx, scales).parts } as unknown as LayoutInput;
+  return { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales,
+    ...axisParts(view, ctx, scales).parts } as unknown as LayoutInput;
 }
 
 function valueAxis(
@@ -422,32 +405,22 @@ const NO_TITLES: AxisTitles = { x: undefined, y: undefined };
 /** The axis titles layout draws (spec L6), with their units; undefined where an axis is untitled. */
 function axisTitles(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): AxisTitles {
   if (ctx.compact) return NO_TITLES;
-  if (view.kind === 'scatter') {
-    return {
-      x: xTitled(view.frame.xKind, ctx) ? withUnit(view.frame.xLabel, view.frame.xUnit) : undefined,
-      y: withUnit(view.frame.yLabel, view.frame.yUnit),
-    };
-  }
+  const scatter = view.kind === 'scatter';
+  const frame = view.frame;
+  const kind = scatter ? view.frame.xKind : view.frame.x.kind;
+  const xUnit = scatter ? view.frame.xUnit : ctx.resolved.x.unit;
+  const yTitle = frame.yLabel ?? (scatter ? ctx.valueTitle : sharedField<'field', string>(view.frame.series, 'field', ctx.valueTitle));
+  const unit = scatter ? view.frame.yUnit : sharedField<'unit', string | null>(view.frame.series, 'unit', null);
   return {
-    x: xTitled(view.frame.x.kind, ctx) ? withUnit(view.frame.xLabel, ctx.resolved.x.unit) : undefined,
-    y: withUnit(view.frame.yLabel ?? alignedValueTitle(view.frame.series, ctx.valueTitle), sharedUnit(view.frame.series)),
+    x: kind === 'number' || ctx.xLabelGiven ? withUnit(frame.xLabel, xUnit) : undefined,
+    y: withUnit(yTitle, unit),
   };
 }
 
-/** Spec L6: a number x is a measure and is titled; time, date and category ticks already say what they are. */
-function xTitled(kind: XKind, ctx: AxisContext): boolean {
-  return kind === 'number' || ctx.xLabelGiven;
-}
-
-/** A value axis is always titled (spec L6): its label, else its one field, else the generic noun. */
-function alignedValueTitle(series: readonly { readonly field: string }[], generic: string): string {
-  const first = series[0]?.field;
-  return first !== undefined && series.every(s => s.field === first) ? first : generic;
-}
-
-function sharedUnit(series: readonly { readonly unit: string | null }[]): string | null {
-  const first = series[0]?.unit ?? null;
-  return series.every(s => s.unit === first) ? first : null;
+/** A single value axis can name a field or unit only when all its series share it. */
+function sharedField<K extends 'field' | 'unit', V>(series: readonly Record<K, V>[], field: K, fallback: V): V {
+  const first = series[0]?.[field];
+  return first !== undefined && series.every(s => s[field] === first) ? first : fallback;
 }
 
 /**
@@ -461,7 +434,7 @@ export function layoutKey(
   if (view.kind === 'donut') return base;
   const value = ctx.resolved.values[0];
   base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1]);
-  appendAxisInputs(base, ctx);
+  base.push(...axisInputs(ctx));
   base.push(ctx.resolved.x.label, value?.label, value?.unit, view.references);
   // The extremes choose among the tick sets and wider domains of an automatic domain (F7). A compact axis
   // without a tick format has neither (axis parts give it no extent), so they are not read for it.

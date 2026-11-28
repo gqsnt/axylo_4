@@ -154,16 +154,16 @@ export class StreamSession implements StreamSessionHandle {
   release(screen: Frame | null, pending: Frame, running: Frame | null, pausedFrame: Frame | undefined): void {
     const store = this.store;
     const head = store.frame;
-    let floor = Math.min(this.#pinnedRevision(screen, head), this.#pinnedRevision(pending, head), this.#pinnedRevision(running, head),
-      this.#pinnedRevision(pausedFrame, head));
+    let floor = Math.min(this.#pin(screen, head), this.#pin(pending, head), this.#pin(running, head),
+      this.#pin(pausedFrame, head));
     // Copy only once the store has grown beyond the retention bound, so copying is amortized over arrivals.
     const bound = 2 * this.#retainedBaseline + RETENTION_SLACK;
     if (floor !== Infinity && (head.revision - floor > bound || store.retainedRowCount > bound)) {
       // In this order, each after the copies before it: a frame copied once is not pinned the second time.
-      this.#freezePinned(screen, head);
-      this.#freezePinned(pending, head);
-      this.#freezePinned(running, head);
-      this.#freezePinned(pausedFrame, head);
+      this.#pin(screen, head, true);
+      this.#pin(pending, head, true);
+      this.#pin(running, head, true);
+      this.#pin(pausedFrame, head, true);
       floor = head.revision;
     }
     floor = Math.min(floor, head.revision);
@@ -171,16 +171,10 @@ export class StreamSession implements StreamSessionHandle {
   }
 
   /** A frame of the store other than its head whose rows still live only in the store's revisions. */
-  #pinned(frame: Frame | null | undefined, head: Frame): frame is Frame {
-    return !!frame && frame !== head && !!this.#storeFrames?.has(frame) && !this.#frozenRows?.has(frame);
-  }
-
-  #pinnedRevision(frame: Frame | null | undefined, head: Frame): number {
-    return this.#pinned(frame, head) ? frame.revision : Infinity;
-  }
-
-  #freezePinned(frame: Frame | null | undefined, head: Frame): void {
-    if (this.#pinned(frame, head)) (this.#frozenRows ??= new WeakMap()).set(frame, this.#freeze(frame));
+  #pin(frame: Frame | null | undefined, head: Frame, freeze = false): number {
+    if (!frame || frame === head || !this.#storeFrames?.has(frame) || this.#frozenRows?.has(frame)) return Infinity;
+    if (freeze) (this.#frozenRows ??= new WeakMap()).set(frame, this.#freeze(frame));
+    return frame.revision;
   }
 
   shown(frame: Frame): void {
