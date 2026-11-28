@@ -2,12 +2,17 @@
  * The chart's document structure (plan 2.4; spec A1, C1, F12, L7). The author's target is the root; inside
  * it the figure holds the caption (title, subtitle, summary), the plot container (marks, text layer, state
  * message), the reader's note, a polite live region and the tooltip. Only text is ever set, never HTML.
- *
- * The interaction layer (dom/interaction.ts) adds the keyboard proxy inside the plot and fills the control
- * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
- * the figure only provides those slots. The plot and `side` share the `body` row.
  */
-import { activeElementOf, announceText, focusContainer, hideFromAT, make, placeChildren, setAttr, setText } from './attributes';
+import {
+  activeElementOf,
+  announceText,
+  focusContainer,
+  hideFromAT,
+  make,
+  placeChildren,
+  setAttr,
+  setText,
+} from "./attributes";
 
 export interface TitleModel {
   readonly text: string;
@@ -22,36 +27,18 @@ export interface NoteSegment {
 
 export interface FigureModel {
   readonly compact: boolean;
-  /** The heading, or null when there is none (only `labelledBy`, or no title at all). */
   readonly title: TitleModel | null;
-  /** Id of a heading the page already has. */
   readonly labelledBy: string | null;
-  /** Accessible name when neither a title nor `labelledBy` names the chart (generated, AX140). */
   readonly name: string;
   readonly subtitle: string | null;
   readonly summary: string;
-  /** The plot is too small to draw (spec L8): the summary is shown instead. */
   readonly summaryVisible: boolean;
   readonly note: string | null;
-  /** Loading, empty, error or internal-error text shown inside the plot (spec L7); null when marks are shown. */
   readonly message: string | null;
-  /**
-   * `lang` for the message and the note: 'en' when they show built-in English on a page in another
-   * language (spec A10), else null.
-   */
   readonly messageLang?: string | null;
   readonly noteLang?: string | null;
-  /**
-   * The note as runs of text, each with its own `lang` (A10: a sentence can mix built-in English and the
-   * author's text). When given, it is the note's content and `noteLang` is not used.
-   */
   readonly noteSegments?: readonly NoteSegment[] | null;
-  /** `lang` of the generated summary: 'en' when its built-in sentences are English on another page (A10). */
   readonly summaryLang?: string | null;
-  /**
-   * The description as runs of text, each with its own `lang` (A10: e.g. a compact author error followed by
-   * a built-in English omission sentence). When given, it is the description's content and `summaryLang` is not used.
-   */
   readonly summarySegments?: readonly NoteSegment[] | null;
 }
 
@@ -63,77 +50,105 @@ export interface Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
   readonly tooltip: HTMLElement;
-  /** The readout strip under the plot (readout mode, decided by layout): two reserved lines of running text. */
   readonly readout: HTMLElement;
-  /** Legend, toolbar and table, in that order, between the plot and the note. */
   readonly controls: HTMLElement;
-  /** Between the caption and the plot (`legend: 'top'`). */
   readonly top: HTMLElement;
-  /** Beside the plot, in the same row (`legend: 'right'`). */
   readonly side: HTMLElement;
-  /** The row holding the plot's column and `side`; it takes the height the caption and controls leave. */
   readonly body: HTMLElement;
-  /** The plot's column inside `body`: the open table covers this, never the controls beside it. */
   readonly stage: HTMLElement;
   readonly id: string;
-  /** Whether a lazy control slot (`top` or `side`) is currently mounted in the figure. */
-  hasSlot(slot: 'top' | 'side'): boolean;
-  /** Places `wanted` into a control slot; detaches lazy `top`/`side` slots when emptied. */
-  placeControls(slot: 'top' | 'side' | 'controls', wanted: readonly Element[]): void;
-  /** Text signature of currently mounted, visible control slots without force-creating lazy slots. */
+  hasSlot(slot: "top" | "side"): boolean;
+  placeControls(slot: "top" | "side" | "controls", wanted: readonly Element[]): void;
   controlsSignature(): string;
-  /** Clears and hides `controls`, and detaches lazy `top`/`side` slots without creating them. */
   clearControls(): void;
-  /** Returns true when something that can change the figure's layout was written. */
   update(model: FigureModel): boolean;
-  /** Puts text in the polite live region (state changes only, spec L7, A7). */
-  /** `lang` marks built-in English on a page in another language (spec A10). */
   announce(text: string, lang?: string | null): void;
-  /** Removes everything the figure added to the root, and the root's added class. */
   destroy(): void;
 }
 
-const HIDDEN = 'axylo-visually-hidden';
-const EMPTY_ELEMENTS: readonly Element[] = [];
-const INITIAL_COMPACT = 1, ADDED_CLASS = 2, HAD_CLASS_ATTRIBUTE = 4;
+const HIDDEN = "axylo-visually-hidden";
+const EMPTY: readonly Element[] = [];
 let fullTemplates: WeakMap<Document, HTMLElement | null> | undefined;
 let compactTemplates: WeakMap<Document, HTMLElement | null> | undefined;
 
-function show(el: HTMLElement, visible: boolean): void {
+const INITIAL_COMPACT = 1,
+  ADDED_CLASS = 2,
+  HAD_CLASS = 4;
+
+const show = (el: HTMLElement, visible: boolean) => {
   if (el.hidden === visible) el.hidden = !visible;
+};
+const insertBefore = (p: HTMLElement, n: Node, ref: Node | null) =>
+  ref && typeof p.insertBefore === "function" ? p.insertBefore(n, ref) : p.appendChild(n);
+const mount = (p: HTMLElement, n: HTMLElement, before: Node | null = null): HTMLElement => {
+  if (n.parentNode !== p) insertBefore(p, n, before);
+  return n;
+};
+const detach = (n: HTMLElement | null, p = n?.parentNode) => {
+  if (n && p && n.parentNode === p) n.remove();
+};
+const slotText = (el: HTMLElement | null) =>
+  el && el.parentNode !== null && !el.hidden ? (el.textContent ?? "") : "";
+const hasNode = (host: HTMLElement | null, node: Element | null) =>
+  host !== null && node !== null && typeof host.contains === "function" && host.contains(node);
+
+function el(
+  doc: Document,
+  name: string,
+  tag: "div" | "p" | "span" = "div",
+  hidden = false,
+  ariaHidden = false,
+): HTMLElement {
+  const n = make(doc, tag, `axylo-${name}`);
+  if (hidden) n.hidden = true;
+  if (ariaHidden) hideFromAT(n);
+  return n;
 }
 
-function insertBefore(parent: HTMLElement, node: Node, ref: Node | null): void {
-  if (ref && typeof parent.insertBefore === 'function') parent.insertBefore(node, ref);
-  else parent.appendChild(node);
+function setRuns(
+  doc: Document,
+  host: HTMLElement,
+  segs: readonly NoteSegment[] | null,
+  text: string,
+  lang: string | null,
+  segsChanged: boolean,
+  textChanged: boolean,
+  langChanged: boolean,
+  hasPrev: boolean,
+  forceLang = false,
+): void {
+  if (segs && segs.length > 1) {
+    if (segsChanged) {
+      host.replaceChildren(
+        ...segs.map((r) => {
+          const s = doc.createElement("span");
+          s.textContent = r.text;
+          if (r.lang !== null) s.setAttribute("lang", r.lang);
+          return s;
+        }),
+      );
+    }
+    if (hasPrev || host.hasAttribute("lang")) setAttr(host, "lang", null);
+  } else {
+    if (textChanged) {
+      if (host.firstElementChild) host.textContent = "";
+      setText(host, text);
+    }
+    if (langChanged && (forceLang || hasPrev || lang !== null)) setAttr(host, "lang", lang);
+  }
 }
 
-function containsNode(host: HTMLElement | null, node: Element | null): boolean {
-  return host !== null && node !== null && typeof host.contains === 'function' && host.contains(node);
-}
-
-function slotText(el: HTMLElement | null): string {
-  return el && el.parentNode !== null && !el.hidden ? el.textContent ?? '' : '';
-}
-
-/**
- * Prototype-backed figure instance: keeps every chart in V8 fast-property mode with shared getters/methods
- * and zero per-instance closures. Compact charts omit `body` and `stage` wrappers until promoted to full.
- */
 class DomFigure implements Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
   readonly id: string;
-
   readonly #doc: Document;
   readonly #root: HTMLElement;
-  readonly #initialFlags: number;
-  readonly #description: HTMLElement;
-  readonly #message: HTMLElement;
+  readonly #flags: number;
+  readonly #desc: HTMLElement;
+  readonly #msg: HTMLElement;
   readonly #note: HTMLElement;
 
-  // Lazily created/mounted structural elements. Full charts mount body/stage/caption/title/summary/readout/
-  // controls/live/tooltip initially; subtitle, corner, top and side are always lazy on every chart.
   #body: HTMLElement | null = null;
   #stage: HTMLElement | null = null;
   #caption: HTMLElement | null = null;
@@ -147,7 +162,7 @@ class DomFigure implements Figure {
   #controls: HTMLElement | null = null;
   #top: HTMLElement | null = null;
   #side: HTMLElement | null = null;
-  #previous: FigureModel | null = null;
+  #prev: FigureModel | null = null;
 
   constructor(
     root: HTMLElement,
@@ -155,38 +170,38 @@ class DomFigure implements Figure {
     parts: { marks: Element; text?: Element | null },
     options?: FigureOptions,
   ) {
-    const doc = root.ownerDocument;
-    const initialCompact = Boolean(options?.compact);
-    const addedClass = !root.classList.contains('axylo');
-    const hadClassAttribute = root.hasAttribute('class');
-    if (addedClass) root.classList.add('axylo');
-
+    const doc = root.ownerDocument,
+      compact = Boolean(options?.compact);
+    const added = !root.classList.contains("axylo"),
+      hadClass = root.hasAttribute("class");
+    if (added) root.classList.add("axylo");
     this.#doc = doc;
     this.#root = root;
     this.id = id;
-    this.#initialFlags = (initialCompact ? INITIAL_COMPACT : 0) |
-      (addedClass ? ADDED_CLASS : 0) | (hadClassAttribute ? HAD_CLASS_ATTRIBUTE : 0);
+    this.#flags =
+      (compact ? INITIAL_COMPACT : 0) | (added ? ADDED_CLASS : 0) | (hadClass ? HAD_CLASS : 0);
 
-    // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
-    // the figure, so two charts on one target never share them (review 3, finding 10).
-    const templates = initialCompact ? compactTemplates ??= new WeakMap() : fullTemplates ??= new WeakMap();
+    const templates = compact
+      ? (compactTemplates ??= new WeakMap())
+      : (fullTemplates ??= new WeakMap());
     const template = templates.get(doc);
-    const figure = this.figure = template ? template.cloneNode(true) as HTMLElement
-      : make(doc, 'figure', initialCompact ? 'axylo axylo-figure axylo-compact' : 'axylo axylo-figure');
+    const figure = (this.figure = template
+      ? (template.cloneNode(true) as HTMLElement)
+      : make(doc, "figure", compact ? "axylo axylo-figure axylo-compact" : "axylo axylo-figure"));
     let description: HTMLElement, plot: HTMLElement, message: HTMLElement, note: HTMLElement;
     if (template) {
-      if (initialCompact) {
+      if (compact) {
         description = figure.firstElementChild as HTMLElement;
         plot = description.nextElementSibling as HTMLElement;
         note = plot.nextElementSibling as HTMLElement;
       } else {
-        const caption = this.#caption = figure.firstElementChild as HTMLElement;
-        const title = this.#title = caption.firstElementChild as HTMLElement;
+        const caption = (this.#caption = figure.firstElementChild as HTMLElement);
+        const title = (this.#title = caption.firstElementChild as HTMLElement);
         title.id = `${id}-t`;
         description = title.nextElementSibling as HTMLElement;
         this.#summary = description.nextElementSibling as HTMLElement;
-        const body = this.#body = caption.nextElementSibling as HTMLElement;
-        const stage = this.#stage = body.firstElementChild as HTMLElement;
+        const body = (this.#body = caption.nextElementSibling as HTMLElement);
+        const stage = (this.#stage = body.firstElementChild as HTMLElement);
         plot = stage.firstElementChild as HTMLElement;
         this.#readout = plot.nextElementSibling as HTMLElement;
         this.#controls = body.nextElementSibling as HTMLElement;
@@ -197,28 +212,30 @@ class DomFigure implements Figure {
       message = plot.firstElementChild as HTMLElement;
     } else {
       // Give the detached skeleton its mode before the first theme/style read, including on template clones.
-      figure.setAttribute('role', initialCompact ? 'img' : 'group');
+      figure.setAttribute("role", compact ? "img" : "group");
       // The description sits before the plot in compact charts and inside the caption in full charts.
-      description = element(doc, `description ${HIDDEN}`, 'p');
-      plot = element(doc, 'plot');
-      message = element(doc, 'message', 'p');
+      description = el(doc, `description ${HIDDEN}`, "p");
+      plot = el(doc, "plot");
+      message = el(doc, "message", "p");
       message.hidden = true;
-      note = makeNote(doc);
+      note = el(doc, "note", "p", true);
+      note.setAttribute("role", "status");
+      note.setAttribute("aria-live", "off");
     }
 
     this.plot = plot;
-    this.#description = description;
-    this.#message = message;
+    this.#desc = description;
+    this.#msg = message;
     this.#note = note;
     if (!template) {
-      if (initialCompact) figure.append(description, plot, note);
+      if (compact) figure.append(description, plot, note);
       else {
         figure.appendChild(note);
-        DomFigure.#ensureFull(this);
+        this.#ensureFull();
       }
       // A single chart creates no detached blueprint. Copy the second skeleton
       // before adding the rendered marks or labels.
-      if (typeof figure.cloneNode === 'function') {
+      if (typeof figure.cloneNode === "function") {
         if (template === null) {
           plot.appendChild(message);
           templates.set(doc, figure.cloneNode(true) as HTMLElement);
@@ -238,53 +255,105 @@ class DomFigure implements Figure {
     root.appendChild(figure);
   }
 
-  get tooltip(): HTMLElement {
-    return DomFigure.#ensureTooltip(this);
+  #mid() {
+    return this.#body?.parentNode === this.figure ? this.#body : this.plot;
   }
-  get readout(): HTMLElement {
-    DomFigure.#ensureBodyStage(this);
-    return DomFigure.#ensureReadout(this);
+  #beforeBody() {
+    return this.#top?.parentNode === this.figure ? this.#top : this.#mid();
   }
-  get controls(): HTMLElement {
-    return DomFigure.#ensureControls(this);
+  #ensureLive() {
+    if (!this.#live) {
+      this.#live = el(this.#doc, `live ${HIDDEN}`);
+      this.#live.setAttribute("aria-live", "polite");
+    }
+    return mount(
+      this.figure,
+      this.#live,
+      this.#tooltip?.parentNode === this.figure ? this.#tooltip : null,
+    );
   }
-  get top(): HTMLElement {
-    return mount(this.figure, this.#top ??= hiddenSlot(this.#doc, 'controls-top'), DomFigure.#middleNode(this));
+  #ensureFull(): void {
+    void this.readout;
+    if (!this.#caption) {
+      const cap = (this.#caption = el(this.#doc, "caption"));
+      const title = (this.#title = el(this.#doc, "title", "div", true));
+      title.setAttribute("role", "heading");
+      title.id = `${this.id}-t`;
+      cap.append(
+        title,
+        this.#desc,
+        (this.#summary = el(this.#doc, `summary ${HIDDEN}`, "p", false, true)),
+      );
+    } else mount(this.#caption, this.#desc, this.#summary);
+    mount(this.figure, this.#caption, this.#beforeBody());
+    void this.controls;
+    this.#ensureLive();
+    void this.tooltip;
   }
-  get side(): HTMLElement {
-    return mount(DomFigure.#ensureBodyStage(this), this.#side ??= hiddenSlot(this.#doc, 'controls-side'));
+
+  get tooltip() {
+    return mount(this.figure, (this.#tooltip ??= el(this.#doc, "tooltip", "div", true, true)));
   }
-  get body(): HTMLElement { return DomFigure.#ensureBodyStage(this); }
-  // On compact charts `plot` sits directly inside `figure`, so `plot` itself is the stage column and
-  // measuring `figure.stage` does not force-create or mutate wrapper divs during read passes.
-  get stage(): HTMLElement {
+  get readout() {
+    void this.body;
+    const r = (this.#readout ??= el(this.#doc, "readout", "div", true, true));
+    if (r.parentNode !== this.#stage) insertBefore(this.#stage!, r, this.plot.nextSibling);
+    return r;
+  }
+  get controls() {
+    return mount(
+      this.figure,
+      (this.#controls ??= el(this.#doc, "controls", "div", true)),
+      this.#note,
+    );
+  }
+  get top() {
+    return mount(
+      this.figure,
+      (this.#top ??= el(this.#doc, "controls-top", "div", true)),
+      this.#mid(),
+    );
+  }
+  get side() {
+    return mount(this.body, (this.#side ??= el(this.#doc, "controls-side", "div", true)));
+  }
+  get body() {
+    if (!this.#body) {
+      this.#body = el(this.#doc, "body");
+      this.#body.appendChild((this.#stage = el(this.#doc, "stage")));
+    }
+    mount(this.figure, this.#body, this.plot.parentNode === this.figure ? this.plot : this.#note);
+    mount(this.#stage!, this.plot, this.#stage!.firstChild);
+    return this.#body;
+  }
+  get stage() {
     return this.#body?.parentNode === this.figure ? this.#stage! : this.plot;
   }
 
-  hasSlot(slot: 'top' | 'side'): boolean {
-    const host = slot === 'top' ? this.#top : this.#side;
-    return host !== null && host.parentNode !== null;
+  hasSlot(slot: "top" | "side"): boolean {
+    const h = slot === "top" ? this.#top : this.#side;
+    return h !== null && h.parentNode !== null;
   }
 
-  placeControls(slot: 'top' | 'side' | 'controls', wanted: readonly Element[]): void {
+  placeControls(slot: "top" | "side" | "controls", wanted: readonly Element[]): void {
     if (!wanted.length) {
-      const host = slot === 'top' ? this.#top : slot === 'side' ? this.#side : this.#controls;
-      if (host) {
-        if (host.firstChild) host.replaceChildren();
-        show(host, false);
-        if (slot !== 'controls') detach(host);
+      const h = slot === "top" ? this.#top : slot === "side" ? this.#side : this.#controls;
+      if (h) {
+        if (h.firstChild) h.replaceChildren();
+        show(h, false);
+        if (slot !== "controls") detach(h);
       }
       return;
     }
-    const host = this[slot];
-    placeChildren(host, wanted);
-    show(host, true);
+    const h = this[slot];
+    placeChildren(h, wanted);
+    show(h, true);
   }
 
   clearControls(): void {
-    this.placeControls('top', EMPTY_ELEMENTS);
-    this.placeControls('side', EMPTY_ELEMENTS);
-    this.placeControls('controls', EMPTY_ELEMENTS);
+    this.placeControls("top", EMPTY);
+    this.placeControls("side", EMPTY);
+    this.placeControls("controls", EMPTY);
   }
 
   controlsSignature(): string {
@@ -292,275 +361,195 @@ class DomFigure implements Figure {
   }
 
   update(model: FigureModel): boolean {
-    const previous = this.#previous;
-    if (previous === model) return false;
-    const { compact, title, subtitle, summary, summaryLang, note: noteText, message, messageLang } = model;
-    const switched = previous !== null && previous.compact !== compact;
-    const headingChanged = switched || !sameTitle(previous?.title ?? null, title);
-    const nameChanged = !previous || headingChanged || previous.labelledBy !== model.labelledBy || previous.name !== model.name;
-    const subtitleChanged = switched || (previous?.subtitle ?? null) !== subtitle;
-    const summaryTextChanged = previous?.summary !== summary;
-    const summaryLangChanged = (previous?.summaryLang ?? null) !== (summaryLang ?? null);
-    const summarySegments = model.summarySegments ?? null;
-    const summarySegmentsChanged = !sameSegments(summarySegments, previous?.summarySegments);
-    // Both skeletons start with an empty hidden note, message and fallback summary.
-    const visibilityChanged = switched || (previous?.summaryVisible ?? false) !== model.summaryVisible;
-    const segmentsChanged = switched || !sameSegments(model.noteSegments, previous?.noteSegments);
-    const noteChanged = segmentsChanged || (previous?.note ?? null) !== noteText || (previous?.noteLang ?? null) !== (model.noteLang ?? null);
-    const messageChanged = (previous?.message ?? null) !== message;
-    const messageLangChanged = (previous?.messageLang ?? null) !== (messageLang ?? null);
-    if (!(nameChanged || subtitleChanged || summaryTextChanged || summaryLangChanged || summarySegmentsChanged || visibilityChanged ||
-        noteChanged || messageChanged || messageLangChanged)) return false;
-    this.#previous = model;
-    const { figure, plot } = this, description = this.#description, note = this.#note, status = this.#message;
-    if (!previous || switched) {
-      figure.classList.toggle('axylo-compact', compact);
-      setAttr(figure, 'role', compact ? 'img' : 'group');
-      if (compact) DomFigure.#makeCompact(this, previous);
-      else if (previous?.compact ?? (this.#initialFlags & INITIAL_COMPACT)) DomFigure.#ensureFull(this);
+    const prev = this.#prev;
+    if (prev === model) return false;
+    const {
+      compact,
+      title,
+      subtitle,
+      summary,
+      summaryLang,
+      note: noteText,
+      message,
+      messageLang,
+    } = model;
+    const switched = prev !== null && prev.compact !== compact;
+    const headingChanged = switched || !sameTitle(prev?.title ?? null, title);
+    const nameChanged =
+      !prev || headingChanged || prev.labelledBy !== model.labelledBy || prev.name !== model.name;
+    const subtitleChanged = switched || (prev?.subtitle ?? null) !== subtitle;
+    const summaryTextChanged = prev?.summary !== summary;
+    const summaryLangChanged = (prev?.summaryLang ?? null) !== (summaryLang ?? null);
+    const sumSegs = model.summarySegments ?? null,
+      sumSegsChanged = !sameSegments(sumSegs, prev?.summarySegments);
+    const visChanged = switched || (prev?.summaryVisible ?? false) !== model.summaryVisible;
+    const noteSegsChanged = switched || !sameSegments(model.noteSegments, prev?.noteSegments);
+    const noteChanged =
+      noteSegsChanged ||
+      (prev?.note ?? null) !== noteText ||
+      (prev?.noteLang ?? null) !== (model.noteLang ?? null);
+    const msgChanged = (prev?.message ?? null) !== message,
+      msgLangChanged = (prev?.messageLang ?? null) !== (messageLang ?? null);
+    if (
+      !(
+        nameChanged ||
+        subtitleChanged ||
+        summaryTextChanged ||
+        summaryLangChanged ||
+        sumSegsChanged ||
+        visChanged ||
+        noteChanged ||
+        msgChanged ||
+        msgLangChanged
+      )
+    )
+      return false;
+    this.#prev = model;
+
+    const { figure, plot } = this,
+      desc = this.#desc,
+      note = this.#note,
+      status = this.#msg,
+      hasPrev = prev !== null;
+    if (!hasPrev || switched) {
+      figure.classList.toggle("axylo-compact", compact);
+      setAttr(figure, "role", compact ? "img" : "group");
+      if (compact) this.#makeCompact(prev);
+      else if (prev?.compact ?? this.#flags & INITIAL_COMPACT) this.#ensureFull();
     }
 
-    // Name: the title, else the page's own heading, else the generated name.
-    const heading = compact ? null : title;
-    const titleNode = this.#title;
+    const heading = compact ? null : title,
+      titleNode = this.#title;
     if (titleNode && headingChanged) {
       if (heading) {
         setText(titleNode, heading.text);
-        setAttr(titleNode, 'aria-level', String(heading.level));
-        if (switched || (previous ? previous.title?.visible : true) !== heading.visible) titleNode.classList.toggle(HIDDEN, !heading.visible);
+        setAttr(titleNode, "aria-level", String(heading.level));
+        if (switched || (prev ? prev.title?.visible : true) !== heading.visible)
+          titleNode.classList.toggle(HIDDEN, !heading.visible);
       }
       show(titleNode, heading !== null);
     }
     if (nameChanged) {
-      const labelledBy = model.labelledBy || (heading ? titleNode!.id : null);
-      if (previous || labelledBy !== null) setAttr(figure, 'aria-labelledby', labelledBy);
-      if (previous || labelledBy === null) setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
+      const by = model.labelledBy || (heading ? titleNode!.id : null);
+      if (hasPrev || by !== null) setAttr(figure, "aria-labelledby", by);
+      if (hasPrev || by === null) setAttr(figure, "aria-label", by === null ? model.name : null);
     }
-
     if (subtitleChanged) {
       if (!compact && subtitle) {
-        const sub = this.#subtitle ??= makeSubtitle(this.#doc, this.id);
+        const sub = (this.#subtitle ??= ((s) => {
+          s.id = `${this.id}-st`;
+          return s;
+        })(el(this.#doc, "subtitle", "p")));
         setText(sub, subtitle);
-        mount(this.#caption!, sub, description);
+        mount(this.#caption!, sub, desc);
       } else if (this.#subtitle) {
         this.#subtitle.remove();
         this.#subtitle = undefined;
       }
     }
 
-    const lang = summaryLang ?? null;
-    if (summarySegments && summarySegments.length > 1) {
-      if (summarySegmentsChanged || switched) description.replaceChildren(...makeRuns(this.#doc, summarySegments));
-      if (previous || description.hasAttribute('lang')) setAttr(description, 'lang', null);
-    } else {
-      if (summaryTextChanged || summarySegmentsChanged) {
-        if (description.firstElementChild) description.textContent = '';
-        setText(description, summary);
-      }
-      if (switched || summaryLangChanged || summarySegmentsChanged) setAttr(description, 'lang', lang);
-    }
-    const summaryNode = this.#summary;
-    if (summaryNode && (switched || summaryLangChanged)) setAttr(summaryNode, 'lang', lang);
-    if (summaryNode) {
+    const sLang = summaryLang ?? null;
+    setRuns(
+      this.#doc,
+      desc,
+      sumSegs,
+      summary,
+      sLang,
+      sumSegsChanged || switched,
+      summaryTextChanged || sumSegsChanged,
+      switched || summaryLangChanged || sumSegsChanged,
+      hasPrev,
+      true,
+    );
+    const sumNode = this.#summary;
+    if (sumNode) {
+      if (switched || summaryLangChanged) setAttr(sumNode, "lang", sLang);
       const visible = !compact && model.summaryVisible;
-      // The description holds the full text. Only the small-plot fallback needs its own sentence.
-      if (visible && (visibilityChanged || summaryTextChanged)) setText(summaryNode, firstSentence(summary));
-      else if (!visible && previous?.summaryVisible && visibilityChanged) setText(summaryNode, '');
-      if (!compact && visibilityChanged) summaryNode.classList.toggle(HIDDEN, !visible);
+      if (visible && (visChanged || summaryTextChanged))
+        setText(sumNode, /^[^\r\n\u2028\u2029]*?[.!?。！？](?=\s)/.exec(summary)?.[0] ?? summary);
+      else if (!visible && prev?.summaryVisible && visChanged) setText(sumNode, "");
+      if (!compact && visChanged) sumNode.classList.toggle(HIDDEN, !visible);
     }
-    if (previous === null) setAttr(figure, 'aria-describedby', description.id);
+    if (!hasPrev) setAttr(figure, "aria-describedby", desc.id);
 
-    // The compact variant has no note element: the summary says what was left out, and a corner marker
-    // shows it (spec C5); the marker's text equivalent is that description.
-    const segments = compact ? null : model.noteSegments ?? null;
+    const nSegs = compact ? null : (model.noteSegments ?? null);
     if (noteChanged) {
-      if (segments && segments.length > 1) {
-        // One span per language run lets assistive technology switch voice.
-        if (segmentsChanged) note.replaceChildren(...makeRuns(this.#doc, segments));
-        if (previous) setAttr(note, 'lang', null);
-      } else {
-        if (note.firstElementChild) note.textContent = '';
-        setText(note, compact ? '' : segments?.[0]?.text ?? noteText ?? '');
-        const lang = segments ? segments[0]?.lang ?? null : model.noteLang ?? null;
-        if (previous || lang !== null) setAttr(note, 'lang', lang);
-      }
+      setRuns(
+        this.#doc,
+        note,
+        nSegs,
+        compact ? "" : (nSegs?.[0]?.text ?? noteText ?? ""),
+        nSegs ? (nSegs[0]?.lang ?? null) : (model.noteLang ?? null),
+        noteSegsChanged,
+        true,
+        true,
+        hasPrev,
+      );
       show(note, !compact && noteText !== null);
     }
 
-    const showCorner = compact && noteText !== null;
-    if (showCorner) {
+    if (compact && noteText !== null) {
       if (!this.#corner) {
-        const corner = this.#corner = element(this.#doc, 'corner', 'span');
-        hideFromAT(corner);
-        corner.textContent = '*';
+        (this.#corner = el(this.#doc, "corner", "span", false, true)).textContent = "*";
       }
-      setAttr(this.#corner, 'title', noteText);
+      setAttr(this.#corner, "title", noteText);
       mount(plot, this.#corner);
     } else if (this.#corner) {
       this.#corner.remove();
       this.#corner = undefined;
     }
 
-    if (messageChanged) {
-      setText(status, message ?? '');
+    if (msgChanged) {
+      setText(status, message ?? "");
       show(status, message !== null);
     }
-    if (messageLangChanged && (previous || messageLang != null)) setAttr(status, 'lang', messageLang ?? null);
-    return !previous || visibilityChanged || (model.summaryVisible && summaryTextChanged) ||
-      (!compact && (headingChanged || subtitleChanged || previous.note !== noteText));
+    if (msgLangChanged && (hasPrev || messageLang != null))
+      setAttr(status, "lang", messageLang ?? null);
+    return (
+      !hasPrev ||
+      visChanged ||
+      (model.summaryVisible && summaryTextChanged) ||
+      (!compact && (headingChanged || subtitleChanged || prev.note !== noteText))
+    );
   }
 
   announce(text: string, lang: string | null = null): void {
-    announceText(DomFigure.#ensureLive(this), text, lang);
+    announceText(this.#ensureLive(), text, lang);
   }
 
   destroy(): void {
     this.figure.remove();
-    if (this.#initialFlags & ADDED_CLASS) this.#root.classList.remove('axylo');
-    if (!(this.#initialFlags & HAD_CLASS_ATTRIBUTE) && this.#root.classList.length === 0) this.#root.removeAttribute('class');
+    if (this.#flags & ADDED_CLASS) this.#root.classList.remove("axylo");
+    if (!(this.#flags & HAD_CLASS) && this.#root.classList.length === 0)
+      this.#root.removeAttribute("class");
   }
 
-  // Static helpers can access the private fields without adding an instance brand.
-  static #makeCompact(f: DomFigure, previous: FigureModel | null): void {
-    const { figure } = f, body = f.#body;
-    if (!body && !f.#controls && !f.#top && !f.#tooltip) return;
-    // Preserve focus on the figure when switching a full chart to compact before interaction.prepare runs.
-    const active = activeElementOf(f.#doc, figure);
-    const hadFocus = containsNode(f.#controls, active) || containsNode(f.#readout, active) ||
-      containsNode(f.#tooltip, active) || containsNode(f.#top, active) ||
-      containsNode(f.#side, active) || (body?.parentNode === figure && containsNode(body, active));
-    if (f.#caption && f.#caption.parentNode === figure) {
-      insertBefore(figure, f.#description, DomFigure.#beforeBody(f));
-      f.#caption.remove();
+  #makeCompact(prev: FigureModel | null): void {
+    const { figure } = this,
+      body = this.#body;
+    if (!body && !this.#controls && !this.#top && !this.#tooltip) return;
+    const act = activeElementOf(this.#doc, figure);
+    const hadFocus =
+      hasNode(this.#controls, act) ||
+      hasNode(this.#readout, act) ||
+      hasNode(this.#tooltip, act) ||
+      hasNode(this.#top, act) ||
+      hasNode(this.#side, act) ||
+      (body?.parentNode === figure && hasNode(body, act));
+    if (this.#caption?.parentNode === figure) {
+      insertBefore(figure, this.#desc, this.#beforeBody());
+      this.#caption.remove();
     }
-    detach(f.#controls, figure);
-    if (f.#stage) detach(f.#readout, f.#stage);
-    detach(f.#tooltip, figure);
-    if (!(previous?.compact ?? (f.#initialFlags & INITIAL_COMPACT))) detach(f.#live, figure);
+    detach(this.#controls, figure);
+    if (this.#stage) detach(this.#readout, this.#stage);
+    detach(this.#tooltip, figure);
+    if (!(prev?.compact ?? this.#flags & INITIAL_COMPACT)) detach(this.#live, figure);
     if (body?.parentNode === figure) {
-      insertBefore(figure, f.plot, body);
+      insertBefore(figure, this.plot, body);
       body.remove();
     }
     if (hadFocus) focusContainer(figure);
   }
-
-  static #middleNode(f: DomFigure): HTMLElement {
-    return f.#body?.parentNode === f.figure ? f.#body : f.plot;
-  }
-
-  static #beforeBody(f: DomFigure): HTMLElement {
-    return f.#top?.parentNode === f.figure ? f.#top : DomFigure.#middleNode(f);
-  }
-
-  static #ensureBodyStage(f: DomFigure): HTMLElement {
-    if (!f.#body) {
-      f.#body = element(f.#doc, 'body');
-      f.#stage = element(f.#doc, 'stage');
-      f.#body.appendChild(f.#stage);
-    }
-    mount(f.figure, f.#body, f.plot.parentNode === f.figure ? f.plot : f.#note);
-    mount(f.#stage!, f.plot, f.#stage!.firstChild);
-    return f.#body;
-  }
-
-  static #ensureCaption(f: DomFigure): void {
-    if (!f.#caption) {
-      // A figcaption would prevent the figure from taking the group or img role.
-      const caption = f.#caption = element(f.#doc, 'caption');
-      const title = f.#title = makeTitle(f.#doc);
-      title.id = `${f.id}-t`;
-      const summary = f.#summary = makeSummary(f.#doc);
-      caption.append(title, f.#description, summary);
-    } else mount(f.#caption, f.#description, f.#summary);
-    mount(f.figure, f.#caption, DomFigure.#beforeBody(f));
-  }
-
-  static #ensureReadout(f: DomFigure): HTMLElement {
-    const readout = f.#readout ??= hiddenSlot(f.#doc, 'readout', true);
-    if (readout.parentNode !== f.#stage) insertBefore(f.#stage!, readout, f.plot.nextSibling);
-    return readout;
-  }
-
-  static #ensureControls(f: DomFigure): HTMLElement {
-    return mount(f.figure, f.#controls ??= hiddenSlot(f.#doc, 'controls'), f.#note);
-  }
-
-  static #ensureLive(f: DomFigure): HTMLElement {
-    f.#live ??= makeLive(f.#doc);
-    return mount(f.figure, f.#live, f.#tooltip?.parentNode === f.figure ? f.#tooltip : null);
-  }
-
-  static #ensureTooltip(f: DomFigure): HTMLElement {
-    return mount(f.figure, f.#tooltip ??= hiddenSlot(f.#doc, 'tooltip', true));
-  }
-
-  static #ensureFull(f: DomFigure): void {
-    DomFigure.#ensureBodyStage(f);
-    DomFigure.#ensureCaption(f);
-    DomFigure.#ensureReadout(f);
-    DomFigure.#ensureControls(f);
-    DomFigure.#ensureLive(f);
-    DomFigure.#ensureTooltip(f);
-  }
-}
-
-function element(doc: Document, name: string, tag: 'div' | 'p' | 'span' = 'div'): HTMLElement {
-  return make(doc, tag, `axylo-${name}`);
-}
-
-function makeSubtitle(doc: Document, id: string): HTMLElement {
-  const subtitle = element(doc, 'subtitle', 'p');
-  subtitle.id = `${id}-st`;
-  return subtitle;
-}
-
-function firstSentence(text: string): string {
-  return /^[^\r\n\u2028\u2029]*?[.!?。！？](?=\s)/.exec(text)?.[0] ?? text;
-}
-
-function makeNote(doc: Document): HTMLElement {
-  const note = element(doc, 'note', 'p');
-  note.setAttribute('role', 'status');
-  // Streaming can change the note without making an announcement (spec A7).
-  note.setAttribute('aria-live', 'off');
-  note.hidden = true;
-  return note;
-}
-
-function makeTitle(doc: Document): HTMLElement {
-  const title = element(doc, 'title');
-  title.setAttribute('role', 'heading');
-  title.hidden = true;
-  return title;
-}
-
-function makeSummary(doc: Document): HTMLElement {
-  const summary = element(doc, `summary ${HIDDEN}`, 'p');
-  hideFromAT(summary);
-  return summary;
-}
-
-function makeLive(doc: Document): HTMLElement {
-  const live = element(doc, `live ${HIDDEN}`);
-  live.setAttribute('aria-live', 'polite');
-  return live;
-}
-
-/** Move a node only when its slot's parent changes, so focused descendants stay in place. */
-function mount(parent: HTMLElement, node: HTMLElement, before: Node | null = null): HTMLElement {
-  if (node.parentNode !== parent) insertBefore(parent, node, before);
-  return node;
-}
-
-function detach(node: HTMLElement | null, parent = node?.parentNode): void {
-  if (node && parent && node.parentNode === parent) node.remove();
-}
-
-function hiddenSlot(doc: Document, name: string, ariaHidden = false): HTMLElement {
-  const node = element(doc, name);
-  node.hidden = true;
-  if (ariaHidden) hideFromAT(node);
-  return node;
 }
 
 export function createFigure(
@@ -572,24 +561,17 @@ export function createFigure(
   return new DomFigure(root, id, parts, options);
 }
 
-function sameTitle(a: TitleModel | null, b: TitleModel | null): boolean {
-  return a === b || (a !== null && b !== null && a.text === b.text && a.level === b.level && a.visible === b.visible);
-}
+const sameTitle = (a: TitleModel | null, b: TitleModel | null) =>
+  a === b ||
+  (a !== null && b !== null && a.text === b.text && a.level === b.level && a.visible === b.visible);
 
-function makeRuns(doc: Document, segments: readonly NoteSegment[]): HTMLSpanElement[] {
-  return segments.map(run => {
-    const span = doc.createElement('span');
-    span.textContent = run.text;
-    if (run.lang !== null) span.setAttribute('lang', run.lang);
-    return span;
-  });
-}
-
-function sameSegments(a: readonly NoteSegment[] | null | undefined, b: readonly NoteSegment[] | null | undefined): boolean {
+function sameSegments(
+  a: readonly NoteSegment[] | null | undefined,
+  b: readonly NoteSegment[] | null | undefined,
+): boolean {
   if (a === b || (!a && !b)) return true;
   if (!a || !b || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < a.length; i++)
     if (a[i]!.text !== b[i]!.text || a[i]!.lang !== b[i]!.lang) return false;
-  }
   return true;
 }

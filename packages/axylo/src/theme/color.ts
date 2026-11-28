@@ -3,27 +3,25 @@
  * back from getComputedStyle (`rgb()`, `rgba()`, `color(srgb …)`) plus hex, which the default palette is
  * written in. Anything else returns null rather than a guess.
  */
-import type { ResolvedTheme } from '../core/contracts';
+import type { ResolvedTheme } from "../core/contracts";
 
 /** sRGB channels and alpha, each 0–1. */
-export interface Rgba { readonly r: number; readonly g: number; readonly b: number; readonly a: number }
+export interface Rgba {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+  readonly a: number;
+}
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+const ch = (token: string, scale: number): number =>
+  token === "none" ? 0 : clamp01(parseFloat(token) / (token.endsWith("%") ? 100 : scale));
 
-function channel(token: string, scale: number): number {
-  if (token.endsWith('%')) return clamp01(parseFloat(token) / 100);
-  if (token === 'none') return 0;
-  return clamp01(parseFloat(token) / scale);
-}
-
-function alpha(token: string | undefined): number {
-  if (token === undefined) return 1;
-  return channel(token, 1);
-}
+export const WHITE: Rgba = { r: 1, g: 1, b: 1, a: 1 };
+const parsedColors = new Map<string, Rgba | null>();
 
 /** Parses a computed color string. Returns null for anything that is not a plain sRGB color. */
 export function parseColor(input: string): Rgba | null {
-  // Computed backdrops, text colors and palette slots repeat across charts and resizes.
   if (input.length > 128) return parseUncached(input);
   const cached = parsedColors.get(input);
   if (cached !== undefined) return cached;
@@ -33,41 +31,50 @@ export function parseColor(input: string): Rgba | null {
   return color;
 }
 
-const parsedColors = new Map<string, Rgba | null>();
-
 function parseUncached(input: string): Rgba | null {
-  if (input.endsWith(')')) {
-    const rgb = input.startsWith('rgb(');
-    if (rgb || input.startsWith('rgba(')) {
+  if (input.endsWith(")")) {
+    const rgb = input.startsWith("rgb(");
+    if (rgb || input.startsWith("rgba(")) {
       const color = commaRgb(input, rgb ? 4 : 5, !rgb);
       if (color) return color;
     }
   }
   const s = input.trim().toLowerCase();
-  if (s === 'transparent') return { r: 0, g: 0, b: 0, a: 0 };
-  if (s.startsWith('#')) return parseHex(s);
-  const open = s.indexOf('(');
-  if (open < 0 || !s.endsWith(')')) return null;
+  if (s === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
+  if (s.startsWith("#")) return parseHex(s);
+  const open = s.indexOf("(");
+  if (open < 0 || !s.endsWith(")")) return null;
   const name = s.slice(0, open).trim();
-  // Both the legacy comma form and the space form with "/ alpha".
-  const body = s.slice(open + 1, -1).replace(/,/g, ' ').replace('/', ' / ');
-  const parts = body.split(/\s+/).filter(p => p.length > 0);
-  const slash = parts.indexOf('/');
-  const main = slash >= 0 ? parts.slice(0, slash) : parts;
-  const alphaToken = slash >= 0 ? parts[slash + 1] : undefined;
-  let r: number, g: number, b: number, a: number;
-  if (name === 'rgb' || name === 'rgba') {
-    if (main.length < 3) return null;
-    const legacyAlpha = main.length === 4 ? main[3] : alphaToken;
-    r = channel(main[0]!, 255); g = channel(main[1]!, 255); b = channel(main[2]!, 255); a = alpha(legacyAlpha);
-  } else if (name === 'color') {
-    if (main[0] !== 'srgb' || main.length < 4) return null;
-    r = channel(main[1]!, 1); g = channel(main[2]!, 1); b = channel(main[3]!, 1); a = alpha(alphaToken);
-  } else {
+  const parts = s
+    .slice(open + 1, -1)
+    .replace(/,/g, " ")
+    .replace("/", " / ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const slash = parts.indexOf("/");
+  const count = slash < 0 ? parts.length : slash;
+  let alpha = slash < 0 ? undefined : parts[slash + 1];
+  const srgb = name === "color";
+  if (srgb ? parts[0] !== "srgb" || count < 4 : (name !== "rgb" && name !== "rgba") || count < 3)
     return null;
-  }
-  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b) || !Number.isFinite(a)) return null;
-  return { r, g, b, a };
+  if (!srgb && count === 4) alpha = parts[3];
+  const offset = srgb ? 1 : 0,
+    scale = srgb ? 1 : 255;
+  const r = ch(parts[offset]!, scale),
+    g = ch(parts[offset + 1]!, scale),
+    b = ch(parts[offset + 2]!, scale);
+  const a = alpha === undefined ? 1 : ch(alpha, 1);
+  // Every parsed channel has already been clamped to [0, 1]. Only a failed parse can make the sum non-finite.
+  return Number.isFinite(r + g + b + a) ? { r, g, b, a } : null;
+}
+
+function unpack(packed: number, shift: number, mask: number, a: number): Rgba {
+  return {
+    r: (packed >>> (2 * shift)) / mask,
+    g: ((packed >>> shift) & mask) / mask,
+    b: (packed & mask) / mask,
+    a,
+  };
 }
 
 // CSSOM normally serializes sRGB as comma-separated byte channels with an optional decimal alpha.
@@ -103,7 +110,7 @@ function commaRgb(s: string, index: number, hasAlpha: boolean): Rgba | null {
     a = Math.min(1, Number(s.slice(start, index)));
   }
   if (index !== end) return null;
-  return { r: (packed >>> 16) / 255, g: ((packed >>> 8) & 255) / 255, b: (packed & 255) / 255, a };
+  return unpack(packed, 8, 255, a);
 }
 
 function parseHex(s: string): Rgba | null {
@@ -119,20 +126,24 @@ function parseHex(s: string): Rgba | null {
   }
   const shift = short ? 4 : 8;
   const mask = short ? 15 : 255;
-  if (length === 3 || length === 6) packed = (packed << shift) | mask;
-  return {
-    r: (packed >>> (shift * 3)) / mask, g: ((packed >>> (shift * 2)) & mask) / mask,
-    b: ((packed >>> shift) & mask) / mask, a: (packed & mask) / mask,
-  };
+  return length === 3 || length === 6
+    ? unpack(packed, shift, mask, 1)
+    : unpack(packed >>> shift, shift, mask, (packed & mask) / mask);
 }
 
 /** A translucent color as it appears over an opaque background. */
 export function composite(top: Rgba, under: Rgba): Rgba {
-  const a = top.a;
-  return { r: top.r * a + under.r * (1 - a), g: top.g * a + under.g * (1 - a), b: top.b * a + under.b * (1 - a), a: 1 };
+  const a = top.a,
+    b = 1 - a;
+  return {
+    r: top.r * a + under.r * b,
+    g: top.g * a + under.g * b,
+    b: top.b * a + under.b * b,
+    a: 1,
+  };
 }
 
-const linear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const linear = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 
 /** WCAG 2 relative luminance of an opaque color. */
 export function relativeLuminance(c: Rgba): number {
@@ -141,37 +152,27 @@ export function relativeLuminance(c: Rgba): number {
 
 /** WCAG 2 contrast ratio, 1–21. A translucent foreground is first composited over the background. */
 export function contrastRatio(foreground: Rgba, background: Rgba): number {
-  const fg = foreground.a < 1 ? composite(foreground, background) : foreground;
-  const l1 = relativeLuminance(fg);
+  const l1 = relativeLuminance(foreground.a < 1 ? composite(foreground, background) : foreground);
   const l2 = relativeLuminance(background);
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
 
-/**
- * True when a color reads as light: it contrasts more with black than with white. Used for the scheme
- * decision (spec L4): light text means a dark background, a light background means a light scheme.
- */
+/** True when a color reads as light: it contrasts more with black than with white. */
 export function isLightColor(c: Rgba): boolean {
   return relativeLuminance(c) > Math.sqrt(1.05 * 0.05) - 0.05;
 }
 
-/**
- * Indexes of series paints below 3:1 against the background (the caller raises AX141). resolveTheme already
- * hands an opaque background (the backdrop behind the chart, or the author's background over it). For a
- * hand-built theme whose background is translucent, pass the opaque `backdrop` it sits on; without one it is
- * read over white, the initial page canvas. Translucent series colors are composited over the background.
- */
+/** Indexes of series paints below 3:1 against the background (the caller raises AX141). */
 export function lowContrastSeries(theme: ResolvedTheme, backdrop?: string): number[] {
-  const background = parseColor(theme.paints.tokens.background);
-  const low: number[] = [];
-  if (background === null) return low;
-  const white: Rgba = { r: 1, g: 1, b: 1, a: 1 };
-  let under = backdrop === undefined ? white : parseColor(backdrop) ?? white;
-  if (under.a < 1) under = composite(under, white);
-  const opaque = background.a < 1 ? composite(background, under) : background;
+  const bg = parseColor(theme.paints.tokens.background),
+    low: number[] = [];
+  if (!bg) return low;
+  let under = (backdrop !== undefined && parseColor(backdrop)) || WHITE;
+  if (under.a < 1) under = composite(under, WHITE);
+  const opaque = bg.a < 1 ? composite(bg, under) : bg;
   theme.paints.series.forEach((paint, i) => {
     const c = parseColor(paint);
-    if (c !== null && contrastRatio(c, opaque) < 3) low.push(i);
+    if (c && contrastRatio(c, opaque) < 3) low.push(i);
   });
   return low;
 }

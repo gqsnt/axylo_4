@@ -6,14 +6,10 @@ export function setAttr(el: Element, name: string, value: string | null, fresh =
 }
 
 /** Cross-realm safe check for an Element node (works across iframes). */
-export function isElement(node: unknown): node is Element {
-  return node !== null && typeof node === 'object' && (node as Node).nodeType === 1;
-}
+export const isElement = (node: unknown): node is Element => node !== null && typeof node === 'object' && (node as Node).nodeType === 1;
 
 /** Cross-realm safe check for a focusable Element (HTMLElement / SVGElement across iframes). */
-export function isFocusable(node: unknown): node is HTMLElement {
-  return isElement(node) && typeof (node as HTMLElement).focus === 'function';
-}
+export const isFocusable = (node: unknown): node is HTMLElement => isElement(node) && typeof (node as HTMLElement).focus === 'function';
 
 export const focusQuiet = (el: HTMLElement): void => el.focus({ preventScroll: true });
 
@@ -27,19 +23,13 @@ export function focusContainer(el: Element | null): void {
 /** Cross-realm safe ShadowRoot lookup for a node, or null when not in a shadow tree. */
 export function shadowRootOf(node: Node): ShadowRoot | null {
   const root = node.getRootNode?.();
-  return root !== undefined && root !== null && root.nodeType === 11 && 'host' in root ? (root as ShadowRoot) : null;
+  return root && root.nodeType === 11 && 'host' in root ? root as ShadowRoot : null;
 }
 
 /** All enclosing ShadowRoots from innermost to outermost (cross-realm safe). */
 export function shadowRootsOf(node: Node): ShadowRoot[] {
   const roots: ShadowRoot[] = [];
-  let cur: Node | null = node;
-  while (cur) {
-    const root = shadowRootOf(cur);
-    if (!root) break;
-    roots.push(root);
-    cur = root.host;
-  }
+  for (let cur: Node | null = node, r: ShadowRoot | null; cur && (r = shadowRootOf(cur)); cur = r.host) roots.push(r);
   return roots;
 }
 
@@ -48,65 +38,35 @@ export function shadowRootsOf(node: Node): ShadowRoot[] {
  * `inside`, including events targeting a closed shadow host directly (which never enter its shadow root).
  */
 export function listenOutside(
-  doc: Document,
-  roots: readonly ShadowRoot[],
-  type: string,
-  inside: readonly Element[],
-  onOutside: (event: Event) => void,
-  signal: AbortSignal,
+  doc: Document, roots: readonly ShadowRoot[], type: string, inside: readonly Element[],
+  onOutside: (event: Event) => void, signal: AbortSignal,
 ): void {
   const seen = new WeakSet<Event>();
-  const check = (event: Event) => {
-    if (seen.has(event)) return;
-    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-    const target = event.target as Node | null;
-    if (inside.some(el => path.includes(el) || (target !== null && el.contains(target)))) {
-      seen.add(event);
-      return;
-    }
-    // Inside a closed shadow root, an outer capture listener's composedPath stops at its host; wait for that root.
-    if (roots.some(r => r !== event.currentTarget && !path.includes(r) && path.includes(r.host))) return;
-    seen.add(event);
-    onOutside(event);
-  };
-  const onHost = (event: Event) => {
-    if (seen.has(event)) return;
-    seen.add(event);
-    onOutside(event);
+  const fire = (e: Event) => { if (!seen.has(e)) { seen.add(e); onOutside(e); } };
+  const check = (e: Event) => {
+    if (seen.has(e)) return;
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [], target = e.target as Node | null;
+    if (inside.some(el => path.includes(el) || (target !== null && el.contains(target)))) { seen.add(e); return; }
+    if (roots.some(r => r !== e.currentTarget && !path.includes(r) && path.includes(r.host))) return;
+    fire(e);
   };
   doc.addEventListener(type, check, { capture: true, signal });
-  for (const root of roots) {
-    root.addEventListener(type, check, { capture: true, signal });
-    // If the event targeted the closed host itself (e.g. host padding), root capture never ran; catch it here.
-    root.host.addEventListener(type, onHost, { signal });
-  }
+  for (const r of roots) { r.addEventListener(type, check, { capture: true, signal }); r.host.addEventListener(type, fire, { signal }); }
 }
 
-/**
- * The element that has focus, through open shadow roots and (when `from` is given) its own closed shadow
- * root (`document.activeElement` stops at a closed host): where focus is, for Escape's owner, for handing
- * focus on, and for teardown (review R2).
- */
+/** The element that has focus, through open shadow roots and (when `from` is given) its own closed shadow root. */
 export function activeElementOf(doc: Document, from?: Node | null): Element | null {
   const root = from ? shadowRootOf(from) : null;
-  let at: Element | null = root ? root.activeElement : doc.activeElement;
+  let at: Element | null = root?.activeElement ?? doc.activeElement;
   while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-  if (at === null && root) {
-    at = doc.activeElement;
-    while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-  }
   return at;
 }
 
 /** Writes text only when it changes. */
 export function setText(node: Node, text: string): void {
-  if (text !== '' && node.nodeType === 1) {
+  if (text && node.nodeType === 1) {
     const child = node.firstChild;
-    if (child?.nodeType === 3 && child.nextSibling === null) {
-      // Reuse the text node when readouts or summaries change on each frame.
-      if (child.textContent !== text) child.textContent = text;
-      return;
-    }
+    if (child?.nodeType === 3 && !child.nextSibling) { if (child.textContent !== text) child.textContent = text; return; }
   }
   if (node.textContent !== text) node.textContent = text;
 }
@@ -131,11 +91,7 @@ export function placeChildren(host: Node, wanted: readonly Node[]): void {
     if (at === node) at = at.nextSibling;
     else host.insertBefore(node, at);
   }
-  while (at) {
-    const next: ChildNode | null = at.nextSibling;
-    at.remove();
-    at = next;
-  }
+  while (at) { const next: ChildNode | null = at.nextSibling; at.remove(); at = next; }
 }
 
 /** A new element of `tag` with `className`. */
@@ -145,10 +101,7 @@ export function make<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: 
   return el;
 }
 
-/** A press that must not take focus (it keeps the plot's keyboard reading). */
 export const keepFocusOnPress = (event: Event): void => event.preventDefault();
-
-/** Hides an element from assistive technology. */
 export const hideFromAT = (el: Element): void => el.setAttribute('aria-hidden', 'true');
 
 /** Initial attributes for a new SVG node. Updates to reused marks have their own cache. */
@@ -156,8 +109,6 @@ export function svgElement<K extends keyof SVGElementTagNameMap>(
   doc: Document, tag: K, attrs?: Readonly<Record<string, string>>,
 ): SVGElementTagNameMap[K] {
   const el = doc.createElementNS('http://www.w3.org/2000/svg', tag);
-  if (attrs) {
-    for (const key in attrs) if (Object.hasOwn(attrs, key)) el.setAttribute(key, attrs[key]!);
-  }
+  if (attrs) for (const k in attrs) if (Object.hasOwn(attrs, k)) el.setAttribute(k, attrs[k]!);
   return el;
 }
