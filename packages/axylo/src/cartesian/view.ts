@@ -17,6 +17,7 @@ import { computeAxisDomain } from './axes';
 import { repeatsOf, visitRepeats } from './repeats';
 import { BOX_ROLES, compoundRows, isCompoundKind, isLogSeries, logicalOf, visitOutliers, physicalOf, registerPhysical, type LogicalMark } from './boxplot';
 import { reportCartesian } from './diagnostics';
+import { visitViolinGrid } from './violin';
 import type { CartesianMeta, CartesianStateRef } from './meta';
 
 const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
@@ -187,7 +188,7 @@ export function buildCartesianView(
     parts.forEach((p, i) => {
       for (let k = 1; k < p.length; k++) if (p[k]! >= 0) visible[p[k]!] = visible[i]!;
       const m = marks[i]!;
-      if (m.kind !== 'boxplot') return;
+      if (m.kind !== 'boxplot' && m.kind !== 'violin') return;
       // Report unordered box five-numbers (AX176).
       const cols = BOX_ROLES.map(role => frame.series[p[m.roles.indexOf(role)]!]);
       if (!cols.some(c => !c)) {
@@ -205,6 +206,11 @@ export function buildCartesianView(
         if (count > 0) reportCartesian(sink, 'AX176', 'none', { field: m.label, rows: rows.length ? rows : undefined, count });
       }
       const mask = fit!.rows[i];
+      // A visible violin's drawn grid widens its (linear) axis in the visible window, as box outliers do below.
+      if (m.violin && mask && visible[i]) {
+        const row = frame.series[p[0]!]!.row;
+        widen(false, m.axisId, (j, include) => { if (mask[j] === SLOT_VALUE) visitViolinGrid(m, row, j, include); });
+      }
       if (!m.outliers || !mask) return;
       const rep = frame.series[p[0]!]!, log = meta.axisById.get(m.axisId)?.scale === 'log';
       if (log) {

@@ -11,8 +11,9 @@ import { position } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
 import { xSlotPixel } from './bar-geom';
 import type { CartesianLayerMark, CartesianMeta } from './meta';
+import type { ViolinColumns } from './violin';
 
-export type LogicalKind = CartesianLayerMark | 'scatter' | 'boxplot';
+export type LogicalKind = CartesianLayerMark | 'scatter' | 'boxplot' | 'violin';
 
 export type PartRole = 'y' | 'low' | 'high' | 'min' | 'q1' | 'median' | 'q3' | 'max';
 
@@ -32,14 +33,19 @@ export interface LogicalMark {
   readonly capWidth: number;
   readonly size: number;
   readonly outliers: OutlierColumn | null;
+  /** A violin layer's density payload (violin.ts). */
+  readonly violin?: ViolinColumns;
 }
 
 export interface OptionIssue {
-  readonly code: 'AX150' | 'AX103' | 'AX106' | 'AX171';
+  readonly code: 'AX150' | 'AX102' | 'AX103' | 'AX106' | 'AX171';
   readonly field: string;
   readonly detail?: string;
   readonly count?: number;
   readonly rows?: readonly number[];
+  readonly outcome?: string;
+  /** Default 'none'; 'omitted' when values the data gives are not shown (the reader counts them). */
+  readonly effect?: 'omitted';
 }
 
 export interface LogicalLayout {
@@ -49,7 +55,7 @@ export interface LogicalLayout {
 }
 
 export const BOX_ROLES = ['min', 'q1', 'median', 'q3', 'max'] as const;
-export const isCompoundKind = (k: LogicalKind | undefined): boolean => k === 'range' || k === 'errorBar' || k === 'boxplot';
+export const isCompoundKind = (k: LogicalKind | undefined): boolean => k === 'range' || k === 'errorBar' || k === 'boxplot' || k === 'violin';
 export const axisOf = (meta: CartesianMeta, axisId?: string) => meta.axisById.get(axisId ?? meta.leftAxisId) ?? meta.axes[0];
 export const isLogSeries = (meta: CartesianMeta, s: Series | undefined) => !!s?.axisId && meta.axisById.get(s.axisId)?.scale === 'log';
 

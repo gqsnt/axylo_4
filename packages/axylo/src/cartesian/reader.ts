@@ -17,6 +17,7 @@ import { annotationSummarySentences } from './annotations';
 import { formatAxisValue, type CartesianStateRef } from './meta';
 import { cartesianStacks } from './stacks';
 import { repeatsOf, valuesText, visitRepeats } from './repeats';
+import { violinCells, violinWords } from './violin';
 import { axisOf, carrierReadout, intervalText, isCompoundKind, isLogSeries, markOf, visitOutliers, partIndex, physicalOf } from './boxplot';
 
 /** Column headers of one logical series: one per series, five numbers and the outliers per box. */
@@ -48,7 +49,9 @@ function cartesianTable(
   const headers: string[] = [base.headers[0]!];
   series.forEach((s, i) => {
     const m = marks[i];
-    if (m?.kind === 'boxplot') {
+    if (m?.violin) {
+      for (const word of violinWords(m.violin)) headers.push(word === 'n' ? `${s.label} n` : withUnit(`${s.label} ${word}`, s.unit));
+    } else if (m?.kind === 'boxplot') {
       for (const [, word] of BOX_COLUMNS) headers.push(withUnit(`${s.label} ${word}`, s.unit));
       headers.push(`${s.label} outliers`);
     } else headers.push(base.headers[i + 1]!);
@@ -70,7 +73,9 @@ function cartesianTable(
       series.forEach((s, i) => {
         const m = marks[i];
         const at = (role: Parameters<typeof partIndex>[3]) => m ? partIndex(m, physical, i, role) : -1;
-        if (m?.kind === 'boxplot') {
+        if (m?.violin) {
+          for (const [, text] of violinCells(m, physical, i, slotIndex, read.cell, formatters)) out.push(text);
+        } else if (m?.kind === 'boxplot') {
           for (const [role] of BOX_COLUMNS) out.push(read.cell(at(role), slotIndex));
           out.push(read.outliers(at('median'), m.outliers, slotIndex) ?? 'none');
         } else if (m?.kind === 'range' || m?.kind === 'errorBar') {
@@ -173,7 +178,7 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
               const s = physical.frame.series[idx];
               return s ? readout.cell(idx, last) : formatters.missing(0);
             };
-            lastText = mark.kind === 'boxplot' ? `median ${read('median')}` : intervalText(mark, read);
+            lastText = mark.kind === 'boxplot' || mark.kind === 'violin' ? `median ${read('median')}` : intervalText(mark, read);
           } else {
             lastText = (more && valuesText(rep, last, v => formatters.value(k, v))) ?? formatters.value(k, rep.y[last]!);
           }

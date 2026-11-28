@@ -41,7 +41,8 @@ describe('import for effect, with side-effect hints ignored', () => {
 });
 
 describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps', () => {
-  it('cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps', async () => {
+  // N9a: the native violin layer raised the cartesian cap from 134,000 B (docs/progress/n9a-violin-ledger.md).
+  it('cartesian (<= 138,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps', async () => {
     const cart = await consumer("export { cartesian } from 'axylo/cartesian';");
     const fin = await consumer("export { candlestick } from 'axylo/finance';");
     for (const marker of STREAMING_MARKERS) {
@@ -50,7 +51,7 @@ describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/expo
     }
     const cartGz = gzip(cart), finGz = gzip(fin);
     console.info(`cartesian: ${cartGz} B, finance: ${finGz} B gzip-9`);
-    expect(cartGz).toBeLessThanOrEqual(134_000);
+    expect(cartGz).toBeLessThanOrEqual(138_000);
     expect(finGz).toBeLessThanOrEqual(127_000);
   });
 
@@ -101,7 +102,7 @@ describe('declarations', () => {
   ] as const;
 
   for (const [label, resolution] of configs) {
-    it(`compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter and boxplot layers`, () => {
+    it(`compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers`, () => {
       const project = path.join(cwd, '.out', `subpaths-types-${label.toLowerCase()}`);
       fs.rmSync(project, { recursive: true, force: true });
       fs.mkdirSync(project, { recursive: true });
@@ -116,7 +117,8 @@ describe('declarations', () => {
         "import * as fixed from 'axylo/static';",
         "import * as stream from 'axylo/stream';",
         "import { cartesian, validateCartesian } from 'axylo/cartesian';",
-        "import { boxplot, quantile, quantiles } from 'axylo/stats';",
+        "import { boxplot, quantile, quantiles, kde, violinData, kdeConvention } from 'axylo/stats';",
+        "import type { KdeResult, ViolinResult } from 'axylo/stats';",
         "import { createDashboard, createSyncGroup, syncCharts } from 'axylo/sync';",
         "import type { Dashboard, DashboardPanel } from 'axylo/sync';",
         "import { exportSvg, exportPng, exportCsv, parseCsv } from 'axylo/export';",
@@ -161,6 +163,19 @@ describe('declarations', () => {
         "sb.update({ layers: [{ type: 'scatter', y: 'g' }] });",
         "// @ts-expect-error a scatter binds to a declared axis or a position",
         "sb.update({ layers: [{ type: 'scatter', y: 'mean', yAxis: 'nope' }] });",
+        "// N9a: the violin layer and the KDE payload are part of the packed declarations.",
+        "const vd: ViolinResult = violinData([{ g: 'A', v: 1 }, { g: 'A', v: 2 }], { group: 'g', value: 'v', normalize: 'width', clamp: [0, Infinity] });",
+        "const kd: KdeResult = kde([1, 2, 3], { bandwidth: 0.5, points: 64 }); const kdN: 'gaussian' = kdeConvention().kernel;",
+        "const vc = cartesian(el, { data: vd.data, x: 'x', axes: { v: { position: 'left' }, r: { position: 'right', scale: 'log' } }, layers: [{ type: 'violin', yAxis: 'v', label: 'Spread', inner: 'none' }, { type: 'scatter', y: 'mean', yAxis: 'v' }] });",
+        "vc.update({ layers: [{ type: 'violin', yAxis: 'v', median: 'median', grid: 'grid', density: 'density', n: 'n', bandwidth: 'bandwidth' }] });",
+        "// @ts-expect-error a violin binds to a linear axis only",
+        "vc.update({ layers: [{ type: 'violin', yAxis: 'r' }] });",
+        "// @ts-expect-error a violin's density names a field of number lists",
+        "vc.update({ layers: [{ type: 'violin', yAxis: 'v', density: 'median' }] });",
+        "// @ts-expect-error inner is 'box' or 'none'",
+        "vc.update({ layers: [{ type: 'violin', yAxis: 'v', inner: 'dots' }] });",
+        "// @ts-expect-error violinData groups by a field of its rows",
+        "violinData([{ g: 'A', v: 1 }], { group: 'nope', value: 'v' });",
         "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options), validateCartesian({ data: [{ m: 'Jan', orders: 100, ms: 20 }], x: 'm', axes: { orders: { position: 'left' } }, layers: [{ type: 'bar', y: 'orders', yAxis: 'orders' }] }));",
         "const q = quantile([1, 2, 3, 4], 0.5); const qs = quantiles([1, 2, 3], [0.25, 0.75]); const bx = boxplot([{ g: 'A', v: 1 }], { x: 'g', y: 'v' });",
         "const sg = createSyncGroup(); sg.attach(a); sg.destroy(); const sc = syncCharts([a, b]); sc.destroy();",
@@ -171,6 +186,7 @@ describe('declarations', () => {
         "const csvText = exportCsv([{ x: 1, y: 2 }]); const parsedCsv = parseCsv(csvText);",
         "const fin = candlestick(el, { data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
         "const finD = validateCandlestick({ data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
+        "export { vd, kd, kdN, vc };",
         "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD, sb, sbD, dash, dashIds };",
       ].join('\n'));
       const result = check(project, 'tsconfig.json');
