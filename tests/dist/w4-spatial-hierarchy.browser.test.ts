@@ -58,8 +58,6 @@ beforeAll(async () => {
       import { violinData } from 'axylo/stats';
       import { exportSvg, exportPng, exportPngDataUrl, exportCsv, parseCsv } from 'axylo/export';
 
-      // From here on, pages/instrument.js records every listener, observer and frame the charts register.
-      (window as unknown as { __tracking: boolean }).__tracking = true;
       const host = (id: string, width: number, height: number) => {
         const el = document.getElementById(id)!;
         el.style.width = width + 'px';
@@ -76,17 +74,21 @@ beforeAll(async () => {
       const violin = violinData(samples, { group: 'g', value: 'v' });
       const leaves = (b: number) => Array.from({ length: 130 }, (_, i) => i).filter(i => i % 3 === b).map(i => ({ id: 'L' + i, label: 'L' + i, value: i + 1 }));
       const tree = { id: 'Root', label: 'Root', children: [0, 1, 2].map(b => ({ id: 'B' + b, label: 'B' + b, children: b === 2 ? [...leaves(b), { id: 'Bad', label: 'Bad', value: -5 }] : leaves(b) })) };
-      const charts = {
-        heatmap: heatmap(host('hm', 640, 900), { title: 'Load by row', subtitle: 'Synthetic', data: cells, x: 'c', y: 'r', value: { field: 'v', label: 'Load' } }),
-        bubble: bubble(host('bb', 640, 400), { title: 'Accounts', data: dots, x: 'x', y: 'y', size: { field: 's', label: 'Revenue' } }),
-        violin: cartesian(host('vio', 900, 360), { title: 'Spread by group', data: violin.data, x: { field: 'x', label: 'Group' }, axes: { v: { position: 'left' } }, layers: [{ type: 'violin', yAxis: 'v', label: 'Spread' }] }),
-        treemap: treemap(host('tm', 640, 420), { title: 'Tree as rectangles', data: tree }),
-        sunburst: sunburst(host('sb', 520, 520), { title: 'Tree as rings', data: tree }),
+      const w = window as unknown as Record<string, unknown> & { __tracking: boolean };
+      w.__w4start = () => {
+        w.__tracking = true;
+        const charts = {
+          heatmap: heatmap(host('hm', 640, 900), { title: 'Load by row', subtitle: 'Synthetic', data: cells, x: 'c', y: 'r', value: { field: 'v', label: 'Load' } }),
+          bubble: bubble(host('bb', 640, 400), { title: 'Accounts', data: dots, x: 'x', y: 'y', size: { field: 's', label: 'Revenue' } }),
+          violin: cartesian(host('vio', 900, 360), { title: 'Spread by group', data: violin.data, x: { field: 'x', label: 'Group' }, axes: { v: { position: 'left' } }, layers: [{ type: 'violin', yAxis: 'v', label: 'Spread' }] }),
+          treemap: treemap(host('tm', 640, 420), { title: 'Tree as rectangles', data: tree }),
+          sunburst: sunburst(host('sb', 520, 520), { title: 'Tree as rings', data: tree }),
+        };
+        charts.treemap.drill('B1');
+        charts.sunburst.drill('B0');
+        w.__charts = charts;
+        w.__exp = { exportSvg, exportPng, exportPngDataUrl, exportCsv, parseCsv };
       };
-      charts.treemap.drill('B1');
-      charts.sunburst.drill('B0');
-      (window as unknown as Record<string, unknown>).__charts = charts;
-      (window as unknown as Record<string, unknown>).__exp = { exportSvg, exportPng, exportPngDataUrl, exportCsv, parseCsv };
     `,
   })).url;
   exportOnlyUrl = (await bundle({
@@ -118,6 +120,12 @@ async function openPage() {
   });
   const watched = await open(server);
   await watched.page.goto(`${server.origin}/w4.html`);
+  // As in N6, waitForFunction primes the main world and the host locator primes the utility world.
+  // Both injected scripts install their own listeners before tracking starts. Later clicks reuse them.
+  await watched.page.waitForFunction(() => typeof (window as unknown as { __w4start?: unknown }).__w4start === 'function');
+  expect(await watched.page.locator('#hm').count()).toBe(1);
+  await watched.page.locator('#hm').boundingBox();
+  await watched.page.evaluate(() => (window as unknown as { __w4start(): void }).__w4start());
   await watched.page.waitForFunction(() => {
     const w = window as unknown as { __charts?: object; __exp?: object; __exp2?: object };
     return !!w.__charts && !!w.__exp && !!w.__exp2;

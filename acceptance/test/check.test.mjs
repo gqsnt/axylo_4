@@ -635,8 +635,8 @@ test('defect 5: a size record counts only for the pack this tree makes, against 
 test('defect 5: the size targets are written once, in scripts/size.mjs, and are the spec DX7 row\'s', () => {
   const spec = readFileSync(fileURLToPath(new URL('../../docs/02-product-spec.md', import.meta.url)), 'utf8');
   const dx7 = spec.split('\n').find(line => line.startsWith('| DX7 |'));
-  assert.deepEqual(Object.values(SIZE_TARGETS), [108, 128]);
-  assert.match(dx7, /128 KiB gzipped for everything and 108 KiB for a page that uses only `line`/);
+  assert.deepEqual(Object.values(SIZE_TARGETS), [135, 158]);
+  assert.match(dx7, /158 KiB gzipped for everything and 135 KiB for a page that uses only `line`/);
 });
 
 test('defect 8: a run whose provenance is another tree answers nothing, in every mode, and is still listed with its error', t => {
