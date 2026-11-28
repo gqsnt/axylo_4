@@ -1,0 +1,2293 @@
+{
+  "schema": "axylo-n11-density-sweep/1",
+  "at": "2026-11-28T15:17:03.336Z",
+  "head": "32779ae21972b33950514cf55c9908bf688a4e2e",
+  "chrome": "158.0.8127.88",
+  "raster": "software",
+  "gpuProbe": {
+    "available": true,
+    "webglRenderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060 SUPER/PCIe/SSE2, OpenGL ES 3.2)"
+  },
+  "runsPerCase": 20,
+  "results": {
+    "heatmap-50k": {
+      "runs": 20,
+      "medianSyncMs": 10.649999991059303,
+      "medianReadyFrameMs": 33.54999999701977,
+      "p95ReadyFrameMs": 36.79999998211861,
+      "svgNodes": 59,
+      "domNodes": 217,
+      "pathCount": 32,
+      "pathDBytes": 349893,
+      "hoverP95MedianMs": 33.54111799999964,
+      "diagCodes": [],
+      "errors": 0,
+      "loadRange": [
+        5.03,
+        5.38
+      ],
+      "raw": [
+        {
+          "run": 1,
+          "load1": 5.38,
+          "syncMs": 10.5,
+          "readyFrameMs": 34.5,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": {
+            "medianMs": 33.32859099999996,
+            "p95Ms": 33.49993799999993,
+            "maxMs": 33.538714999999684
+          },
+          "errors": []
+        },
+        {
+          "run": 2,
+          "load1": 5.38,
+          "syncMs": 10.400000005960464,
+          "readyFrameMs": 33.400000005960464,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": {
+            "medianMs": 33.30075149999993,
+            "p95Ms": 33.54111799999964,
+            "maxMs": 33.58408199999985
+          },
+          "errors": []
+        },
+        {
+          "run": 3,
+          "load1": 5.38,
+          "syncMs": 9.900000005960464,
+          "readyFrameMs": 33.400000005960464,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": {
+            "medianMs": 33.32375000000002,
+            "p95Ms": 33.584679999999935,
+            "maxMs": 33.62734899999987
+          },
+          "errors": []
+        },
+        {
+          "run": 4,
+          "load1": 5.38,
+          "syncMs": 10.599999994039536,
+          "readyFrameMs": 34.30000001192093,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": {
+            "medianMs": 33.338884999999664,
+            "p95Ms": 33.51189700000032,
+            "maxMs": 33.55873199999951
+          },
+          "errors": []
+        },
+        {
+          "run": 5,
+          "load1": 5.38,
+          "syncMs": 10,
+          "readyFrameMs": 33.39999997615814,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": {
+            "medianMs": 33.33745850000014,
+            "p95Ms": 33.61745299999984,
+            "maxMs": 33.74270400000023
+          },
+          "errors": []
+        },
+        {
+          "run": 6,
+          "load1": 5.03,
+          "syncMs": 10.5,
+          "readyFrameMs": 33.5,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 7,
+          "load1": 5.03,
+          "syncMs": 10.5,
+          "readyFrameMs": 33.30000001192093,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 8,
+          "load1": 5.03,
+          "syncMs": 11.300000011920929,
+          "readyFrameMs": 33.599999994039536,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 9,
+          "load1": 5.03,
+          "syncMs": 10.799999982118607,
+          "readyFrameMs": 33.19999998807907,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 10,
+          "load1": 5.03,
+          "syncMs": 12.700000017881393,
+          "readyFrameMs": 35.900000005960464,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 11,
+          "load1": 5.03,
+          "syncMs": 10.5,
+          "readyFrameMs": 33.599999994039536,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 12,
+          "load1": 5.03,
+          "syncMs": 11.699999988079071,
+          "readyFrameMs": 34.599999994039536,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 13,
+          "load1": 5.03,
+          "syncMs": 11.099999994039536,
+          "readyFrameMs": 34.69999998807907,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 14,
+          "load1": 5.03,
+          "syncMs": 10.5,
+          "readyFrameMs": 36.099999994039536,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 15,
+          "load1": 5.03,
+          "syncMs": 11.099999994039536,
+          "readyFrameMs": 33.599999994039536,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 16,
+          "load1": 5.03,
+          "syncMs": 10.899999976158142,
+          "readyFrameMs": 36.79999998211861,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 17,
+          "load1": 5.03,
+          "syncMs": 16.19999998807907,
+          "readyFrameMs": 33.39999997615814,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 18,
+          "load1": 5.03,
+          "syncMs": 10.699999988079071,
+          "readyFrameMs": 33.39999997615814,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 19,
+          "load1": 5.03,
+          "syncMs": 13,
+          "readyFrameMs": 33.29999998211861,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 20,
+          "load1": 5.03,
+          "syncMs": 9.699999988079071,
+          "readyFrameMs": 33.400000005960464,
+          "domNodes": 217,
+          "svgCount": 2,
+          "svgNodes": 59,
+          "pathCount": 32,
+          "pathDBytes": 349893,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 434.21875
+          },
+          "hover": null,
+          "errors": []
+        }
+      ]
+    },
+    "bubble-50k": {
+      "runs": 20,
+      "medianSyncMs": 21.350000008940697,
+      "medianReadyFrameMs": 373.30000001192093,
+      "p95ReadyFrameMs": 412.2999999821186,
+      "svgNodes": 15,
+      "domNodes": 101,
+      "pathCount": 4,
+      "pathDBytes": 1579412,
+      "hoverP95MedianMs": 33.4913349999988,
+      "diagCodes": [
+        "AX189"
+      ],
+      "errors": 0,
+      "loadRange": [
+        4.71,
+        5.03
+      ],
+      "raw": [
+        {
+          "run": 1,
+          "load1": 5.03,
+          "syncMs": 25.599999994039536,
+          "readyFrameMs": 391.40000000596046,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": {
+            "medianMs": 33.31275100000039,
+            "p95Ms": 33.48416400000133,
+            "maxMs": 33.51766999999927
+          },
+          "errors": []
+        },
+        {
+          "run": 2,
+          "load1": 4.71,
+          "syncMs": 20.799999982118607,
+          "readyFrameMs": 378.5,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": {
+            "medianMs": 33.340353500000674,
+            "p95Ms": 33.47356200000104,
+            "maxMs": 33.56382200000007
+          },
+          "errors": []
+        },
+        {
+          "run": 3,
+          "load1": 4.71,
+          "syncMs": 22.30000001192093,
+          "readyFrameMs": 389.09999999403954,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": {
+            "medianMs": 33.30336199999965,
+            "p95Ms": 33.50475800000095,
+            "maxMs": 33.59688199999982
+          },
+          "errors": []
+        },
+        {
+          "run": 4,
+          "load1": 4.71,
+          "syncMs": 20.5,
+          "readyFrameMs": 359.19999998807907,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": {
+            "medianMs": 33.3156510000008,
+            "p95Ms": 33.4913349999988,
+            "maxMs": 37.7709990000003
+          },
+          "errors": []
+        },
+        {
+          "run": 5,
+          "load1": 4.71,
+          "syncMs": 23.400000005960464,
+          "readyFrameMs": 364.09999999403954,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": {
+            "medianMs": 33.304950499999904,
+            "p95Ms": 33.70810200000051,
+            "maxMs": 34.07716099999743
+          },
+          "errors": []
+        },
+        {
+          "run": 6,
+          "load1": 4.97,
+          "syncMs": 20.299999982118607,
+          "readyFrameMs": 380.59999999403954,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 7,
+          "load1": 4.97,
+          "syncMs": 20.80000001192093,
+          "readyFrameMs": 357.80000001192093,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 8,
+          "load1": 4.97,
+          "syncMs": 27.799999982118607,
+          "readyFrameMs": 374.90000000596046,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 9,
+          "load1": 4.97,
+          "syncMs": 24.900000005960464,
+          "readyFrameMs": 370.5,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 10,
+          "load1": 4.97,
+          "syncMs": 22.5,
+          "readyFrameMs": 412.2999999821186,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 11,
+          "load1": 4.97,
+          "syncMs": 20.900000005960464,
+          "readyFrameMs": 376.59999999403954,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 12,
+          "load1": 4.97,
+          "syncMs": 21.099999994039536,
+          "readyFrameMs": 362.7999999821186,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 13,
+          "load1": 4.97,
+          "syncMs": 20.80000001192093,
+          "readyFrameMs": 354.10000002384186,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 14,
+          "load1": 4.73,
+          "syncMs": 21.900000005960464,
+          "readyFrameMs": 407.40000000596046,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 15,
+          "load1": 4.73,
+          "syncMs": 21.30000001192093,
+          "readyFrameMs": 378,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 16,
+          "load1": 4.73,
+          "syncMs": 21.900000005960464,
+          "readyFrameMs": 393.10000002384186,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 17,
+          "load1": 4.73,
+          "syncMs": 21.099999994039536,
+          "readyFrameMs": 356.2000000178814,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 18,
+          "load1": 4.73,
+          "syncMs": 23.799999982118607,
+          "readyFrameMs": 364.89999997615814,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 19,
+          "load1": 4.73,
+          "syncMs": 20.5,
+          "readyFrameMs": 365.69999998807907,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 20,
+          "load1": 4.73,
+          "syncMs": 21.400000005960464,
+          "readyFrameMs": 371.7000000178814,
+          "domNodes": 101,
+          "svgCount": 3,
+          "svgNodes": 15,
+          "pathCount": 4,
+          "pathDBytes": 1579412,
+          "diagCodes": [
+            "AX189"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 432.609375
+          },
+          "hover": null,
+          "errors": []
+        }
+      ]
+    },
+    "finance-10k": {
+      "runs": 20,
+      "medianSyncMs": 13.849999994039536,
+      "medianReadyFrameMs": 34.70000000298023,
+      "p95ReadyFrameMs": 52.099999994039536,
+      "svgNodes": 23,
+      "domNodes": 88,
+      "pathCount": 8,
+      "pathDBytes": 47385,
+      "hoverP95MedianMs": 33.545225999998365,
+      "diagCodes": [],
+      "errors": 0,
+      "loadRange": [
+        4.44,
+        4.73
+      ],
+      "raw": [
+        {
+          "run": 1,
+          "load1": 4.73,
+          "syncMs": 15.900000005960464,
+          "readyFrameMs": 34.900000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.32756899999913,
+            "p95Ms": 33.57126900000003,
+            "maxMs": 33.88528700000097
+          },
+          "errors": []
+        },
+        {
+          "run": 2,
+          "load1": 4.44,
+          "syncMs": 13.400000005960464,
+          "readyFrameMs": 33.900000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.315858500000104,
+            "p95Ms": 33.54508100000021,
+            "maxMs": 33.74175000000105
+          },
+          "errors": []
+        },
+        {
+          "run": 3,
+          "load1": 4.44,
+          "syncMs": 13.900000005960464,
+          "readyFrameMs": 34.30000001192093,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.31554649999998,
+            "p95Ms": 33.74332399999912,
+            "maxMs": 34.17324600000211
+          },
+          "errors": []
+        },
+        {
+          "run": 4,
+          "load1": 4.44,
+          "syncMs": 13.299999982118607,
+          "readyFrameMs": 34.19999998807907,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.31843800000024,
+            "p95Ms": 33.51300899999842,
+            "maxMs": 33.61405599999853
+          },
+          "errors": []
+        },
+        {
+          "run": 5,
+          "load1": 4.44,
+          "syncMs": 13.799999982118607,
+          "readyFrameMs": 36.19999998807907,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.321601499999815,
+            "p95Ms": 33.545225999998365,
+            "maxMs": 33.6799600000013
+          },
+          "errors": []
+        },
+        {
+          "run": 6,
+          "load1": 4.44,
+          "syncMs": 16.200000017881393,
+          "readyFrameMs": 35.400000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 7,
+          "load1": 4.44,
+          "syncMs": 14.199999988079071,
+          "readyFrameMs": 37.29999998211861,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 8,
+          "load1": 4.44,
+          "syncMs": 16.599999994039536,
+          "readyFrameMs": 36.099999994039536,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 9,
+          "load1": 4.44,
+          "syncMs": 21.69999998807907,
+          "readyFrameMs": 52.099999994039536,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 10,
+          "load1": 4.64,
+          "syncMs": 13.599999994039536,
+          "readyFrameMs": 34.5,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 11,
+          "load1": 4.64,
+          "syncMs": 13.699999988079071,
+          "readyFrameMs": 34.099999994039536,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 12,
+          "load1": 4.64,
+          "syncMs": 16.700000017881393,
+          "readyFrameMs": 37.900000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 13,
+          "load1": 4.64,
+          "syncMs": 13.699999988079071,
+          "readyFrameMs": 34.400000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 14,
+          "load1": 4.64,
+          "syncMs": 14.5,
+          "readyFrameMs": 34.099999994039536,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 15,
+          "load1": 4.64,
+          "syncMs": 13.599999994039536,
+          "readyFrameMs": 34.099999994039536,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 16,
+          "load1": 4.64,
+          "syncMs": 13.400000005960464,
+          "readyFrameMs": 34,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 17,
+          "load1": 4.64,
+          "syncMs": 19.799999982118607,
+          "readyFrameMs": 38.19999998807907,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 18,
+          "load1": 4.64,
+          "syncMs": 13.700000017881393,
+          "readyFrameMs": 34.30000001192093,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 19,
+          "load1": 4.64,
+          "syncMs": 13.799999982118607,
+          "readyFrameMs": 36.900000005960464,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 20,
+          "load1": 4.64,
+          "syncMs": 16,
+          "readyFrameMs": 35.69999998807907,
+          "domNodes": 88,
+          "svgCount": 2,
+          "svgNodes": 23,
+          "pathCount": 8,
+          "pathDBytes": 47385,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        }
+      ]
+    },
+    "finance-50k": {
+      "runs": 20,
+      "medianSyncMs": 15.900000005960464,
+      "medianReadyFrameMs": 39.349999994039536,
+      "p95ReadyFrameMs": 42.19999998807907,
+      "svgNodes": 24,
+      "domNodes": 87,
+      "pathCount": 9,
+      "pathDBytes": 49118,
+      "hoverP95MedianMs": 33.545751999998174,
+      "diagCodes": [],
+      "errors": 0,
+      "loadRange": [
+        4.35,
+        4.64
+      ],
+      "raw": [
+        {
+          "run": 1,
+          "load1": 4.64,
+          "syncMs": 16.19999998807907,
+          "readyFrameMs": 39.5,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.28822200000286,
+            "p95Ms": 33.61851600000227,
+            "maxMs": 33.80404599999747
+          },
+          "errors": []
+        },
+        {
+          "run": 2,
+          "load1": 4.64,
+          "syncMs": 15.5,
+          "readyFrameMs": 37.69999998807907,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.310654000000795,
+            "p95Ms": 33.55189899999823,
+            "maxMs": 33.573512000002665
+          },
+          "errors": []
+        },
+        {
+          "run": 3,
+          "load1": 4.64,
+          "syncMs": 16.900000005960464,
+          "readyFrameMs": 42.19999998807907,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.33088850000422,
+            "p95Ms": 33.47191299999395,
+            "maxMs": 33.73792599999433
+          },
+          "errors": []
+        },
+        {
+          "run": 4,
+          "load1": 4.35,
+          "syncMs": 15.800000011920929,
+          "readyFrameMs": 38.400000005960464,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.30666000000201,
+            "p95Ms": 33.49896499999886,
+            "maxMs": 33.53082600000198
+          },
+          "errors": []
+        },
+        {
+          "run": 5,
+          "load1": 4.35,
+          "syncMs": 15.900000005960464,
+          "readyFrameMs": 39.19999998807907,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.3292425000036,
+            "p95Ms": 33.545751999998174,
+            "maxMs": 33.56528000000253
+          },
+          "errors": []
+        },
+        {
+          "run": 6,
+          "load1": 4.35,
+          "syncMs": 15.900000005960464,
+          "readyFrameMs": 39.60000002384186,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 7,
+          "load1": 4.35,
+          "syncMs": 16.30000001192093,
+          "readyFrameMs": 40.30000001192093,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 8,
+          "load1": 4.35,
+          "syncMs": 16.30000001192093,
+          "readyFrameMs": 40.30000001192093,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 9,
+          "load1": 4.35,
+          "syncMs": 17,
+          "readyFrameMs": 40.89999997615814,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 10,
+          "load1": 4.35,
+          "syncMs": 16,
+          "readyFrameMs": 39.80000001192093,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 11,
+          "load1": 4.35,
+          "syncMs": 16.5,
+          "readyFrameMs": 40,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 12,
+          "load1": 4.35,
+          "syncMs": 16,
+          "readyFrameMs": 37.599999994039536,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 13,
+          "load1": 4.35,
+          "syncMs": 15.099999994039536,
+          "readyFrameMs": 37.599999994039536,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 14,
+          "load1": 4.35,
+          "syncMs": 15.799999982118607,
+          "readyFrameMs": 37.89999997615814,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 15,
+          "load1": 4.35,
+          "syncMs": 15.5,
+          "readyFrameMs": 38.10000002384186,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 16,
+          "load1": 4.35,
+          "syncMs": 15.299999982118607,
+          "readyFrameMs": 37.900000005960464,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 17,
+          "load1": 4.35,
+          "syncMs": 15.699999988079071,
+          "readyFrameMs": 39.5,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 18,
+          "load1": 4.35,
+          "syncMs": 17.400000005960464,
+          "readyFrameMs": 39.5,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 19,
+          "load1": 4.35,
+          "syncMs": 15.400000005960464,
+          "readyFrameMs": 38.69999998807907,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 20,
+          "load1": 4.35,
+          "syncMs": 15.5,
+          "readyFrameMs": 38.69999998807907,
+          "domNodes": 87,
+          "svgCount": 2,
+          "svgNodes": 24,
+          "pathCount": 9,
+          "pathDBytes": 49118,
+          "diagCodes": [],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        }
+      ]
+    },
+    "scatter-200k": {
+      "runs": 20,
+      "medianSyncMs": 55.6499999910593,
+      "medianReadyFrameMs": 122.29999999701977,
+      "p95ReadyFrameMs": 137.39999997615814,
+      "svgNodes": 12,
+      "domNodes": 91,
+      "pathCount": 4,
+      "pathDBytes": 2398585,
+      "hoverP95MedianMs": 33.62018999999418,
+      "diagCodes": [
+        "AX133"
+      ],
+      "errors": 0,
+      "loadRange": [
+        4.16,
+        4.31
+      ],
+      "raw": [
+        {
+          "run": 1,
+          "load1": 4.16,
+          "syncMs": 56.599999994039536,
+          "readyFrameMs": 124.89999997615814,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.316155000000435,
+            "p95Ms": 34.163886000002094,
+            "maxMs": 40.98365300000296
+          },
+          "errors": []
+        },
+        {
+          "run": 2,
+          "load1": 4.16,
+          "syncMs": 53.70000001788139,
+          "readyFrameMs": 118.2000000178814,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.30933300000106,
+            "p95Ms": 34.04253400000016,
+            "maxMs": 39.48782400000346
+          },
+          "errors": []
+        },
+        {
+          "run": 3,
+          "load1": 4.16,
+          "syncMs": 56.900000005960464,
+          "readyFrameMs": 123.09999999403954,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.29723250000097,
+            "p95Ms": 33.62018999999418,
+            "maxMs": 51.1233099999954
+          },
+          "errors": []
+        },
+        {
+          "run": 4,
+          "load1": 4.16,
+          "syncMs": 55.69999998807907,
+          "readyFrameMs": 123.90000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.345148500000505,
+            "p95Ms": 33.58059499999945,
+            "maxMs": 48.71309800000017
+          },
+          "errors": []
+        },
+        {
+          "run": 5,
+          "load1": 4.16,
+          "syncMs": 54.20000001788139,
+          "readyFrameMs": 117.90000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": {
+            "medianMs": 33.34875749999628,
+            "p95Ms": 33.58845899999869,
+            "maxMs": 41.9305749999985
+          },
+          "errors": []
+        },
+        {
+          "run": 6,
+          "load1": 4.31,
+          "syncMs": 61.29999998211861,
+          "readyFrameMs": 127.90000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 7,
+          "load1": 4.31,
+          "syncMs": 56.900000005960464,
+          "readyFrameMs": 123.90000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 8,
+          "load1": 4.31,
+          "syncMs": 54.80000001192093,
+          "readyFrameMs": 120.2000000178814,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 9,
+          "load1": 4.31,
+          "syncMs": 71.39999997615814,
+          "readyFrameMs": 137.39999997615814,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 10,
+          "load1": 4.31,
+          "syncMs": 54.900000005960464,
+          "readyFrameMs": 119.80000001192093,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 11,
+          "load1": 4.31,
+          "syncMs": 54,
+          "readyFrameMs": 119.30000001192093,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 12,
+          "load1": 4.31,
+          "syncMs": 55.10000002384186,
+          "readyFrameMs": 120.2000000178814,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 13,
+          "load1": 4.31,
+          "syncMs": 54.5,
+          "readyFrameMs": 118,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 14,
+          "load1": 4.31,
+          "syncMs": 53.80000001192093,
+          "readyFrameMs": 118.90000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 15,
+          "load1": 4.31,
+          "syncMs": 56,
+          "readyFrameMs": 122.5,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 16,
+          "load1": 4.31,
+          "syncMs": 56.099999994039536,
+          "readyFrameMs": 122.19999998807907,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 17,
+          "load1": 4.31,
+          "syncMs": 55.599999994039536,
+          "readyFrameMs": 122.40000000596046,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 18,
+          "load1": 4.31,
+          "syncMs": 55.39999997615814,
+          "readyFrameMs": 121.19999998807907,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 19,
+          "load1": 4.31,
+          "syncMs": 58.30000001192093,
+          "readyFrameMs": 127.19999998807907,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        },
+        {
+          "run": 20,
+          "load1": 4.31,
+          "syncMs": 56.69999998807907,
+          "readyFrameMs": 123,
+          "domNodes": 91,
+          "svgCount": 2,
+          "svgNodes": 12,
+          "pathCount": 4,
+          "pathDBytes": 2398585,
+          "diagCodes": [
+            "AX133"
+          ],
+          "box": {
+            "x": 0,
+            "y": 31.390625,
+            "width": 960,
+            "height": 476.609375
+          },
+          "hover": null,
+          "errors": []
+        }
+      ]
+    }
+  }
+}
