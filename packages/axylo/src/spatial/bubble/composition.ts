@@ -33,7 +33,7 @@ import { svgBand, svgPoints, svgRule, type SvgMark } from '../../render/svg';
 import { pointSwatch } from '../../dom/swatch';
 import { buildScatterView } from '../../view';
 import type { Messages } from '../../public';
-import { bubbleFor, bubbleGeometry, circlesPath, drawnRadius, scaleFor, sizeChannel, writeNum, writeRadius, ZERO_RADIUS, type BubbleGeometry } from './geometry';
+import { bubbleFor, bubbleGeometry, circlesPath, drawnRadius, sizeChannel, ZERO_RADIUS, type BubbleGeometry } from './geometry';
 import { paintedMap } from './paint';
 import { bubbleTable, rowSizeText } from './table';
 import { legendModel, referenceSizes, renderLegend, type LegendModel } from './legend';
@@ -256,7 +256,7 @@ export const svgBubbles: SvgMark<PointMark> = (c, n, mark, bindings, dpr, clip) 
   if (source[0] !== bubble.geometry || source[1] !== bubble.members || source[2] !== bubble.paint || source[3] !== mark.series) {
     const g = bubble.geometry;
     el.setAttribute('d', bubble.paint === 'series' ? paintedMap(g, bubble.seriesCount).series[mark.series]?.d ?? ''
-      : bubble.paint === 'halo' ? haloPath(g, bubble.members, 2) : circlesPath(g, bubble.members));
+      : circlesPath(g, bubble.members, bubble.paint === 'halo' ? 2 : 0));
     // What the path holds, for tests and export: its paint role and the frame series index.
     el.setAttribute('data-bubble', bubble.paint);
     el.setAttribute('data-series', String(mark.series));
@@ -273,16 +273,6 @@ export const svgBubbles: SvgMark<PointMark> = (c, n, mark, bindings, dpr, clip) 
   style.setProperty('stroke', filled ? 'none' : 'currentColor');
   style.setProperty('stroke-width', bubble.paint === 'halo' ? '2' : '1');
 };
-
-function haloPath(g: BubbleGeometry, members: Uint32Array, grow: number): string {
-  let d = '';
-  for (let i = 0; i < members.length; i++) {
-    const b = members[i]!, r = drawnRadius(g.r[b]!) + grow;
-    const scale = scaleFor(r), rr = writeRadius(r), dd = writeRadius(2 * r);
-    d += `M${writeNum(g.x[b]! - r, scale)} ${writeNum(g.y[b]!, scale)}a${rr} ${rr} 0 1 0 ${dd} 0a${rr} ${rr} 0 1 0 -${dd} 0Z`;
-  }
-  return d;
-}
 
 const EMPTY_TOOLTIP = { title: '', rows: [], count: 0, total: null } as const;
 const EDGE_REACH = 24;

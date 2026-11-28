@@ -223,12 +223,12 @@ export function bubbleFor(g: BubbleGeometry, series: number, row: number): numbe
 }
 
 /** One circle per member as two arcs (a closed subpath each), in the members' order. */
-export function circlesPath(g: BubbleGeometry, members: Uint32Array): string {
-  const parts: string[] = new Array(members.length);
+export function circlesPath(g: BubbleGeometry, members: Uint32Array, grow = 0): string {
+  let d = '';
   for (let i = 0; i < members.length; i++) {
     const b = members[i]!;
-    const rad = drawnRadius(g.r[b]!), scale = scaleFor(rad), d = writeRadius(2 * rad), rr = writeRadius(rad);
-    parts[i] = `M${writeNum(g.x[b]! - rad, scale)} ${writeNum(g.y[b]!, scale)}a${rr} ${rr} 0 1 0 ${d} 0a${rr} ${rr} 0 1 0 -${d} 0Z`;
+    const rad = drawnRadius(g.r[b]!) + grow, scale = scaleFor(rad), diameter = writeRadius(2 * rad), rr = writeRadius(rad);
+    d += `M${writeNum(g.x[b]! - rad, scale)} ${writeNum(g.y[b]!, scale)}a${rr} ${rr} 0 1 0 ${diameter} 0a${rr} ${rr} 0 1 0 -${diameter} 0Z`;
   }
-  return parts.join('');
+  return d;
 }
