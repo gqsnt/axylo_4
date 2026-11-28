@@ -4,19 +4,21 @@
  * positive-only domains and full-data zoom fallback on log axes).
  */
 import {
-  SLOT_VALUE, type AlignedFrame, type DiagnosticSink, type IndexRange, type ResolvedReference,
+  SLOT_VALUE, type AlignedFrame, type DiagnosticSink, type IndexRange, type ResolvedReference, type Series,
   type TickCandidates,
 } from '../core/contracts';
 import { createNumberTickLabeler, type NumberFormatOption } from '../format';
 import { report } from '../diagnostics/registry';
+import { fullStatistics } from '../data/store-statistics';
 import { valueDomain } from '../scale/domain';
 import { linearTickCandidates, type TickLabeler } from '../scale/linear';
 import {
   isValidLogBase, isValidLogDomain, logTickCandidates, niceLogDomain, type Span,
 } from '../scale/log';
+import { extremaIndexes, mixedSlots, seriesWindows } from './dense';
 import { reportCartesian } from './diagnostics';
 import { repeatsOf, visitRepeats } from './repeats';
-import type { CartesianAxisSpec, CartesianMeta } from './meta';
+import type { CartesianAxisSpec, CartesianMeta, CartesianSeriesSpec } from './meta';
 
 export interface AxisDomainResult {
   readonly domain: Span;
@@ -34,85 +36,74 @@ export function createTickFailureTracker(): TickFailureTracker {
   return {
     failedValues,
     drawn(ticks) {
-      if (failedValues.size === 0) return false;
-      for (const t of ticks) if (failedValues.has(t.value)) return true;
-      return false;
+      return failedValues.size > 0 && ticks.some(t => failedValues.has(t.value));
     },
   };
 }
 
-function positiveExtremaInRange(
-  frame: AlignedFrame,
-  seriesIndexes: readonly number[],
-  range: IndexRange,
-): [number, number] | null {
-  let min = Infinity;
-  let max = -Infinity;
-  const take = (v: number) => { if (v > 0 && v < Infinity) { if (v < min) min = v; if (v > max) max = v; } };
-  for (const sIdx of seriesIndexes) {
-    const s = frame.series[sIdx];
-    if (!s) continue;
-    const { y, slot } = s, more = repeatsOf(s);
-    // A scatter's repeated rows count as its slot rows do: a nonpositive first row at an x hides no later one.
-    for (let i = range.start; i < range.end; i++) { if (slot[i] === SLOT_VALUE) take(y[i]!); visitRepeats(more, i, take); }
-  }
-  return min <= max ? [min, max] : null;
-}
+const hasBaseline = (spec: CartesianSeriesSpec) => spec.mark === 'bar' || spec.mark === 'area';
 
-function linearExtremaInRange(
-  frame: AlignedFrame,
-  seriesIndexes: readonly number[],
-  range: IndexRange,
-  meta: CartesianMeta,
+/** Linear extrema keep the first observation on a tie, including its zero sign. */
+function extremaInRange(
+  series: readonly Series[], { start, end }: IndexRange, meta: CartesianMeta, log: boolean, whole: boolean,
 ): [number, number] | null {
-  let min = Infinity;
-  let max = -Infinity;
-  const stackedIndexes: number[] = [];
-  const plainIndexes: number[] = [];
-  for (const sIdx of seriesIndexes) {
-    const s = frame.series[sIdx];
-    if (!s) continue;
+  let min = Infinity, max = -Infinity;
+  const stacked: { y: Series['y']; slot: Uint8Array | null }[] = [];
+  const include = (low: number, high: number) => {
+    if (low < min) min = low;
+    if (high > max) max = high;
+  };
+  const take = (v: number) => { if (v > 0 && v < Infinity) include(v, v); };
+  for (const s of series) {
+    const slot = mixedSlots(s);
     const spec = meta.seriesByField.get(s.field);
-    if (spec?.stacked && (spec.mark === 'bar' || spec.mark === 'area')) stackedIndexes.push(sIdx);
-    else plainIndexes.push(sIdx);
-  }
-  for (const sIdx of plainIndexes) {
-    const s = frame.series[sIdx]!;
-    const { y, slot } = s;
-    for (let i = range.start; i < range.end; i++) {
-      if (slot[i] !== SLOT_VALUE) continue;
-      const v = y[i]!;
-      if (v < min) min = v;
-      if (v > max) max = v;
+    if (!log && spec?.stacked && hasBaseline(spec)) {
+      stacked.push({ y: s.y, slot });
+      continue;
+    }
+    const repeats = log ? repeatsOf(s) : null;
+    if (!repeats) {
+      const full = whole ? fullStatistics.get(s) : undefined;
+      let low: number, high: number;
+      if (full) ({ min: low, max: high } = full.ordered);
+      else {
+        const { y } = s;
+        const [a, b] = extremaIndexes(y, slot, start, end, -1, end - start >= 512 ? seriesWindows(s, whole) : null);
+        low = y[a] ?? Infinity;
+        high = y[b] ?? -Infinity;
+      }
+      if (log && high <= 0) continue;
+      if (!log || (low > 0 && high < Infinity)) {
+        include(low, high);
+        continue;
+      }
+    }
+    const { y } = s;
+    for (let i = start; i < end; i++) {
+      if (!slot || slot[i] === SLOT_VALUE) take(y[i]!);
+      if (repeats) visitRepeats(repeats, i, take);
     }
   }
-  if (stackedIndexes.length > 0) {
-    for (let i = range.start; i < range.end; i++) {
-      let pos = 0;
-      let neg = 0;
-      let any = false;
-      for (const sIdx of stackedIndexes) {
-        const s = frame.series[sIdx]!;
-        if (s.slot[i] !== SLOT_VALUE) continue;
-        const v = s.y[i]!;
+  if (stacked.length) {
+    for (let i = start; i < end; i++) {
+      let pos = 0, neg = 0, any = false;
+      for (const { y, slot } of stacked) {
+        if (slot && slot[i] !== SLOT_VALUE) continue;
+        const v = y[i]!;
         any = true;
         if (v >= 0) pos += v;
         else neg += v;
       }
       if (any) {
-        if (pos > max) max = pos;
-        if (neg < min) min = neg;
-        if (0 < min) min = 0;
-        if (0 > max) max = 0;
+        include(neg, pos);
+        include(0, 0);
       }
     }
   }
   return min <= max ? [min, max] : null;
 }
 
-function axisReferences(references: readonly ResolvedReference[], axis: CartesianAxisSpec, meta: CartesianMeta): readonly ResolvedReference[] {
-  return references.filter(r => r.axis === 'y' && (r.axisId ?? meta.leftAxisId) === axis.id);
-}
+const domainResult = (domain: Span, valid = true): AxisDomainResult => ({ domain, hasPositive: valid, error: !valid });
 
 /**
  * Computes one axis's value domain from its bound series in `visibleSlots` (RFC C4.1 §4.3–4.4, §5.1).
@@ -128,89 +119,71 @@ export function computeAxisDomain(
   meta: CartesianMeta,
   sink: DiagnosticSink,
 ): AxisDomainResult {
-  const allBound: number[] = [];
-  const visibleBound: number[] = [];
+  const allBound: Series[] = [];
+  const visibleBound: Series[] = [];
   let requiresZero = false;
 
   for (let i = 0; i < frame.series.length; i++) {
     const s = frame.series[i]!;
     const spec = meta.seriesByField.get(s.field);
     if (!spec || spec.axisId !== axis.id) continue;
-    if (spec.mark === 'bar' || spec.mark === 'area') requiresZero = true;
-    allBound.push(i);
-    if (visible[i] && s.drawable) visibleBound.push(i);
+    if (hasBaseline(spec)) requiresZero = true;
+    allBound.push(s);
+    if (visible[i] && s.drawable) visibleBound.push(s);
   }
 
-  const refs = axisReferences(references, axis, meta);
-
-  if (axis.scale === 'log') {
-    if (axis.rawBase !== undefined && !isValidLogBase(axis.rawBase)) {
-      reportCartesian(sink, 'AX170', 'chart-error', { field: axis.id, detail: `unsupported base ${String(axis.rawBase)}` });
-      return { domain: [1, 10], hasPositive: false, error: true };
-    }
-    if (axis.rawDomain !== undefined) {
-      if (!axis.domain || !isValidLogDomain(axis.domain)) {
-        reportCartesian(sink, 'AX170', 'chart-error', { field: axis.id, detail: 'domain must be strictly positive [min, max] with min < max' });
-        return { domain: [1, 10], hasPositive: false, error: true };
+  const log = axis.scale === 'log';
+  const full = { start: 0, end: frame.length };
+  const extrema = (series: Series[], range = full) => extremaInRange(series, range, meta, log, range.start === 0 && range.end === frame.length);
+  const withReferences = ([min, max]: Span): [number, number] => {
+    for (const ref of references) {
+      if (ref.axis !== 'y' || (ref.axisId ?? meta.leftAxisId) !== axis.id) continue;
+      for (const v of [ref.from, ref.to]) {
+        if (log && !(v > 0 && v < Infinity)) continue;
+        min = Math.min(min, v);
+        max = Math.max(max, v);
       }
-      return { domain: axis.domain, hasPositive: true, error: false };
     }
-    const fullRange: IndexRange = { start: 0, end: frame.length };
-    const fullExt = positiveExtremaInRange(frame, allBound, fullRange);
-    // Data positivity governs AX172: a positive reference line never masks all-nonpositive data!
-    if (!fullExt) {
-      reportCartesian(sink, 'AX172', 'chart-error', { field: axis.id });
-      return { domain: [1, 10], hasPositive: false, error: true };
-    }
-    let fullMin = fullExt[0];
-    let fullMax = fullExt[1];
-    for (const r of refs) {
-      if (r.from > 0 && Number.isFinite(r.from)) { fullMin = Math.min(fullMin, r.from); fullMax = Math.max(fullMax, r.from); }
-      if (r.to > 0 && Number.isFinite(r.to)) { fullMin = Math.min(fullMin, r.to); fullMax = Math.max(fullMax, r.to); }
-    }
-    const fullNice = niceLogDomain(fullMin, fullMax, axis.base);
-    meta.fullPositiveDomains.set(axis.id, fullNice);
+    return [min, max];
+  };
 
-    // Visible (zoomed + legend-visible) positive extrema; fall back cleanly when window has no positives.
-    const visExt = positiveExtremaInRange(frame, visibleBound, visibleSlots);
-    let vMin = visExt ? visExt[0] : Infinity;
-    let vMax = visExt ? visExt[1] : -Infinity;
-    for (const r of refs) {
-      if (r.from > 0 && Number.isFinite(r.from)) { vMin = Math.min(vMin, r.from); vMax = Math.max(vMax, r.from); }
-      if (r.to > 0 && Number.isFinite(r.to)) { vMin = Math.min(vMin, r.to); vMax = Math.max(vMax, r.to); }
-    }
-    if (vMin <= vMax) {
-      return { domain: niceLogDomain(vMin, vMax, axis.base), hasPositive: true, error: false };
-    }
-    // Zoomed window or hidden series has no positive points: fall back to full-data positive domain of visible series, else all bound series.
-    const visFull = positiveExtremaInRange(frame, visibleBound, fullRange);
-    const fallback = visFull ? niceLogDomain(visFull[0], visFull[1], axis.base) : fullNice;
-    return { domain: fallback, hasPositive: true, error: false };
+  if (log) {
+    const error = (code: 'AX170' | 'AX172', detail?: string) => {
+      reportCartesian(sink, code, 'chart-error', { field: axis.id, detail });
+      return domainResult([1, 10], false);
+    };
+    if (axis.rawBase !== undefined && !isValidLogBase(axis.rawBase)) return error('AX170', `unsupported base ${String(axis.rawBase)}`);
+    if (axis.rawDomain !== undefined) return axis.domain && isValidLogDomain(axis.domain) ? domainResult(axis.domain)
+      : error('AX170', 'domain must be strictly positive [min, max] with min < max');
+
+    const all = extrema(allBound);
+    // A positive reference cannot make an axis with no positive data drawable.
+    if (!all) return error('AX172');
+    const nice = (bounds: Span) => niceLogDomain(bounds[0], bounds[1], axis.base);
+    const fullDomain = nice(withReferences(all));
+    meta.fullPositiveDomains.set(axis.id, fullDomain);
+    const bounds = withReferences(extrema(visibleBound, visibleSlots) ?? [Infinity, -Infinity]);
+    if (bounds[0] <= bounds[1]) return domainResult(nice(bounds));
+    const fallback = extrema(visibleBound);
+    return domainResult(fallback ? nice(fallback) : fullDomain);
   }
 
-  // Linear axis.
-  const ext = linearExtremaInRange(frame, visibleBound, visibleSlots, meta)
-    ?? linearExtremaInRange(frame, allBound, { start: 0, end: frame.length }, meta);
-  let min = ext ? ext[0] : 0;
-  let max = ext ? ext[1] : 1;
-  for (const r of refs) {
-    min = Math.min(min, r.from, r.to);
-    max = Math.max(max, r.from, r.to);
-  }
-  if (axis.domain && !axis.domain.every(Number.isFinite)) {
+  let authorDomain = axis.domain;
+  if (authorDomain && !authorDomain.every(Number.isFinite)) {
+    authorDomain = null;
     report(sink, 'AX103', 'none', { field: `${axis.id}.domain` });
   }
+  const [min, max] = authorDomain ?? withReferences(extrema(visibleBound, visibleSlots) ?? extrema(allBound) ?? [0, 1]);
   const result = valueDomain({
     min,
     max,
     includeZero: requiresZero,
-    authorDomain: axis.domain && axis.domain.every(Number.isFinite) ? axis.domain : null,
-    valueScale: null,
+    authorDomain,
   });
   if (result.widenedToZero) {
     report(sink, 'AX110', 'none', { field: axis.id });
   }
-  return { domain: result.domain, hasPositive: true, error: false };
+  return domainResult(result.domain);
 }
 
 export function axisTickCandidates(
@@ -232,5 +205,5 @@ export function axisTickCandidates(
       };
   return axis.scale === 'log'
     ? logTickCandidates(domain, labeler, axis.base)
-    : linearTickCandidates(domain, labeler);
+    : linearTickCandidates(domain, labeler, custom === null);
 }

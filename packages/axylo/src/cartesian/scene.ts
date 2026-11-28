@@ -10,19 +10,18 @@
  */
 import {
   SLOT_VALUE, type AlignedView, type AreaMark, type ContinuousScale, type IndexRange, type Layout,
-  type Mark, type PathMark, type PointMark, type Projection, type RectMark,
+  type Mark, type Rect, type PathMark, type PointMark, type Projection, type RectMark,
   type RuleMark, type Tick, type Series, type View,
 } from '../core/contracts';
 import type { BarScene } from '../render/svg';
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
-import { seriesSlots } from '../data/store-statistics';
-import { bandOf, columnLimit, keep, lastDrawnValue, pathOf, pointsOf, safeRatio } from './dense';
+import { Slots, bandOf, columnLimit, keep, lastDrawnValue, linearPixels, mixedSlots, pointsOf, safeRatio } from './dense';
 import { cartesianStacks, type CartesianStack } from './stacks';
 import { axisScaleOf } from './scale-ref';
-import { buildBarSlotLayout, xSlotPixel } from './bar-geom';
+import { buildBarSlotLayout, slotBandwidth, xSlotPixel } from './bar-geom';
 import { buildCartesianAnnotationMarks } from './annotations';
 import { repeatsIn, repeatsOf, visitRepeats } from './repeats';
-import type { CartesianStateRef } from './meta';
+import type { CartesianMeta, CartesianStateRef } from './meta';
 import { projectViolin, violinMarks } from './violin';
 import {
   MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, axisOf, boxHalfWidth, isCompoundKind, markOf, physicalOf, projectCompound, type CompoundSink,
@@ -46,6 +45,27 @@ function writeSeg(buf: Float32Array, at: number, x1: number, y1: number, x2: num
   return at;
 }
 
+/** Equal values in an independent lane have identical Float32 y, width and height.
+ * Cache the writer's exact fields. A collision simply replaces that entry. */
+function writeIndependentBars(out: Float32Array, xs: Float64Array, ys: Series['y'], { start, end }: IndexRange,
+  xPixel: (value: number) => number, width: number, write: (i: number, out: Float32Array, at: number) => boolean) {
+  const keys = new Float64Array(256).fill(NaN), boxes = new Float32Array(4 * keys.length);
+  const half = width / 2;
+  let at = 0;
+  for (let i = start; i < end; i++) {
+    const value = ys[i]!, key = value & 255, box = 4 * key;
+    if (keys[key] !== value) {
+      if (!write(i, boxes, box)) continue;
+      keys[key] = value;
+    }
+    out[at++] = xPixel(xs[i]!) - half + 0;
+    out[at++] = boxes[box + 1]!;
+    out[at++] = width;
+    out[at++] = boxes[box + 3]!;
+  }
+  return at;
+}
+
 function stackVertices(
   view: AlignedView, group: CartesianStack, range: IndexRange, xAt: (i: number) => number, ratio: number, limit: number,
 ): Uint32Array {
@@ -57,23 +77,21 @@ function stackVertices(
       for (const edge of [group.positive[k]!, group.negative[k]!]) {
         for (const i of keep(edge, null, range, xAt, ratio, limit, true).indexes) flags[i - start] = 1;
       }
-      const series = view.frame.series[group.order[k]!]!, states = seriesSlots(series);
+      const series = view.frame.series[group.order[k]!]!, states = mixedSlots(series);
       const kind = (i: number) => states && states[i] !== SLOT_VALUE ? 2 : Math.sign(series.y[i]!);
       for (let i = start + 1; i < end; i++) if (kind(i) !== kind(i - 1)) flags[i - 1 - start] = flags[i - start] = 1;
     }
     flags[0] = flags[1] = flags[size - 2] = flags[size - 1] = 1;
   }
-  let count = 0;
-  for (let j = 0; j < size; j++) count += flags[j]!;
-  const vertices = new Uint32Array(count);
-  for (let j = 0, o = 0; j < size; j++) if (flags[j]) vertices[o++] = start + j;
-  return vertices;
+  const vertices = new Slots(Math.min(size, limit + 8));
+  for (let j = 0; j < size; j++) if (flags[j]) vertices.push(start + j);
+  return vertices.used();
 }
 
 function stackEdge(
   vertices: Uint32Array, series: Series, group: CartesianStack, k: number, xAt: (i: number) => number, yScale: ContinuousScale,
 ): Float32Array | null {
-  const states = seriesSlots(series), { y } = series, positive = group.positive[k]!;
+  const states = mixedSlots(series), { y } = series, positive = group.positive[k]!;
   const xy = new Float32Array(8 * vertices.length);
   let o = 0;
   for (const side of [positive, group.negative[k]!]) {
@@ -87,6 +105,30 @@ function stackEdge(
     }
   }
   return o ? xy.subarray(0, o) : null;
+}
+
+/** Classify the published series in source order, and bind compound geometry only for
+ * visible layers. Hidden boxes must not trigger a bandwidth scan over the zoom window. */
+export function projectLayers(view: AlignedView, projection: Exclude<Projection, { kind: 'ring' }> | null, plot: Rect | null, meta: CartesianMeta) {
+  const series = view.frame.series;
+  const physical = physicalOf(view);
+  const visible: number[] = [];
+  const marks = series.map((s, i) => {
+    if (view.visible[i] && s.drawable) visible.push(i);
+    return markOf(meta, s.field);
+  });
+  const kindOf = (s: number) => marks[s]?.kind ?? meta.seriesByField.get(series[s]!.field)?.mark ?? 'line';
+  const group = (kind: ReturnType<typeof kindOf>) => visible.filter(s => kindOf(s) === kind);
+  const points = visible.filter(s => kindOf(s) === 'scatter' || marks[s]?.outliers);
+  const compounds = visible.filter(s => isCompoundKind(marks[s]?.kind));
+  const boxHalf = compounds.length && projection ? boxHalfWidth(projection, view.frame.x.values, view.visibleSlots) : 0;
+  const geometry: ReturnType<typeof projectCompound>[] = [], violins: ReturnType<typeof projectViolin>[] = [];
+  if (projection && plot) for (const s of compounds) {
+    const m = marks[s]!;
+    if (m.kind === 'violin') violins[s] = projectViolin(m, physical, s, projection, plot, boxHalf * 1.5);
+    else geometry[s] = projectCompound(m, physical, s, projection, plot, boxHalf);
+  }
+  return { physical, marks, kindOf, visible, compounds, group, points, geometry, violins, boxHalf };
 }
 
 export function buildCartesianScene(
@@ -107,7 +149,9 @@ export function buildCartesianScene(
   const { start, end } = visibleSlots;
   const slotCount = Math.max(0, end - start);
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
-  const xAt = (i: number) => xSlotPixel(xScale, frame.x.values, i);
+  const xs = frame.x.values;
+  const projectX = linearPixels(xScale, xs[0]!, xs[xs.length - 1]!);
+  const xAt = projectX ? (i: number) => projectX(xs[i]!) : (i: number) => xSlotPixel(xScale, xs, i);
   const left = plot.x, right = left + plot.width, top = plot.y, bottom = top + plot.height;
 
   const marks: Mark[] = [];
@@ -162,30 +206,21 @@ export function buildCartesianScene(
   }
 
   // Partition visible drawable series by logical mark
-  const barSeries: number[] = [], areaSeries: number[] = [], lineSeries: number[] = [], scatterSeries: number[] = [];
-  const physical = physicalOf(view);
+  const layers = projectLayers(view, projection, plot, meta);
+  const { group } = layers;
+  const barSeries = group('bar'), areaSeries = group('area');
   const annMarks = !compact ? buildCartesianAnnotationMarks(view, projection, plot, meta) : { bands: [], foreground: [] };
   const ivBands: AreaMark[] = [], ivStrokes: PathMark[] = [], ivPoints: PointMark[] = [];
   const boxRects: RectMark[] = [], boxStrokes: PathMark[] = [], boxPoints: PointMark[] = [];
   const violins: Mark[] = [];
-  let boxHalf: number | undefined;
-
-  for (let index = 0; index < frame.series.length; index++) {
-    if (!view.visible[index] || !frame.series[index]!.drawable) continue;
-    const field = frame.series[index]!.field, m = markOf(meta, field);
-    const kind = m?.kind ?? meta.seriesByField.get(field)?.mark ?? 'line';
-    if (!isCompoundKind(kind)) {
-      (kind === 'bar' ? barSeries : kind === 'area' ? areaSeries : kind === 'scatter' ? scatterSeries : lineSeries).push(index);
-      continue;
-    }
-    if (!m) continue;
-    boxHalf ??= boxHalfWidth(projection, frame.x.values, visibleSlots);
+  for (const index of layers.compounds) {
+    const m = layers.marks[index]!;
     if (m.kind === 'violin') {
-      const g = projectViolin(m, physical, index, projection, plot, boxHalf * 1.5);
+      const g = layers.violins[index];
       if (g) violins.push(...violinMarks(index, g, start, end, xAt));
       continue;
     }
-    const geometry = projectCompound(m, physical, index, projection, plot, boxHalf);
+    const geometry = layers.geometry[index];
     if (!geometry) continue;
     const { rows, low, centre, cap } = geometry;
     const paint = seriesPaint(index);
@@ -248,7 +283,11 @@ export function buildCartesianScene(
       barBaselines[sIdx] = baseline;
       const buf = new Float32Array(slotCount * 4);
       let written = 0;
-      for (let i = start; i < end; i++) if (write(i, buf, written)) written += 4;
+      const s = frame.series[sIdx]!;
+      if (projectX && slotCount >= 512 && barSeries.length === 1 && baseline !== null && !mixedSlots(s)) {
+        const width = slotBandwidth(xScale, xs, start, end, plot.width);
+        written = writeIndependentBars(buf, xs, s.y, visibleSlots, projectX, width, write);
+      } else for (let i = start; i < end; i++) if (write(i, buf, written)) written += 4;
       if (written) marks.push(barMark(sIdx, buf, written));
     }
   }
@@ -259,15 +298,15 @@ export function buildCartesianScene(
   const line = (s: number, xy: Float32Array) => strokeMark(s, xy, seriesPaint(s), 2, view.cues[s]?.dash);
   const drawTrace = (sIdx: number, strokes: Mark[], markers?: PointMark[]) => {
     const s = frame.series[sIdx]!, scale = axisScaleOf(projection, s.axisIndex);
-    const slot = seriesSlots(s), log = scale.type === 'log';
+    const slot = mixedSlots(s), log = scale.type === 'log';
     const yAt = (i: number) => position(scale, s.y[i]!);
-    const kept = keep(s.y, slot, view.drawSlots[sIdx] ?? visibleSlots, xAt, ratio, limit, true, log);
+    const kept = keep(s.y, slot, view.drawSlots[sIdx] ?? visibleSlots, xAt, ratio, limit, true, log, !!projectX, s);
     if (kept.ends.length) {
       if (!markers) {
         const zero = position(scale, 0);
         marks.push(areaMark(sIdx, bandOf(kept, xAt, yAt, () => zero)));
       }
-      strokes.push(line(sIdx, pathOf(kept, xAt, yAt)));
+      strokes.push(line(sIdx, pointsOf(kept.indexes, xAt, yAt, kept.ends)));
     }
     if (markers) {
       const last = compact ? -1 : lastDrawnValue(s.y, slot, visibleSlots, log);
@@ -309,23 +348,23 @@ export function buildCartesianScene(
 
   // 3b. Error bars, box outliers, scatter points
   marks.push(...ivStrokes, ...ivPoints, ...boxPoints);
-  for (const index of scatterSeries) {
+  for (const index of group('scatter')) {
     const s = frame.series[index]!, yScale = axisScaleOf(projection, s.axisIndex);
-    const more = repeatsOf(s);
+    const more = repeatsOf(s), slot = mixedSlots(s);
     const xy = new Float32Array(2 * (slotCount + repeatsIn(more, start, end)));
     let o = 0, px = 0;
     const put = (v: number) => { if (yScale.type !== 'log' || v > 0) { xy[o++] = px; xy[o++] = position(yScale, v); } };
     for (let i = start; i < end; i++) {
       px = xAt(i);
-      if (s.slot[i] === SLOT_VALUE) put(s.y[i]!);
+      if (!slot || slot[i] === SLOT_VALUE) put(s.y[i]!);
       visitRepeats(more, i, put);
     }
-    if (o) marks.push(pointMark(view, index, trim(xy, o), compact ? 3 : markOf(meta, s.field)?.size ?? 4));
+    if (o) marks.push(pointMark(view, index, trim(xy, o), compact ? 3 : layers.marks[index]?.size ?? 4));
   }
 
   // 4. Lines (topmost data marks)
   const linePoints: PointMark[] = [];
-  for (const s of lineSeries) drawTrace(s, marks, linePoints);
+  for (const s of group('line')) drawTrace(s, marks, linePoints);
   marks.push(...linePoints, ...edges, ...refLines, ...annMarks.foreground);
 
   return { width, height, clip: plot, marks, barBaselines };

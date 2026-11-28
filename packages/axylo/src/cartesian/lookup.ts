@@ -13,19 +13,22 @@ import {
 } from '../core/contracts';
 import type { Messages } from '../public';
 import { clamp, position } from '../scene/geometry';
+import { mixedSlots } from './dense';
+import { projectLayers } from './scene';
 import { axisScaleOf } from './scale-ref';
 import { barBoxAt, buildBarSlotLayout, xSlotPixel } from './bar-geom';
 import type { CartesianStateRef } from './meta';
 import {
-  MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, boxHalfWidth, carrierReadout, intervalText, isCompoundKind, isLogSeries, markOf, partIndex, physicalOf, projectCompound, type CompoundSink, type LogicalKind, type PartRole,
+  MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, carrierReadout, intervalText, isCompoundKind, isLogSeries, partIndex, type CompoundSink, type PartRole,
 } from './boxplot';
 import { cartesianStacks, drawnValue, stackTotalText } from './stacks';
 import { incomplete } from '../lookup/text';
 import { lowerBound } from '../data/search';
 import { MARKER_POLYGONS } from '../render/geometry';
+import { slotState } from '../data/store-statistics';
 import { sameRef } from '../core/focus';
 import { repeatsIn, repeatsOf, valueAtRow, valuesText, visitRepeats } from './repeats';
-import { projectViolin, violinBox, violinCells, violinDistance, violinText } from './violin';
+import { violinBox, violinCells, violinDistance, violinText } from './violin';
 
 const LINE_HIT_RADIUS = 12;
 const POINT_HIT_RADIUS = 24;
@@ -234,39 +237,8 @@ export function createCartesianLookup(
   const start = view.visibleSlots.start;
   const end = view.visibleSlots.end;
   const count = Math.max(0, end - start);
-  const physical = physicalOf(view);
-  const marks = series.map(s => markOf(meta, s.field));
-  const hasCompound = marks.some(m => m && isCompoundKind(m.kind));
-  const boxHalf = hasCompound && projection ? boxHalfWidth(projection, vals, view.visibleSlots) : 0;
-
-  const geometry = marks.map((m, i) => m && projection && plot
-    ? projectCompound(m, physical, i, projection, plot, boxHalf) : null);
-  // Violins are drawn and picked from the same geometry the scene builds (half width 1.5 box halves).
-  const violins = marks.map((m, i) => m?.kind === 'violin' && projection && plot
-    ? projectViolin(m, physical, i, projection, plot, boxHalf * 1.5) : null);
-
-  const kindOf = (sIdx: number): LogicalKind => marks[sIdx]?.kind ?? meta.seriesByField.get(series[sIdx]!.field)?.mark ?? 'line';
-
-  const visible: number[] = [];
-  const barSeries: number[] = [];
-  const lineVisIdx: number[] = [];
-  const pointVisIdx: number[] = [];
-  let hasCompoundVisible = false;
-  let hasBoxOrErrVisible = false;
-  for (let s = 0; s < series.length; s++) {
-    if (view.visible[s] && series[s]!.drawable) {
-      const vIdx = visible.length;
-      visible.push(s);
-      const kind = kindOf(s);
-      if (kind === 'bar') barSeries.push(s);
-      else if (kind === 'line') lineVisIdx.push(vIdx);
-      else if (kind === 'scatter' || marks[s]?.outliers) pointVisIdx.push(vIdx);
-      if (marks[s] && isCompoundKind(kind)) {
-        hasCompoundVisible = true;
-        if (kind !== 'range') hasBoxOrErrVisible = true;
-      }
-    }
-  }
+  const { physical, marks, kindOf, visible, compounds, group, points, geometry, violins, boxHalf } = projectLayers(view, projection, plot, meta);
+  const lines = group('line'), barSeries = group('bar');
   const barLayout = buildBarSlotLayout(view, projection, plot, meta, barSeries);
 
   const isLog = (s: AlignedView['frame']['series'][number] | undefined) => isLogSeries(meta, s);
@@ -275,17 +247,18 @@ export function createCartesianLookup(
     const i = lowerBound(vals, x, start, end);
     return i < end && vals[i] === x ? i : -1;
   };
+  const aligned = (index: number, x: number) => ({ kind: 'aligned', seriesKey: series[index]!.key, x } as const);
   const seriesIndex = (key: string) => series.findIndex(s => s.key === key);
   const isPlottable = (sIdx: number, i: number) => {
     const s = series[sIdx]!;
-    return s.slot[i] === SLOT_VALUE && (!isLog(s) || s.y[i]! > 0);
+    return slotState(s, i) === SLOT_VALUE && (!isLog(s) || s.y[i]! > 0);
   };
   const xAt = (i: number) => xSlotPixel(xScale!, vals, i);
 
   // With `own`, the value of one row (a point ref's), read without the other rows its x repeats.
   const datumText = (sIdx: number, i: number, announce = false, own?: number): DatumText => {
     const s = series[sIdx]!;
-    let state = s.slot[i]! as SlotState;
+    let state = slotState(s, i) as SlotState;
     let value: string;
     const mark = marks[sIdx], all = own === undefined ? valuesText(s, i, v => readout.value(sIdx, v)) : readout.value(sIdx, own);
     // A scatter x read as a whole lists every row there; a point ref reads its own row (pointText).
@@ -298,7 +271,7 @@ export function createCartesianLookup(
       const read = (role: PartRole) => {
         const idx = at(role);
         const part = physical.frame.series[idx];
-        if (role !== 'y' && part && state === SLOT_VALUE) state = part.slot[i]! as SlotState;
+        if (role !== 'y' && part && state === SLOT_VALUE) state = slotState(part, i) as SlotState;
         return readout.cell(idx, i);
       };
       if (mark.kind === 'violin') {
@@ -323,7 +296,7 @@ export function createCartesianLookup(
     }
     const xVal = vals[i]!;
     return {
-      ref: { kind: 'aligned', seriesKey: s.key, x: xVal },
+      ref: aligned(sIdx, xVal),
       seriesIndex: sIdx, seriesLabel: s.label, x: formatters.x(xVal), value, state, percent: null,
       row: s.row?.[i] ?? i,
     };
@@ -545,7 +518,7 @@ export function createCartesianLookup(
     const mark = marks[sIdx];
     const g = geometry[sIdx];
     if (!mark || !plot || !g) return null;
-    if (mark.kind !== 'range') return compoundQueries?.[sIdx]?.(xPx, yPx) ?? null;
+    if (mark.kind !== 'range') return compoundQueries[sIdx]?.(xPx, yPx) ?? null;
     if (__DEV__) lastPickCandidates++;
     const { rows } = g;
     const bandDist = (l: number, r: number): number => {
@@ -600,62 +573,43 @@ export function createCartesianLookup(
   ];
 
   const buildPointIndex = (): PointIndex | null => {
-    if (!plot || !projection || !count || !pointVisIdx.length) return null;
+    if (!plot || !projection || !count || !points.length) return null;
     // A marker's half size is at most 12 px (options.ts caps size at 24), so a point inPlot keeps lies within CELL_PAD.
     const minX = plot.x - CELL_PAD, maxX = plotRight + CELL_PAD;
     // Room for every point there can be: each visible slot and repeated row of a scatter, each box outlier.
     let cap = 0, len = 0;
-    for (const v of pointVisIdx) {
-      const sIdx = visible[v]!;
-      // Only the visible window's repeats, as the scene sizes its points: offscreen rows take no room.
-      cap += kindOf(sIdx) === 'scatter' ? count + repeatsIn(repeatsOf(series[sIdx]), start, end) : marks[sIdx]?.outliers?.values.length ?? 0;
-    }
+    let slot = start, px = NaN;
+    const sources = points.map(index => {
+      const s = series[index]!, half = halfOf(index);
+      const scatter = kindOf(index) === 'scatter', scale = axisScaleOf(projection, s.axisIndex);
+      const geom = geometry[index], rows = physical.rows?.[index], states = mixedSlots(s);
+      const more = scatter ? repeatsOf(s) : null;
+      cap += scatter ? count + repeatsIn(more, start, end) : marks[index]?.outliers?.values.length ?? 0;
+      const log = scatter && isLog(s);
+      const put = (y: number, rep = -1) => {
+        if (log && !(y > 0)) return;
+        // Sparse and clipped layers share the same x projection, once per occupied slot.
+        if (Number.isNaN(px)) px = xAt(slot);
+        if (!(px >= minX && px <= maxX)) return;
+        const py = scatter ? position(scale, y) : geom!.pointY(y);
+        if (!inPlot(px, py, half)) return;
+        xs[len] = px; ys[len] = py; slots[len] = slot; seriesIdx[len] = index; reps[len++] = rep;
+      };
+      const outlier = (y: number) => put(y);
+      return scatter ? () => {
+        if (!states || states[slot] === SLOT_VALUE) put(s.y[slot]!);
+        visitRepeats(more, slot, put);
+      } : () => {
+        if (rows?.[slot] === SLOT_VALUE) geom!.outliers(slot, outlier);
+      };
+    });
     if (__DEV__) pointCapacity = cap;
     const xs = new Float64Array(cap), ys = new Float64Array(cap), slots = new Int32Array(cap);
     const seriesIdx = new Uint32Array(cap), reps = new Int32Array(cap);
-    const pushPoint = (px: number, py: number, slot: number, sIdx: number, rep = -1) => {
-      xs[len] = px; ys[len] = py; slots[len] = slot; seriesIdx[len] = sIdx; reps[len] = rep; len++;
-    };
-
-    let curPx = 0, curSeriesIdx = 0, curHalf = 0;
-    let curPointY = (_v: number) => NaN;
-    const addOutlier = (v: number, slot: number) => {
-      const py = curPointY(v);
-      if (inPlot(curPx, py, curHalf)) pushPoint(curPx, py, slot, curSeriesIdx);
-    };
-
-    const pLen = pointVisIdx.length;
-    const pHalves = new Float64Array(pLen);
-    const pScales = new Array<ReturnType<typeof axisScaleOf>>(pLen);
-    for (let p = 0; p < pLen; p++) {
-      const sIdx = visible[pointVisIdx[p]!]!;
-      pScales[p] = axisScaleOf(projection, series[sIdx]!.axisIndex ?? 0);
-      pHalves[p] = halfOf(sIdx);
-    }
-
-    // Traverse slots ascending, then visible series, then CSR outliers so index `k` encodes canonical tie order.
-    for (let j = start; j < end; j++) {
-      let px = NaN, pxReady = false;
-      for (let p = 0; p < pLen; p++) {
-        const sIdx = visible[pointVisIdx[p]!]!, s = series[sIdx]!, isScat = kindOf(sIdx) === 'scatter';
-        const own = isScat && s.slot[j] === SLOT_VALUE && (!isLog(s) || s.y[j]! > 0), more = isScat ? repeatsOf(s) : null;
-        if (isScat ? !own && !visitRepeats(more, j) : !(physical.rows?.[sIdx]?.[j] === SLOT_VALUE && geometry[sIdx]!.outliers(j) > 0)) continue;
-        if (!pxReady) {
-          px = xAt(j); pxReady = true;
-          if (!(px >= minX && px <= maxX)) break;
-        }
-        if (isScat) {
-          // Repeated rows follow the slot's own row, so a coincident later row wins a tie as the contract asks.
-          for (let k = -1, b = more ? more.start[j + 1]! : 0; k < b; k = k < 0 && more ? more.start[j]! : k + 1) {
-            const v = k < 0 ? (own ? s.y[j]! : NaN) : more!.y[k]!, py = isLog(s) && !(v > 0) ? NaN : position(pScales[p]!, v);
-            if (inPlot(px, py, pHalves[p]!)) pushPoint(px, py, j, sIdx, k);
-          }
-        } else {
-          curPx = px; curSeriesIdx = sIdx; curHalf = pHalves[p]!;
-          curPointY = geometry[sIdx]!.pointY;
-          geometry[sIdx]!.outliers(j, addOutlier);
-        }
-      }
+    // Source order also determines the winner where two painted points coincide.
+    for (; slot < end; slot++) {
+      px = NaN;
+      for (const visit of sources) visit();
     }
     if (len === 0) return null;
 
@@ -680,9 +634,8 @@ export function createCartesianLookup(
   };
 
   const pointIndex = buildPointIndex();
-  const compoundQueries = hasBoxOrErrVisible
-    ? series.map((_, s) => (view.visible[s] && series[s]!.drawable ? buildCompoundQuery(s) : null))
-    : null;
+  const compoundQueries: (CompoundQuery | null)[] = [];
+  for (const s of compounds) compoundQueries[s] = buildCompoundQuery(s);
 
   // The winner: its series and slot, the box it was drawn in (when known) and its repeated row (-1 its slot's own
   // row; none for marks that are not points).
@@ -697,10 +650,9 @@ export function createCartesianLookup(
     let bestY = 0;
     let bestRep = -2;
 
-    if (lineVisIdx.length) {
+    if (lines.length) {
       const slotPx = xAt(slotIndex);
-      for (let i = 0; i < lineVisIdx.length; i++) {
-        const sIdx = visible[lineVisIdx[i]!]!;
+      for (const sIdx of lines) {
         if (!isPlottable(sIdx, slotIndex)) continue;
         const s = series[sIdx]!;
         const py = position(axisScaleOf(projection, s.axisIndex ?? 0), s.y[slotIndex]!);
@@ -716,9 +668,9 @@ export function createCartesianLookup(
     if (pointIndex) {
       const [xs, ys, slots, seriesIdx, reps, repFirst, order, root, nb, ni] = pointIndex;
 
-      const boxDist2 = (n: number): number => {
+      const boxDistance = (n: number, squared: boolean): number => {
         const b = n * 6, dx = spanDist(xPx, nb[b]!, nb[b + 1]!), dy = spanDist(yPx, nb[b + 2]!, nb[b + 3]!);
-        return dx * dx + dy * dy;
+        return squared ? dx * dx + dy * dy : Math.hypot(dx, dy);
       };
 
       const canVisitNode = (n: number, d2: number): boolean => {
@@ -726,23 +678,17 @@ export function createCartesianLookup(
         const hi = maxR + 1e-9;
         if (d2 > hi * hi) return false;
         if (bestSeries < 0) return true;
-        const b = n * 6, t = n * 5;
-        const dx = spanDist(xPx, nb[b]!, nb[b + 1]!), dy = spanDist(yPx, nb[b + 2]!, nb[b + 3]!);
-        const boxDist = Math.hypot(dx, dy);
+        const t = n * 5, boxDist = boxDistance(n, false);
         if (boxDist > maxR) return false;
         if (boxDist < bestDist) return true;
         return canBeatOnTie(ni[t + 2]!, ni[t + 3]!, ni[t + 4]!, bestSlot, bestOrd, slotIndex);
       };
 
+      const scanGroup = (t: number) => ni[t + 3]! > slotIndex ? 2 : ni[t + 2]! < slotIndex ? 1 : 0;
       const preferFirst = (a: number, b: number): boolean => {
-        const ta = a * 5, tb = b * 5;
-        const aG2 = ni[ta + 3]! > slotIndex, bG2 = ni[tb + 3]! > slotIndex;
-        if (aG2 !== bG2) return aG2;
-        if (aG2) return ni[ta + 4]! >= ni[tb + 4]!;
-        const aG1 = ni[ta + 2]! < slotIndex, bG1 = ni[tb + 2]! < slotIndex;
-        if (aG1 !== bG1) return aG1;
-        if (aG1) return ni[ta + 2]! <= ni[tb + 2]!;
-        return ni[ta + 4]! >= ni[tb + 4]!;
+        const ta = a * 5, tb = b * 5, ga = scanGroup(ta), gb = scanGroup(tb);
+        if (ga !== gb) return ga > gb;
+        return ga === 1 ? ni[ta + 2]! <= ni[tb + 2]! : ni[ta + 4]! >= ni[tb + 4]!;
       };
 
       const checkRep = (k: number) => {
@@ -759,7 +705,9 @@ export function createCartesianLookup(
         }
       };
 
-      const search = (n: number): void => {
+      const search = (n: number, d2: number): void => {
+        if (__DEV__) lastPickNodes++;
+        if (!canVisitNode(n, d2)) return;
         const t = n * 5, left = ni[t]!;
         if (left < 0) {
           const lo = ~left, hi = ni[t + 1]!;
@@ -767,18 +715,12 @@ export function createCartesianLookup(
           return;
         }
         const right = ni[t + 1]!;
-        const ld2 = boxDist2(left), rd2 = boxDist2(right);
+        const ld2 = boxDistance(left, true), rd2 = boxDistance(right, true);
         const first = ld2 < rd2 || (ld2 === rd2 && preferFirst(left, right));
-        const a = first ? left : right, b = first ? right : left, ad = first ? ld2 : rd2, bd = first ? rd2 : ld2;
-        if (__DEV__) lastPickNodes++;
-        if (canVisitNode(a, ad)) search(a);
-        if (__DEV__) lastPickNodes++;
-        if (canVisitNode(b, bd)) search(b);
+        if (first) { search(left, ld2); search(right, rd2); }
+        else { search(right, rd2); search(left, ld2); }
       };
-
-      if (__DEV__) lastPickNodes++;
-      const d2 = boxDist2(root);
-      if (canVisitNode(root, d2)) search(root);
+      search(root, boxDistance(root, true));
     }
 
     if (bestSeries >= 0) return [bestSeries, bestSlot, pointBox(bestX, bestY), bestRep];
@@ -794,10 +736,10 @@ export function createCartesianLookup(
     }
     if (fuzzyBar >= 0) return [fuzzyBar, slotIndex];
 
-    if (hasCompoundVisible) {
+    if (compounds.length) {
       let bestCompound: readonly [number, number] | null = null, bestCompoundDist = Infinity;
-      for (let k = visible.length - 1; k >= 0; k--) {
-        const sIdx = visible[k]!;
+      for (let k = compounds.length - 1; k >= 0; k--) {
+        const sIdx = compounds[k]!;
         const hit = compoundHit(sIdx, slotIndex, xPx, yPx);
         if (!hit) continue;
         if (hit[1] === 0) return [sIdx, hit[0]];
@@ -833,7 +775,7 @@ export function createCartesianLookup(
       if (target.kind !== 'x' || n <= 0 || slotForX(target.x) < 0) return [];
       const out: DatumRef[] = [];
       for (let k = Math.max(0, from), stop = Math.min(visible.length, from + n); k < stop; k++) {
-        out.push({ kind: 'aligned', seriesKey: series[visible[k]!]!.key, x: target.x });
+        out.push(aligned(visible[k]!, target.x));
       }
       return out;
     },
@@ -848,7 +790,7 @@ export function createCartesianLookup(
       const i = slotForX(target.x);
       if (i < 0) return null;
       const preferred = i === lastPickedSlot && lastPickedSeries >= 0 && visible.includes(lastPickedSeries) ? lastPickedSeries : visible[0]!;
-      return { kind: 'aligned', seriesKey: series[preferred]!.key, x: target.x };
+      return aligned(preferred, target.x);
     },
     tooltip(target: PickTarget): TooltipModel {
       if (target.kind === 'point') {
@@ -857,8 +799,7 @@ export function createCartesianLookup(
       }
       const i = target.kind === 'x' ? slotForX(target.x) : -1;
       if (i < 0) return { title: '', rows: [], count: 0, total: null };
-      const rows: DatumText[] = [];
-      for (let k = 0, shown = Math.min(visible.length, TOOLTIP_LIMIT); k < shown; k++) rows.push(datumText(visible[k]!, i));
+      const rows = visible.slice(0, TOOLTIP_LIMIT).map(s => datumText(s, i));
       return { title: formatters.x((target as { x: number }).x), rows, count: visible.length, total: stackTotalText(view, stacks, i, formatters, messages) };
     },
     datum(ref: DatumRef): DatumText | null {
@@ -893,8 +834,7 @@ export function createCartesianLookup(
       // A point whose row is gone or whose series is hidden: the x it was at, if that is still in view.
       if (ref.kind === 'point') return pointAt(ref) && visible.includes(seriesIndex(ref.seriesKey)) ? ref : lookup.primary({ kind: 'x', x: ref.x });
       if (ref.kind !== 'aligned') return null;
-      const sIdx = seriesIndex(ref.seriesKey);
-      return sIdx >= 0 && visible.includes(sIdx) && slotForX(ref.x) >= 0 ? ref : null;
+      return visible.includes(seriesIndex(ref.seriesKey)) && slotForX(ref.x) >= 0 ? ref : null;
     },
     ordinal(ref: DatumRef): number {
       return lookup.resolve(ref) ? slotForX((ref as { x: number }).x) - start : -1;
@@ -902,20 +842,20 @@ export function createCartesianLookup(
     step(from: DatumRef | null, direction: StepDirection): DatumRef | null {
       if (!count || !visible.length) return null;
       // The keyboard moves by x: a point at a repeated x steps from its x in its series.
-      if (from?.kind === 'point') from = { kind: 'aligned', seriesKey: from.seriesKey, x: from.x };
-      if (!from) return { kind: 'aligned', seriesKey: series[visible[0]!]!.key, x: vals[start]! };
-      if (!lookup.resolve(from) || from.kind !== 'aligned') return null;
+      if (!from) return aligned(visible[0]!, vals[start]!);
+      if (from.kind === 'slice') return null;
       const sIdx = seriesIndex(from.seriesKey), at = slotForX(from.x);
+      if (at < 0 || !visible.includes(sIdx)) return null;
       if (direction === 'series-next' || direction === 'series-previous') {
         const next = visible[visible.indexOf(sIdx) + (direction === 'series-next' ? 1 : -1)];
-        return next === undefined ? null : { kind: 'aligned', seriesKey: series[next]!.key, x: from.x };
+        return next === undefined ? null : aligned(next, from.x);
       }
       const page = Math.max(1, Math.round(count / 10));
       // A resolved `at` lies in [start, end), so clamping the moved slot matches each direction's own bound.
       const to = direction === 'first' ? start : direction === 'last' ? end - 1 : clamp(at + (
         direction === 'next' ? 1 : direction === 'previous' ? -1 : direction === 'page-next' ? page : direction === 'page-previous' ? -page : 0
       ), start, end - 1);
-      return to === at ? null : { kind: 'aligned', seriesKey: series[sIdx]!.key, x: vals[to]! };
+      return to === at ? null : aligned(sIdx, vals[to]!);
     },
   };
   // The exact value of a point ref, for the hover and select payload (core/controller-helpers.ts pointForDatum).
