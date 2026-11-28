@@ -5,6 +5,7 @@ import type { Span } from './stages';
 import type { ChartHandle, Probe, StageCounter } from './instrument';
 import type { ControllerActions, ControllerCore, Host, Invalidate, Size } from './controller-types';
 import { SYNC, type SyncResolve } from './peer';
+import { EXPORT, register, type ExportSeam } from '../export/contract';
 import { pointForDatum, positionValue, themeKeys } from './controller-helpers';
 
 /**
@@ -72,6 +73,21 @@ export class Handle implements ChartHandle {
         },
       },
     });
+    // The read-only capability for axylo/export (export/contract.ts), a separate object. The renderer's
+    // element is the plot's surface: its parent is the plot and its figure the chart's, so a family whose
+    // plot is not an SVG registers the same way. Reading through the host avoids retaining either element
+    // through a handle kept after destruction. While a frame runs, the live figure may already show the next
+    // caption, legend and note over the last committed marks (an author formatter can run in between), so the
+    // plot is absent until the frame ends. The figure (what a container lookup finds) and the committed table stay.
+    const plot = () => (c.host.renderer as { element?: Element }).element?.parentElement ?? null;
+    const seam: ExportSeam = Object.freeze({
+      get table() { return c.drawn?.reader.table ?? null; },
+      get plot() { return c.inFrame ? null : c.drawn && plot(); },
+      get figure() { return c.drawn && plot()?.closest?.('figure') || null; },
+    });
+    Object.defineProperty(this, EXPORT, { value: seam });
+    const unregister = register(seam, plot()?.closest?.('figure'));
+    if (unregister) (c.disposers ??= new Set()).add(unregister);
   }
   get update(): (patch: unknown) => void {
     return own(this, 'update', (patch: unknown): void => { this.#c.update(patch); });
