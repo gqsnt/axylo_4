@@ -16,9 +16,9 @@ export class DiagnosticCollector implements DiagnosticSink {
     if (!first) {
       const context = diagnosticContext(diagnostic);
       const unique = rows === undefined ? undefined : [...new Set(rows)].slice(0, 10);
-      const copy = unique?.length !== rows?.length && context
-        ? createDiagnostic(code as DiagnosticCode, effect, { ...context, field, rows: unique, count: count ?? rows?.length }, diagnostic.origin)
-        : unique?.length !== rows?.length ? { ...diagnostic, rows: unique, count: count ?? rows?.length } : diagnostic;
+      const copy = unique?.length === rows?.length ? diagnostic
+        : context ? createDiagnostic(code as DiagnosticCode, effect, { ...context, field, rows: unique, count: count ?? rows?.length }, diagnostic.origin)
+        : { ...diagnostic, rows: unique, count: count ?? rows?.length };
       this.entries.set(key, copy);
       return;
     }

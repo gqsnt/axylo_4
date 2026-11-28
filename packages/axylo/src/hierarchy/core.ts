@@ -3,11 +3,10 @@
  * `validateTreemap` / `validateSunburst` run the same `prepare`, so a validation in Node reports exactly what a
  * created chart reports for the same call.
  */
-import type { DiagnosticInput } from '../core/contracts';
+import type { DiagnosticInput, DiagnosticSink } from '../core/contracts';
 import type { Diagnostic } from '../public';
 import type { NumberFormatOption } from '../format/number';
-import { DiagnosticCollector } from '../diagnostics/collector';
-import { createDiagnostic } from '../diagnostics/registry';
+import { AX140, AX150, AX160, fieldDiagnostic } from '../diagnostics/registry';
 import { strictViolations } from '../core/delivery';
 import { buildHierarchy, type HierarchyData, type HierarchyModel } from './tree';
 import {
@@ -75,9 +74,13 @@ export function prepare(
   defaultLocale: string,
   presentation: (d: DiagnosticInput) => void = () => {},
 ): Prepared {
-  const sink = new DiagnosticCollector();
+  // A list, not DiagnosticCollector: every finding of one call has its own code, field and effect (each
+  // unknown key once, AX191 per field, AX190 per effect) with rows already deduplicated, so there is nothing
+  // to merge, and the collector would carry the whole diagnostic table into this subpath (it reformats by code).
+  const inputs: DiagnosticInput[] = [];
+  const sink: DiagnosticSink = { add: d => { inputs.push(d); } };
   for (const key of Object.keys(raw)) {
-    if (!KNOWN.has(key)) sink.add(createDiagnostic('AX150', 'none', { field: key }));
+    if (!KNOWN.has(key)) sink.add(fieldDiagnostic('AX150', AX150, 'none', key));
   }
   const overrides = raw.messages !== null && typeof raw.messages === 'object' ? raw.messages as Partial<HierarchyMessages> : {};
   const messages: HierarchyMessages = { ...DEFAULT_HIERARCHY_MESSAGES };
@@ -88,7 +91,7 @@ export function prepare(
   const title = titleOf(raw);
   const typeName = type === 'treemap' ? messages.typeTreemap : messages.typeSunburst;
   const labelledBy = typeof raw.labelledBy === 'string' && raw.labelledBy ? raw.labelledBy : null;
-  if (!title && !labelledBy) sink.add(createDiagnostic('AX140', 'none'));
+  if (!title && !labelledBy) sink.add(fieldDiagnostic('AX140', AX140, 'none'));
   const name = title ? title.text : fill(messages.chartName, { type: typeName });
   const rootLabel = typeof raw.rootLabel === 'string' && raw.rootLabel ? raw.rootLabel : title?.text ?? 'All';
   const model = buildHierarchy(raw.data, rootLabel, sink);
@@ -98,9 +101,8 @@ export function prepare(
   const reader = createHierarchyReader(model, messages, locale, valueOptions, typeName, name, () => {
     if (formatFailed) return;
     formatFailed = true;
-    presentation(createDiagnostic('AX160', 'changed', { field }, 'presentation'));
+    presentation(fieldDiagnostic('AX160', AX160, 'changed', field, 'presentation'));
   });
-  const inputs = sink.inputs();
   const diagnostics = inputs.map(({ effect: _e, origin: _o, ...d }) => ({ ...d, chart: name }));
   const rejected = raw.strict === true && strictViolations(inputs).length > 0;
   const note = noteFor(messages, inputs);

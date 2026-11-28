@@ -37,7 +37,7 @@ const series = (names?: readonly string[]) => names?.length ? ' in series ' + na
 
 /**
  * A code's level, its message and the default outcome sentence that follows it. Plain data: building the
- * table at import time would keep a bundler from dropping the module (message() puts the parts together).
+ * table at import time would keep a bundler from dropping the module (createDiagnostic puts the parts together).
  */
 type Entry = {
   readonly level: Diagnostic['level'];
@@ -45,10 +45,18 @@ type Entry = {
   readonly outcome: string | ((details: DiagnosticDetails) => string);
 };
 
-function message(entry: Entry, details: DiagnosticDetails): string {
-  const { outcome } = entry;
-  return entry.text(details) + ' ' + (details.outcome ?? (typeof outcome === 'string' ? outcome : outcome(details)));
-}
+// The entries that a subpath without the rest of the table reports (axylo/hierarchy, through
+// `fieldDiagnostic`) are declared on their own, so its bundle keeps only them. The others stay in the table:
+// a declaration each would only add bytes to the bundles that carry the whole table.
+export const AX140 = { level: 'warning', text: () =>
+    'The chart has no title or labelledBy. Set one to give it a descriptive name.',
+  outcome: 'The chart uses a generated name.' } as const satisfies Entry,
+  AX160 = { level: 'warning', text: d =>
+    field(d) + ' has a custom formatter that threw' + rows(d) + '. Make the formatter handle every value of this field.',
+  outcome: 'The default format is used for the affected value.' } as const satisfies Entry,
+  AX150 = { level: 'warning', text: d =>
+    'Option ' + quote(d.field ?? '') + ' is unsupported. ' + (d.detail ?? 'Use an option supported by this chart.') + suggestion(d),
+  outcome: 'The option is ignored.' } as const satisfies Entry;
 
 export const diagnosticRegistry = {
   AX100: { level: E, text: d =>
@@ -59,9 +67,9 @@ export const diagnosticRegistry = {
     (d.keys?.length ? d.keys.map(quote).join(', ') : '(none)') + '.' + suggestion(d) + ' Use an available field or add the field to the data.',
   outcome: chartError },
   AX102: { level: W, text: d =>
-    (d.outcome === 'The affected row is not drawn.'
-      ? field(d) + ' is absent' + rows(d) + ', affecting ' + count(d, 'value')
-      : field(d) + ' is absent in ' + count(d, 'record') + rows(d)) +
+    field(d) + ' is absent' + (d.outcome === 'The affected row is not drawn.'
+      ? rows(d) + ', affecting ' + count(d, 'value')
+      : ' in ' + count(d, 'record') + rows(d)) +
     '. Supply the field and send null if the value is known to be missing.',
   outcome: asGaps },
   AX103: { level: W, text: d =>
@@ -74,16 +82,13 @@ export const diagnosticRegistry = {
     field(d) + ' is missing ' + count(d, 'expected step') + series(d.series) + samples(d) +
     '. Supply observations for those positions or explicit nulls to mark gaps.',
   outcome: d => {
-    const outcomes = [];
-    const regular = d.series?.some(name => !d.sparseSeries?.includes(name) && !d.zeroSeries?.includes(name));
-    if (regular || !d.sparseSeries?.length && d.zeroSeries === undefined) outcomes.push(asGaps);
-    if (d.zeroSeries !== undefined) {
-      outcomes.push(regular || d.sparseSeries?.length ? 'Absent steps' + series(d.zeroSeries) + ' are shown as zeros.' : 'Shown as zeros.');
-    }
-    if (d.sparseSeries?.length) {
-      outcomes.push('The data' + series(d.sparseSeries) + ' was too sparse to show its absent steps as gaps.');
-    }
-    return outcomes.join(' ');
+    const { sparseSeries: sparse, zeroSeries: zero } = d;
+    const regular = d.series?.some(name => !sparse?.includes(name) && !zero?.includes(name));
+    return [
+      (regular || !sparse?.length && zero === undefined) && asGaps,
+      zero !== undefined && (regular || sparse?.length ? 'Absent steps' + series(zero) + ' are shown as zeros.' : 'Shown as zeros.'),
+      sparse?.length && 'The data' + series(sparse) + ' was too sparse to show its absent steps as gaps.',
+    ].filter(Boolean).join(' ');
   } },
   AX106: { level: W, text: d =>
     issue(d, 'value that cannot be plotted as a number', 'values that cannot be plotted as numbers') +
@@ -96,7 +101,7 @@ export const diagnosticRegistry = {
   AX108: { level: E, text: d =>
     has(d, 'duplicate') + series(d.series) + rows(d) + samples(d) +
     '. Provide one row per x and series, or one row per donut label.',
-  outcome: d => d.series && d.series.length > 1 ? 'The affected series are not drawn.' : 'The affected series is not drawn.' },
+  outcome: d => 'The affected series ' + (d.series && d.series.length > 1 ? 'are' : 'is') + ' not drawn.' },
   AX109: { level: H, text: d =>
     has(d, 'numeric timestamp') + rows(d) + '. ' +
     (d.detail ?? 'Set type: \'time\' for instants and supply epoch milliseconds.'),
@@ -132,9 +137,7 @@ export const diagnosticRegistry = {
   AX134: { level: E, text: d =>
     (d.detail ?? 'The aligned frame exceeds 20,000,000 slots.') + ' Use fewer series or choose a scatter chart.',
   outcome: chartError },
-  AX140: { level: W, text: () =>
-    'The chart has no title or labelledBy. Set one to give it a descriptive name.',
-  outcome: 'The chart uses a generated name.' },
+  AX140,
   AX141: { level: W, text: () =>
     'The chart palette has less than 3:1 contrast against the background. Adjust the colors or background to reach 3:1.',
   outcome: 'The chart is drawn as themed.' },
@@ -146,18 +149,14 @@ export const diagnosticRegistry = {
     (d.chartType === 'bar' && d.xKind === 'category' && d.horizontal !== true
       ? ' For vertical bars with category labels, try horizontal bars (horizontal: true).' : ''),
   outcome: 'The chart shows a note that labels were hidden.' },
-  AX150: { level: W, text: d =>
-    'Option ' + quote(d.field ?? '') + ' is unsupported. ' + (d.detail ?? 'Use an option supported by this chart.') + suggestion(d),
-  outcome: 'The option is ignored.' },
+  AX150,
   AX151: { level: W, text: d =>
     field(d) + ' has out-of-order append values' + rows(d) + '. Append rows in x order at or after the last x.',
   outcome: 'The rows are accepted through a full update.' },
   AX152: { level: W, text: d =>
     'Option ' + quote(d.field ?? 'x.timeZone') + ' has an unknown time zone' + samples(d) + '. Supply a zone recognized by Intl.',
   outcome: 'The viewer’s time zone is used.' },
-  AX160: { level: W, text: d =>
-    field(d) + ' has a custom formatter that threw' + rows(d) + '. Make the formatter handle every value of this field.',
-  outcome: 'The default format is used for the affected value.' },
+  AX160,
   AX199: { level: E, text: () =>
     'Axylo failed while building this chart: an error was thrown, printed above. If it comes from your code (a row getter, a callback), fix it there; otherwise it is a defect in Axylo: please report it with that error.',
   outcome: chartError },
@@ -180,21 +179,44 @@ export function createDiagnostic(
 ): DiagnosticInput {
   const { field, rows, count = rows?.length, ...context } = details;
   const firstRows = rows === undefined ? undefined : [...new Set(rows)].slice(0, 10);
-  const outcome = context.outcome ?? (
+  const all = { field, rows: firstRows, count, ...context, outcome: context.outcome ?? (
     code === 'AX102' && effect === 'changed' ? 'Shown as zeros.'
       : code === 'AX108' && effect === 'chart-error' ? 'The donut is not drawn.'
       : code === 'AX150' && effect === 'chart-error' ? chartError
       : undefined
-  );
-  const entry = diagnosticRegistry[code];
+  ) };
+  const entry: Entry = diagnosticRegistry[code];
+  // A replaced descriptor is read as the table always read it: level, outcome, then text called on the entry;
+  // details.outcome is read after text, so a formatter that sets it is honoured.
+  const { level, outcome: fallback } = entry;
   const diagnostic: DiagnosticInput = {
-    code, level: entry.level, effect: code === 'AX105' ? 'none' : effect, origin,
-    message: message(entry, { field, rows: firstRows, count, ...context, outcome }),
-    ...(field === undefined ? {} : { field }),
-    ...(firstRows === undefined ? {} : { rows: firstRows }),
-    ...(count === undefined ? {} : { count }),
+    code, level, effect: code === 'AX105' ? 'none' : effect, origin,
+    message: entry.text(all) + ' ' + (all.outcome ?? (typeof fallback === 'string' ? fallback : fallback(all))),
+    // Spreading `false` adds nothing.
+    ...field !== undefined && { field },
+    ...firstRows !== undefined && { rows: firstRows },
+    ...count !== undefined && { count },
   };
   contexts.set(diagnostic, context);
+  return diagnostic;
+}
+
+/**
+ * `createDiagnostic` for an entry that a caller imports by name (its bundle then carries only that entry, not
+ * the table) and whose message reads at most a field: no rows, counts, examples or context, and an outcome
+ * that is one fixed sentence (AX140, AX150 and AX160 without an error effect). Same diagnostic, same context.
+ */
+export function fieldDiagnostic(
+  code: DiagnosticCode,
+  entry: { readonly level: Diagnostic['level']; readonly text: (details: DiagnosticDetails) => string; readonly outcome: string },
+  effect: DiagnosticEffect,
+  field?: string,
+  origin: DiagnosticInput['origin'] = 'call',
+): DiagnosticInput {
+  const diagnostic: DiagnosticInput = {
+    code, level: entry.level, effect, origin, message: entry.text({ field }) + ' ' + entry.outcome, ...field !== undefined && { field },
+  };
+  contexts.set(diagnostic, {});
   return diagnostic;
 }
 

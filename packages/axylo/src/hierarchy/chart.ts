@@ -699,16 +699,13 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
     if (target !== tablePage) { tablePage = target; change(TABLE); }
   });
   const onPrevious = turn(-1), onNext = turn(1);
-  plot.addEventListener('pointermove', onMove);
-  plot.addEventListener('pointerdown', onDown);
-  plot.addEventListener('pointerleave', onLeave);
-  plot.addEventListener('click', onClick);
-  plot.addEventListener('keydown', onKey);
-  plot.addEventListener('focus', onFocus);
-  plot.addEventListener('blur', onBlur);
-  toggle.addEventListener('click', onToggle);
-  previous.addEventListener('click', onPrevious);
-  next.addEventListener('click', onNext);
+  // One list for adding and removing, in the same order as before.
+  const wiring: readonly (readonly [HTMLElement, string, EventListener])[] = [
+    [plot, 'pointermove', onMove as EventListener], [plot, 'pointerdown', onDown], [plot, 'pointerleave', onLeave],
+    [plot, 'click', onClick as EventListener], [plot, 'keydown', onKey as EventListener], [plot, 'focus', onFocus],
+    [plot, 'blur', onBlur], [toggle, 'click', onToggle], [previous, 'click', onPrevious], [next, 'click', onNext],
+  ];
+  for (const [target, name, listener] of wiring) target.addEventListener(name, listener);
   let observer: ResizeObserver | null = null;
   if (win && typeof win.ResizeObserver === 'function') {
     let last = '';
@@ -826,16 +823,7 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
       dirty = 0;
       queue.length = 0;
       observer?.disconnect();
-      plot.removeEventListener('pointermove', onMove);
-      plot.removeEventListener('pointerdown', onDown);
-      plot.removeEventListener('pointerleave', onLeave);
-      plot.removeEventListener('click', onClick);
-      plot.removeEventListener('keydown', onKey);
-      plot.removeEventListener('focus', onFocus);
-      plot.removeEventListener('blur', onBlur);
-      toggle.removeEventListener('click', onToggle);
-      previous.removeEventListener('click', onPrevious);
-      next.removeEventListener('click', onNext);
+      for (const [target, name, listener] of wiring) target.removeEventListener(name, listener);
       listeners.clear();
       unregister?.();
       shown = null;
