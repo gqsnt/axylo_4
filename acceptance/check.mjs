@@ -86,6 +86,8 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }, sizeTarg
   const errors = [];
   const seen = new Set();
   const sources = new Map();
+  // Test citations that passed checkReference: F3 counts diagnostic codes only from these.
+  const validated = new WeakSet();
   function source(file) {
     if (!isText(file) || isAbsolute(file) || relative(root, resolve(root, file)).split(sep)[0] === '..') {
       throw new Error(`expected a repository-relative file: ${file}`);
@@ -185,6 +187,7 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }, sizeTarg
         for (const reference of value) {
           try {
             checkReference(reference, key === 'weak', `${id}/${type}`);
+            validated.add(reference);
           } catch (error) {
             errors.push(`${id}/${type}: ${error.message}`);
           }
@@ -195,7 +198,11 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }, sizeTarg
   const registry = matrix.find(row => row.id === 'F3');
   if (registry) {
     const tests = [...Object.values(registry.evidence ?? {}).flat(), ...Object.values(registry.weak ?? {}).flat()];
-    const cited = new Set(tests.filter(ref => testKinds.includes(ref.kind)).flatMap(ref => ref.title?.match(/\bAX\d+\b/g) ?? []));
+    // A code counts when the validated citation's own title, an exact suite ancestor, or its describe prefix names it:
+    // a table-driven suite (it.each) or a suite-scoped test can name its code in the suite title rather than the case.
+    const named = ref => [ref.title, ...(Array.isArray(ref.ancestors) ? ref.ancestors : []), ref.prefix].filter(isText);
+    const cited = new Set(tests.filter(ref => testKinds.includes(ref.kind) && validated.has(ref))
+      .flatMap(ref => named(ref).flatMap(text => text.match(/\bAX\d+\b/g) ?? [])));
     for (const code of diagnosticCodes) if (!cited.has(code)) errors.push(`F3: missing diagnostic test citation for ${code}`);
   }
   for (const id of expected.keys()) if (!seen.has(id)) errors.push(`missing criterion ID: ${id}`);

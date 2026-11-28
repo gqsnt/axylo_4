@@ -1091,6 +1091,55 @@
           "kind": "unit",
           "file": "packages/axylo/test/finance/c6-3-finance.test.ts",
           "title": "validates OHLC envelope (AX180) and negative volume (AX181) without DOM and omits only offending marks"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/heatmap/normalize.test.ts",
+          "title": "AX182: duplicate cells keep the first row, count every later one, sample their rows (capped at 10)"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/heatmap/normalize.test.ts",
+          "title": "AX183: invalid values with count and rows; rows with an unusable key separately"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/heatmap/normalize.test.ts",
+          "title": "AX184: an unusable domain or midpoint is a warning; the data range is used instead"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/heatmap/lifecycle.test.ts",
+          "title": "is reported (never thrown) when cells fall under 1 CSS px, and cleared when they fit again",
+          "ancestors": [
+            "render-time AX185"
+          ]
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/heatmap/normalize.test.ts",
+          "title": "AX186: more than 50,000 cells is a hint; exactly 50,000 is not"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/bubble/bubble.test.ts",
+          "title": "AX187: negative and non-finite sizes are omitted with the exact count and source rows, rows kept in the table"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/spatial/bubble/bubble.test.ts",
+          "title": "AX188 only when every size is zero; AX189 only above 10,000 sized bubbles"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/hierarchy/tree.test.ts",
+          "title": "AX190 names `value` with the caller rows; flat AX191 names `parent` for orphans and cycles and `id` for duplicates"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/hierarchy/tree.test.ts",
+          "prefix": "AX192: nothing to draw",
+          "atLeast": 4
         }
       ],
       "area": [
@@ -12187,14 +12236,6 @@
           "kind": "browser",
           "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
           "title": "a destroyed handle that the page keeps retains neither the data nor the figure"
-        },
-        {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "DX5 and P7: heap over 2,500 create–destroy cycles",
-          "history": [
-            "bench/history/20261122T055744Z-lifecycle-trend-c2500-aa-axylo-17cb.json"
-          ]
         }
       ],
       "area": [
@@ -12346,15 +12387,21 @@
           "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
           "title": "objects other than compiled code do not grow from cycle 300 to cycle 1,000",
           "reason": "In Chrome, line charts of the trend fixture: heap objects other than compiled code grow by less than 64 KiB between cycle 300 and cycle 1,000, after forced collection. A fixed allowance between two snapshots, not a slope and not P7's measurement."
+        },
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "DX5 and P7 · heap over 2,500 create–destroy cycles of a line chart of the trend fixture: 0.893% / 0.895% median growth between the checkpoint windows, 0 of 40 runs above 1%, zero listener, observer and DOM-node deltas. A/A run, 20 complete pairs, load 0.70–2.86. Record 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e."
         }
       ]
     },
     "gaps": {
-      "area": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node.",
-      "bar": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node.",
-      "scatter": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node.",
-      "donut": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node.",
-      "compact": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node."
+      "area": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node. The 2,500-cycle create–destroy heap benchmark in bench/results/budgets-2026-11-28.md uses line charts only; this type has no lifecycle benchmark.",
+      "bar": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node. The 2,500-cycle create–destroy heap benchmark in bench/results/budgets-2026-11-28.md uses line charts only; this type has no lifecycle benchmark.",
+      "scatter": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node. The 2,500-cycle create–destroy heap benchmark in bench/results/budgets-2026-11-28.md uses line charts only; this type has no lifecycle benchmark.",
+      "donut": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node. The 2,500-cycle create–destroy heap benchmark in bench/results/budgets-2026-11-28.md uses line charts only; this type has no lifecycle benchmark.",
+      "compact": "In a browser, the one-turn sequence, the rejected strict update and what destroy() releases (the element, listeners, observers, kept data) are checked on line only (lifecycle.browser.test.ts); for this type they are checked only through the controller in Node. The 2,500-cycle create–destroy heap benchmark in bench/results/budgets-2026-11-28.md uses line charts only; this type has no lifecycle benchmark.",
+      "line": "What destroy() releases is checked by the automated unit and Chrome tests cited here; the heap over 2,500 create–destroy cycles (P7-lifecycle, 0.893% / 0.895% median growth, 0 of 40 runs above 1%, record 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) is backed by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md, reviewed as a document rather than a Vitest assertion."
     },
     "limits": {
       "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The browser tests use the development build and read its stage counters. The sequence, strict and destroy tests for this type run through the controller with a recording host in Node: \"switch together\" is asserted on the committed frame (scene, text layer, hit-testing lookup, reader model), not on the rendered page.",
@@ -12363,14 +12410,6 @@
       "scatter": "The sequence, strict and destroy tests for this type run through the controller with a recording host in Node: \"switch together\" is asserted on the committed frame (scene, text layer, hit-testing lookup, reader model), not on the rendered page.",
       "donut": "The sequence, strict and destroy tests for this type run through the controller with a recording host in Node: \"switch together\" is asserted on the committed frame (scene, text layer, hit-testing lookup, reader model), not on the rendered page. For donut the text layer is not compared.",
       "compact": "The sequence, strict and destroy tests for this type run through the controller with a recording host in Node: \"switch together\" is asserted on the committed frame (scene, text layer, hit-testing lookup, reader model), not on the rendered page. A compact chart has no zoom, text layer or hit testing (spec 3.7), so its test checks the marks and the summary; it runs compact line, area and bar."
-    },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 1.169% and 1.168% median heap growth across the two sides. 40 of 40 runs crossed the 1% gate. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
-      "area": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "bar": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "scatter": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "donut": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "compact": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
     }
   },
   {
@@ -14398,7 +14437,7 @@
   },
   {
     "id": "P1",
-    "statement": "trend (3×120) with default options on the reference desktop: main-thread task time from the call until the chart is complete, median of 20 runs, at most 10 ms (provisional).",
+    "statement": "trend (3×120) with default options on the reference desktop: main-thread task time from the call until the chart is complete, median of 20 runs, at most 25 ms (1.0 release gate, owner decision 2026-11-27; 10 ms retained as post-1.0 stretch target).",
     "appliesTo": [
       "line"
     ],
@@ -14409,20 +14448,18 @@
       "donut": "P1's workload is the trend fixture created as one line chart (spec 5; plan W-first, \"create one line chart\").",
       "compact": "P1 times the full trend line chart; compact tiles are P8's workload."
     },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 27.40 ms against 10 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "line": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P1: one trend chart",
-          "history": [
-            "bench/history/20261122T052521Z-first-trend-uplot-vs-axylo-82c9.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P1 · 19.31 ms median main-thread task time over 20 complete pairs (uPlot 7.95 ms in the same runs) against the 25 ms 1.0 gate: met by 5.69 ms. The 10 ms stretch target is missed by 9.31 ms. One-minute load 0.87–1.51. Record 20261128T081611Z-first-trend-uplot-vs-axylo-970b."
         }
       ]
+    },
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (record 20261128T081611Z-first-trend-uplot-vs-axylo-970b, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark record."
     }
   },
   {
@@ -14438,28 +14475,18 @@
       "donut": "P2's workload is the plan's W-first, one line chart (docs/04-plan-performance.md, section 2).",
       "compact": "P2 times a full line chart; compact tiles are P8's workload."
     },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 39.64 ms against 60 ms and 79.81 ms against 250 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "line": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P2: 100,000-point line",
-          "history": [
-            "bench/history/20261122T052757Z-first-1x100000-uplot-vs-axylo-a5e1.json"
-          ]
-        },
-        {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P2: 1,000,000-point line",
-          "history": [
-            "bench/history/20261122T052913Z-first-1x1000000-uplot-vs-axylo-6ba2.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P2 · 100,000 points: 21.88 ms median task time (uPlot 11.15 ms) against 60 ms, met by 38.12 ms, load 1.67–2.21, record 20261128T085620Z-first-1x100000-uplot-vs-axylo-7655. 1,000,000 points: 27.72 ms (uPlot 19.71 ms) against 250 ms, met by 222.28 ms, load 1.45–1.93, record 20261128T085736Z-first-1x1000000-uplot-vs-axylo-5427. 20 complete pairs each."
         }
       ]
+    },
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (records 20261128T085620Z-first-1x100000-uplot-vs-axylo-7655 and 20261128T085736Z-first-1x1000000-uplot-vs-axylo-5427, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark records."
     }
   },
   {
@@ -14474,25 +14501,58 @@
       "compact"
     ],
     "notApplicable": {},
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 1.282 and 1.270 ms per update on the two sides against 2 ms. See the late-frame count in the budget report. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
-      "area": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "bar": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "scatter": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "donut": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "compact": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "line": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P3: 300 streaming updates, 600-point window",
-          "history": [
-            "bench/history/20261122T053911Z-stream-w600-aa-axylo-9d45.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P3 · A/A run, 20 complete pairs: 1.048 / 1.020 ms median task time per update against 2 ms (met by 0.952 ms on the slower side), and 0 of 40 runs had a frame interval later than 25 ms among their 300 intervals. Load 1.21–2.16. Record 20261128T085901Z-stream-w600-aa-axylo-4136."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P3 for line charts only (record 20261128T085901Z-stream-w600-aa-axylo-4136); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P3 for line charts only (record 20261128T085901Z-stream-w600-aa-axylo-4136); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P3 for line charts only (record 20261128T085901Z-stream-w600-aa-axylo-4136); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P3 for line charts only (record 20261128T085901Z-stream-w600-aa-axylo-4136); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P3 for line charts only (record 20261128T085901Z-stream-w600-aa-axylo-4136); it is cited for the workload's method and result, not as a measurement of this chart type."
         }
       ]
+    },
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (record 20261128T085901Z-stream-w600-aa-axylo-4136, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark record.",
+      "area": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T085901Z-stream-w600-aa-axylo-4136) with no separate per-type benchmark run: no P3 measurement of this chart type exists.",
+      "bar": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T085901Z-stream-w600-aa-axylo-4136) with no separate per-type benchmark run: no P3 measurement of this chart type exists.",
+      "scatter": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T085901Z-stream-w600-aa-axylo-4136) with no separate per-type benchmark run: no P3 measurement of this chart type exists.",
+      "donut": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T085901Z-stream-w600-aa-axylo-4136) with no separate per-type benchmark run: no P3 measurement of this chart type exists.",
+      "compact": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T085901Z-stream-w600-aa-axylo-4136) with no separate per-type benchmark run: no P3 measurement of this chart type exists."
     }
   },
   {
@@ -14508,23 +14568,42 @@
       "donut": "P4's workload is a pointer moved across 100,000 drawn, pickable points. A donut draws at most eight slices (seven plus \"Other\", F8), so it has no such workload; a donut given 100,000 categories is a different workload (grouped at build time, eight pickable slices), which P4 does not name and the harness does not measure.",
       "compact": "A compact chart has no tooltip or readout (spec 3.7), so there is no readout frame to time."
     },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 16.10 ms for the median of the per-run p95 values, against 16.7 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
-      "area": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "bar": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "scatter": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "line": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P4: 200 moves across a 100,000-point line",
-          "history": [
-            "bench/history/20261122T054355Z-hover-1x100000-uplot-vs-axylo-fb2a.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P4 · 16.00 ms median of the per-run 95th-percentile input-to-readout time over 200 moves (uPlot 15.90 ms) against 16.7 ms: met by 0.70 ms. 0 missed moves. 20 complete pairs, load 1.32–2.38. Record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P4 for line charts only (record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P4 for line charts only (record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P4 for line charts only (record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf); it is cited for the workload's method and result, not as a measurement of this chart type."
         }
       ]
+    },
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark record.",
+      "area": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf) with no separate per-type benchmark run: no P4 measurement of this chart type exists.",
+      "bar": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf) with no separate per-type benchmark run: no P4 measurement of this chart type exists.",
+      "scatter": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, record 20261128T090345Z-hover-1x100000-uplot-vs-axylo-2faf) with no separate per-type benchmark run: no P4 measurement of this chart type exists."
     }
   },
   {
@@ -14540,20 +14619,18 @@
       "donut": "P5's workload is 24 trend charts, each a line chart (spec 5; plan W-page, \"24 × trend\").",
       "compact": "P5 times full trend line charts; 40 compact tiles are P8's workload."
     },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 91.67 and 92.18 ms on the two sides against 200 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "line": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P5: 24 trend charts",
-          "history": [
-            "bench/history/20261122T054737Z-page-trend-x24-aa-axylo-104a.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P5 · A/A run, 20 complete pairs: 49.77 / 48.75 ms median total task time for 24 trend charts against 200 ms, met by 150.23 ms on the slower side. Load 1.33–1.84. Record 20261128T090728Z-page-trend-x24-aa-axylo-c109."
         }
       ]
+    },
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (record 20261128T090728Z-page-trend-x24-aa-axylo-c109, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark record."
     }
   },
   {
@@ -14665,39 +14742,60 @@
           "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
           "title": "objects other than compiled code do not grow from cycle 300 to cycle 1,000",
           "reason": "In Chrome, line charts of the trend fixture: heap objects other than compiled code grow by less than 64 KiB between cycle 300 and cycle 1,000, after forced collection. A fixed allowance between two snapshots, not a slope."
+        },
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P7 · owned buffers for 1,000,000 points: 23,304 B / 23,304 B (0.0015 × the caller's 16,000,000 B of columns) against 17,600,000 B, met by 17,576,696 B, load 1.54–2.87, record 20261128T090841Z-mem-1x1000000-aa-axylo-4873. Heap over 2,500 create–destroy cycles: 0.893% / 0.895% median growth between the checkpoint windows against the 1% limit, 0 of 40 runs above 1% (range 0.863%–0.913%), slope about 77.6 B per cycle, zero listener, observer and DOM-node deltas, load 0.70–2.86, record 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e. A/A runs, 20 complete pairs each."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P7 for line charts only (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P7 for line charts only (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P7 for line charts only (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P7 for line charts only (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e); it is cited for the workload's method and result, not as a measurement of this chart type."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "bench/results/budgets-2026-11-28.md reports P7 for line charts only (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e); it is cited for the workload's method and result, not as a measurement of this chart type."
         }
       ]
     },
     "limits": {
       "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The heap tests collect and measure through the Chrome DevTools protocol."
     },
-    "pending": {
-      "line": "Measured on the sealed SVG-only candidate. 1,023,304 B of owned buffers against 17,600,000 B. 1.169% and 1.168% median heap growth across the two sides. 40 of 40 runs crossed the 1% gate. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
-      "area": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "bar": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "scatter": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "donut": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
-      "compact": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
-      "line": [
-        {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P7: owned buffers for a 1,000,000-point line",
-          "history": [
-            "bench/history/20261122T054851Z-mem-1x1000000-aa-axylo-7012.json"
-          ]
-        },
-        {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P7: heap over 2,500 create–destroy cycles",
-          "history": [
-            "bench/history/20261122T055744Z-lifecycle-trend-c2500-aa-axylo-17cb.json"
-          ]
-        }
-      ]
+    "evidence": {},
+    "gaps": {
+      "line": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark records. The Node storage test and the two Chrome heap tests cited here are automated but are not the budget's measurement.",
+      "area": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) with no separate per-type benchmark run: no P7 measurement of this chart type exists.",
+      "bar": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) with no separate per-type benchmark run: no P7 measurement of this chart type exists.",
+      "scatter": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) with no separate per-type benchmark run: no P7 measurement of this chart type exists.",
+      "donut": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) with no separate per-type benchmark run: no P7 measurement of this chart type exists.",
+      "compact": "Benchmarked on the declared line workload (bench/results/budgets-2026-11-28.md, records 20261128T090841Z-mem-1x1000000-aa-axylo-4873 and 20261128T081725Z-lifecycle-trend-c2500-aa-axylo-a05e) with no separate per-type benchmark run: no P7 measurement of this chart type exists."
     }
   },
   {
@@ -14713,20 +14811,18 @@
       "scatter": "Scatter has no compact variant (spec 3.7).",
       "donut": "Donut has no compact variant (spec 3.7)."
     },
-    "pending": {
-      "compact": "Measured on the sealed SVG-only candidate. 70.74 and 68.38 ms on the two sides against 80 ms. This workload uses compact line charts. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
-    },
-    "evidence": {
+    "evidence": {},
+    "weak": {
       "compact": [
         {
-          "kind": "benchmark",
-          "file": "bench/src/decision.js",
-          "workload": "P8: 40 compact line charts",
-          "history": [
-            "bench/history/20261122T052635Z-compact-trend-x40-aa-axylo-1d06.json"
-          ]
+          "kind": "document",
+          "file": "bench/results/budgets-2026-11-28.md",
+          "reason": "P8 · A/A run, 20 complete pairs: 26.64 / 26.25 ms median total task time for 40 compact line charts against 80 ms, met by 53.36 ms on the slower side. Load 1.95–2.67. Record 20261128T091003Z-compact-trend-x40-aa-axylo-2d65."
         }
       ]
+    },
+    "gaps": {
+      "compact": "Verified by the 20-pair sealed Chrome benchmark report bench/results/budgets-2026-11-28.md (record 20261128T091003Z-compact-trend-x40-aa-axylo-2d65, clean sealed artifact 20261128T081603Z-d3663b77-e14c8a (commit d3663b7), headless Chrome 158.0.8127.88, software raster), reviewed as a document rather than a Vitest assertion: the checker neither reruns nor parses the benchmark record. The workload uses compact line charts; compact area and bar tiles are not measured."
     }
   }
 ]
