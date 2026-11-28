@@ -13,11 +13,12 @@ import { check, fixture, fixtureGuard, installed, nodeJson, out, packedJson } fr
 
 const cwd = fixture('npm');
 
+const consumerBuild = (contents: string, extra: Parameters<typeof build>[0] = {}) => build({
+  stdin: { contents, resolveDir: cwd, loader: 'ts' }, absWorkingDir: cwd, bundle: true, minify: true, format: 'esm', target: 'es2022',
+  write: false, conditions: ['production'], logLevel: 'silent', outdir: path.join(out, 'subpaths'), plugins: [fixtureGuard([cwd])], ...extra,
+});
 async function consumer(contents: string, extra: Parameters<typeof build>[0] = {}): Promise<string> {
-  const r = await build({
-    stdin: { contents, resolveDir: cwd, loader: 'ts' }, absWorkingDir: cwd, bundle: true, minify: true, format: 'esm', target: 'es2022',
-    write: false, conditions: ['production'], logLevel: 'silent', outdir: path.join(out, 'subpaths'), plugins: [fixtureGuard([cwd])], ...extra,
-  });
+  const r = await consumerBuild(contents, extra);
   return r.outputFiles?.[0]?.text ?? '';
 }
 const gzip = (text: string) => gzipSync(Buffer.from(text), { level: 9 }).length;
@@ -46,12 +47,9 @@ describe('import for effect, with side-effect hints ignored', () => {
   for (const name of ['spatial', 'hierarchy']) {
     for (const [condition, file] of [['production', `${name}.js`], ['development', `${name}.dev.js`]] as const) {
       it(`"import 'axylo/${name}'" under the ${condition} condition reads dist/${file} and bundles to 0 raw bytes`, async () => {
-        const r = await build({
-          stdin: { contents: `import 'axylo/${name}';`, resolveDir: cwd, loader: 'ts' }, absWorkingDir: cwd, bundle: true, minify: true, format: 'esm',
-          target: 'es2022', write: false, conditions: [condition], ignoreAnnotations: true, metafile: true, logLevel: 'silent',
-          outdir: path.join(out, 'subpaths'), plugins: [fixtureGuard([cwd])],
-        });
-        const inputs = Object.keys(r.metafile.inputs).map(p => fs.realpathSync(path.resolve(cwd, p)));
+        const r = await consumerBuild(`import 'axylo/${name}';`, { conditions: [condition], ignoreAnnotations: true, metafile: true });
+        // The metafile lists the entry itself as the virtual '<stdin>', which has no file to canonicalize.
+        const inputs = Object.keys(r.metafile?.inputs ?? {}).filter(p => p !== '<stdin>').map(p => fs.realpathSync(path.resolve(cwd, p)));
         expect(inputs).toContain(fs.realpathSync(installed('axylo', 'dist', file)));
         expect(r.outputFiles?.[0]?.text.length ?? 0).toBe(0);
       });
@@ -88,14 +86,15 @@ describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/expo
 describe('axylo/spatial and axylo/hierarchy packed sizes stay under caps', () => {
   // W4 integration (docs/progress/w4-wire-ledger.md): measured 142,020 B (spatial, both families with their
   // core) and 21,525 B (hierarchy) gzip-9 from an equivalent workspace build; caps a little above those. After
-  // the review repair: 142,342 B and 21,591 B, under the same caps.
-  it('spatial (<= 142,500 B) and hierarchy (<= 21,600 B) standalone bundles stay under gzip-9 caps', async () => {
+  // the review repair: 142,342 B and 21,591 B, under the same caps. The bubble TableModel.row(-1) fix measured
+  // 142,502 B, so the spatial cap moved to 143,000 B; the hierarchy cap is unchanged.
+  it('spatial (<= 143,000 B) and hierarchy (<= 21,600 B) standalone bundles stay under gzip-9 caps', async () => {
     const spatial = await consumer("export * from 'axylo/spatial';");
     const hierarchy = await consumer("export * from 'axylo/hierarchy';");
     for (const marker of STREAMING_MARKERS) expect(spatial, `axylo/spatial contains ${marker}`).not.toContain(marker);
     const spatialGz = gzip(spatial), hierarchyGz = gzip(hierarchy);
     console.info(`spatial: ${spatialGz} B, hierarchy: ${hierarchyGz} B gzip-9`);
-    expect(spatialGz).toBeLessThanOrEqual(142_500);
+    expect(spatialGz).toBeLessThanOrEqual(143_000);
     expect(hierarchyGz).toBeLessThanOrEqual(21_600);
   });
 });

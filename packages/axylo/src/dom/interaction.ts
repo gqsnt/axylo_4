@@ -7,7 +7,7 @@ import type {
 } from '../core/contracts';
 import type { SyncResolve } from '../core/peer';
 import { sameKey } from '../core/composition';
-import { chartTypeName, fill } from '../messages';
+import { chartTypeName, ENGLISH_TAG, fill } from '../messages';
 import {
   overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedTargetMarks, canZoomIn, datumReading, minimumWidth, panWindow, pinchWidth,
   pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, valueText, PAN_SHARE, ZOOM_FACTOR, positionText,
@@ -434,7 +434,7 @@ class DomInteraction implements Interaction {
     const { view, layout, lookup } = d;
     const visibleRing = this.#proxyFocused && (this.#keyed || this.#proxy.matches(':focus-visible')) ? this.#focus : null;
     const only = this.#single && shown.k === S_KEY ? this.#focus : null, pres = presentationFor(d), pinned = shown.k === S_PIN;
-    const showTip = pres !== 'none' && target !== null && !(this.#dismissed !== null && this.#dismissed.some(id => this.#dismissedBy(id, target))), page = pinned ? this.#pinPage : 0;
+    const showTip = pres !== 'none' && target !== null && !this.#dismissed?.some(id => this.#dismissedBy(id, target)), page = pinned ? this.#pinPage : 0;
     const flags = +showTip | +pinned * 2 | (pres === 'strip' ? 4 : pres === 'floating' ? 8 : 0) | +remote * 16;
     const last = this.#lastPres;
     // Layered marks share an x target: the mark that won the pick decides the hover datum and the tooltip's
@@ -761,7 +761,7 @@ class DomInteraction implements Interaction {
 
   #local(e: MouseEvent) { return toLocal(this.#plotMapping(), clientPoint(e)); }
 
-  #dismissedBy(id: Identity, t: PickTarget) { return matchesIdentity(id, t) || (id.kind === 'point' && t.kind === 'point' && this.#committed !== null && this.#committed.lookup.has(t, id.ref)); }
+  #dismissedBy(id: Identity, t: PickTarget) { return matchesIdentity(id, t) || (id.kind === 'point' && t.kind === 'point' && this.#committed?.lookup.has(t, id.ref)); }
 
   #reached(t: PickTarget | null): void { if (t && this.#dismissed) { const kept = this.#dismissed.filter(id => this.#dismissedBy(id, t)); this.#dismissed = kept.length ? kept : null; } }
 
@@ -896,7 +896,7 @@ class DomInteraction implements Interaction {
     }
     const d = this.#committed;
     if (!plotReady(d)) return;
-    if (this.#keyed) { this.#keyed = false; this.#proxy?.classList.toggle('axylo-keyed', false); this.#redraw(); }
+    if (this.#keyed) { this.#keyed = false; this.#proxy?.classList.remove('axylo-keyed'); this.#redraw(); }
     const at = this.#local(e);
     if (e.pointerType === 'touch') {
       const map = this.#touches ??= new Map();
@@ -1100,7 +1100,7 @@ class DomInteraction implements Interaction {
     const nextList = this.#parts.sliceList?.(this.#doc, d, this.#actions, this.#legendList) ?? null;
     if (!nextList && this.#legendList) this.#removeLegend();
     this.#legendList = nextList;
-    if (inLegend && (!this.#legendList || !this.#legendList.contains(this.#activeElement()))) {
+    if (inLegend && !this.#legendList?.contains(this.#activeElement())) {
       this.#handoffSliceKey = d.ready ? sliceKey : null;
       this.#focusFigure();
     }
@@ -1130,11 +1130,11 @@ class DomInteraction implements Interaction {
       if (!usable && this.#activeElement() === this.#proxy && !this.#toolbar?.focus('table')) this.#focusFigure();
       if (this.#proxy.hidden === usable) this.#proxy.hidden = !usable;
       if (this.#ring.hidden === usable) this.#ring.hidden = !usable;
-      if (this.#instructions && this.#instructions.hidden === usable) this.#instructions.hidden = !usable;
+      if (this.#instructions?.hidden === usable) this.#instructions.hidden = !usable;
     }
     if (!usable) { this.#proxyKey = null; return; }
-    const p = plotBox(d);
-    if (!this.#proxyRect || this.#proxyRect.x !== p.x || this.#proxyRect.y !== p.y || this.#proxyRect.width !== p.width || this.#proxyRect.height !== p.height) {
+    const p = plotBox(d), r = this.#proxyRect;
+    if (!r || r.x !== p.x || r.y !== p.y || r.width !== p.width || r.height !== p.height) {
       this.#proxy.style.cssText = this.#ring.style.cssText = boxStyle(p);
     }
     this.#proxyRect = p;
@@ -1148,8 +1148,11 @@ class DomInteraction implements Interaction {
     if (sameKey(this.#proxyKey, key)) return;
     this.#proxyKey = key;
     setAttr(this.#proxy, 'aria-label', d.messages.plotLabel);
-    // Tagged on its own, never through the proxy's lang, which follows the reading (pointAll or pointOf).
-    setLanguageText(this.#label!, d.messages.plotLabel, d.english('plotLabel') ?? d.pageLang);
+    // Tagged on its own, never through the proxy's lang, which follows the reading (pointAll or pointOf) and so can
+    // switch to English for one reading while the other is translated. A name in a foreign page's language therefore
+    // repeats that language whatever the readings are; on an English page (any subtag) or one with none nothing inside
+    // the chart is tagged (spec A10). A missing page language is tested as "null", which is not English, and is kept.
+    setLanguageText(this.#label!, d.messages.plotLabel, d.english('plotLabel') ?? (ENGLISH_TAG.test(d.pageLang!) ? null : d.pageLang));
     if (this.#instructions) {
       const desc = descriptionFor(d, count);
       renderInstructions(this.#doc, this.#instructions, desc, lang, d.pageLang);

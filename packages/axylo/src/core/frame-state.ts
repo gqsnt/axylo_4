@@ -50,8 +50,6 @@ export const STEP_PUBLISH = 14;
 /** How many inputs the reader model is keyed by (readerFor). */
 export const READER_INPUTS = 15;
 export const EMPTY_KEY: readonly unknown[] = [];
-/** Not global and not sticky, so `test` keeps no state between pages. */
-export const ENGLISH_TAG = /^en(?:-|$)/i;
 /** On a page in another language with no message overrides, mark every built-in text as English. */
 export const ALL_ENGLISH = (): string => 'en';
 

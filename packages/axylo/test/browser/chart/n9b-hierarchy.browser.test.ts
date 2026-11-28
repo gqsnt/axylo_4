@@ -212,7 +212,8 @@ describe.each(['treemap', 'sunburst'] as const)('%s', kind => {
         return { headers: t.headers, rows: Array.from({ length: t.rowCount }, (_, i) => t.row(i)), pageSize: t.pageSize, caption: t.caption };
       });
       expect(model.headers).toEqual(['Path', 'Depth', 'Value', '% of Parent', '% of Root']);
-      expect(model.pageSize).toBe(7);
+      // hierarchy/reader.ts TABLE_PAGE: the reader pages its table by 100 rows, so this fixture's rows are all on the first page.
+      expect(model.pageSize).toBe(100);
       expect(shown).toEqual(model.rows);
       expect(shown[6]).toEqual(['Company / Sales / Americas with a very long regional label', '2', '8 people', '40%', '8%']);
       expect(await page.$eval('#chart caption', c => c.textContent)).toBe('Headcount');

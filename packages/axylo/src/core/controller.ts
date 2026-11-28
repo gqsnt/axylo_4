@@ -24,7 +24,7 @@ import { createDiagnostic, DiagnosticCollector, readerDisclosure, type Diagnosti
 import { createFormattersWith } from '../format';
 import { rowsTable, type Table } from '../data/table';
 import { readerWith } from '../reader';
-import { chartTypeName, fill } from '../messages';
+import { chartTypeName, ENGLISH_TAG, fill } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations } from './delivery';
@@ -44,7 +44,7 @@ import type {
 } from './controller-types';
 // Keep the extracted stages next to their caller in the bundle so gzip sees their shared names.
 import {
-  COMPACT_TEXT_STYLE, EMPTY_DIAGNOSTICS, EMPTY_DISCLOSURE, INHERIT_LANGUAGE, ENGLISH_TAG, ALL_ENGLISH,
+  COMPACT_TEXT_STYLE, EMPTY_DIAGNOSTICS, EMPTY_DISCLOSURE, INHERIT_LANGUAGE, ALL_ENGLISH,
   STEP_PHASE1, STEP_PHASE2, STEP_THEME, STEP_MEASURE, STEP_PROBE, STEP_LAYOUT_CHECK, STEP_STRIP_MOUNT, STEP_STRIP_READ,
   STEP_READOUT, STEP_STRIP_WRITE, STEP_STRIP_MEASURE, STEP_INIT, STEP_PASS_WRITE, STEP_PASS_MEASURE, STEP_PUBLISH,
   FrameHandle, acquireFrame, hiddenIn, readoutSteps, releaseFrame, reservedStrip, sameDisclosure, sameLayoutSize, type FrameDriver, type FrameState,
@@ -534,7 +534,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     return { epoch: ++this.#epochs, revision: ++this.#frameRevision };
   }
 
-  protected reencode(
+  protected encode(
     _previous: Accepted, _next: OptionRecord, _common: Pick<Candidate, 'options' | 'messages' | 'zoom' | 'hidden'>,
     _optionSink: DiagnosticCollector, _resolve: (table?: Table, sink?: DiagnosticCollector) => Accepted['resolved'],
     _paused: boolean,
@@ -564,8 +564,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       let commit: (() => void) | null = null;
       let heldAfter: Held = null;
       const replace = previous === null || changed.has('data') || (supplied && previous.stream !== null);
-      const reencode = !replace && encodingChanged(previous!.options, next);
-      if (!replace && reencode && previous!.stream === null && namesOnlyChanged(previous!.options, next)) {
+      const fieldsChanged = !replace && encodingChanged(previous!.options, next);
+      if (fieldsChanged && previous!.stream === null && namesOnlyChanged(previous!.options, next)) {
         // Labels or units only, over the caller's own data: the same columns with new names (finding 12).
         const resolved = resolve(previous!.source.table);
         const p = previous!;
@@ -575,7 +575,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
           dataDiagnostics: p.dataDiagnostics, dataOptions: p.dataOptions,
           optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
         };
-      } else if (replace || (reencode && previous!.stream === null)) {
+      } else if (replace || (fieldsChanged && previous!.stream === null)) {
         // New data, or new fields over the caller's own data: normalized from the options, borrowing typed
         // columns (plan 1.2). A stream this replaces is dropped with everything it held.
         countStage(this, 'normalize');
@@ -588,8 +588,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
           ...common, resolved, source: resolved, stream: null, frame, dataDiagnostics: data,
           dataOptions: dataFindings(opts, true), optionDiagnostics: dedupe(opts, data),
         };
-      } else if (reencode) {
-        ({ c, commit, heldAfter } = this.reencode(previous!, next, common, optionSink, resolve, this.#paused));
+      } else if (fieldsChanged) {
+        ({ c, commit, heldAfter } = this.encode(previous!, next, common, optionSink, resolve, this.#paused));
       } else {
         // Presentation only (title, domains, references, colors, …): the frame stays. Rows held by a Resume
         // that failed are shown by the next accepted call (finding 5).
@@ -1697,7 +1697,7 @@ class StreamingChartController extends ChartController {
     this.revision(prepared.frame.revision);
   }
 
-  protected override reencode(
+  protected override encode(
     previous: Accepted, next: OptionRecord, common: Pick<Candidate, 'options' | 'messages' | 'zoom' | 'hidden'>,
     optionSink: DiagnosticCollector, resolve: (table?: Table, sink?: DiagnosticCollector) => Accepted['resolved'],
     paused: boolean,

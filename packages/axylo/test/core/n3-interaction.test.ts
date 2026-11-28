@@ -161,6 +161,8 @@ describe('F-A11Y-6: the plot name has its own language (spec A10)', () => {
   for (const [name, messages, english, plotLabel, labelLang, allLang, oneLang] of [
     ['pointAll translated; plotLabel and pointOf built in', { ...defaultMessages, pointAll: '{x}: {values}. {position}' }, translated(['pointAll']), 'Chart plot', 'en', null, 'en'],
     ['plotLabel and pointOf translated; pointAll built in', { ...defaultMessages, plotLabel: 'Diagrammfläche', pointOf: '{series}, {x}, {value}. Punkt {index} von {count}.' }, translated(['plotLabel', 'pointOf']), 'Diagrammfläche', 'de', 'en', null],
+    // The German name stays tagged German while the proxy switches to the built-in English one-series reading.
+    ['plotLabel and pointAll translated; pointOf built in', { ...defaultMessages, plotLabel: 'Diagrammfläche', pointAll: '{x}: {values}. {position}' }, translated(['plotLabel', 'pointAll']), 'Diagrammfläche', 'de', null, 'en'],
   ] as const) {
     it(`${name}: label "${plotLabel}" in ${labelLang} throughout; the proxy is ${allLang ?? 'untagged'} for all series and ${oneLang ?? 'untagged'} for one`, () => {
       const t = setup(two(), { messages, english, pageLang: 'de' });
@@ -191,6 +193,50 @@ describe('F-A11Y-6: the plot name has its own language (spec A10)', () => {
       t.end();
     });
   }
+
+  // Spec A10: only text in another language than the page's is tagged. The controller's own English marking and
+  // committed page language (the inherited tag as found, English included), not the stubs above, drive the plot's
+  // parts here, on English pages with and without a subtag and on a German one.
+  const tagged = (root: TestElement) => {
+    const found: string[] = [];
+    const walk = (e: TestElement) => { if (e.getAttribute('lang') !== null) found.push(`${e.id || e.tagName}=${e.getAttribute('lang')}`); e.children.forEach(walk); };
+    walk(root);
+    return found;
+  };
+  for (const [pageLang, labelLang] of [['en', null], ['en-GB', null], ['EN-us', null], ['de', 'en']] as const) {
+    it(`a lang="${pageLang}" page: the plot's name carries ${labelLang ?? 'no'} language tag${labelLang ? '' : ', nor does anything in the plot'}`, () => {
+      const r = record('line', { title: 'T', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y' }, { pageLang });
+      r.frames();
+      const cf = r.committed!;
+      expect(cf.pageLang).toBe(pageLang);
+      const t = setup(r, { english: cf.english, pageLang: cf.pageLang });
+      expect(t.label()!.textContent).toBe('Chart plot');
+      expect(t.label()!.getAttribute('lang')).toBe(labelLang);
+      if (labelLang === null) {
+        expect(tagged(t.plot)).toEqual([]);
+        t.focus();
+        t.key('Home');
+        t.key('ArrowRight');
+        expect(tagged(t.plot)).toEqual([]);
+      }
+      t.end();
+    });
+  }
+
+  it('a page with no language: nothing in the plot is tagged, before and while focused', () => {
+    // A page with no lang inherits nothing to mark against: the controller marks no text English there, as on an
+    // English page (the host stub always reports a language, so the committed values are given directly).
+    const t = setup(two(), { english: () => null, pageLang: null });
+    expect(t.label()!.textContent).toBe('Chart plot');
+    expect(tagged(t.plot)).toEqual([]);
+    t.focus();
+    t.key('Home');
+    t.key('ArrowDown');
+    expect(tagged(t.plot)).toEqual([]);
+    t.key('Escape');
+    expect(tagged(t.plot)).toEqual([]);
+    t.end();
+  });
 
   it('the label follows a messages change and is removed with the interaction', () => {
     const t = setup(two());

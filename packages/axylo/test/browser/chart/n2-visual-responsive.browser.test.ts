@@ -920,7 +920,9 @@ function markOf(s: Swatch): string {
 }
 
 describe('mark-aware Cartesian swatches (legend and tooltip)', () => {
-  const EXPECTED: Record<string, string> = { Units: 'bar', Share: 'area', Temperature: 'line', Low: 'range', High: 'range', Mean: 'errorBar', Lower: 'errorBar', Upper: 'errorBar' };
+  // N5 (spec I1, I2): a range or error bar layer is one legend entry, toggle and tooltip row, named by the
+  // layer's label (cartesianOptions: 'Band' and 'Error'), never by its bound fields.
+  const EXPECTED: Record<string, string> = { Units: 'bar', Share: 'area', Temperature: 'line', Band: 'range', Error: 'errorBar' };
 
   for (const scheme of SCHEMES) {
     it(`each legend entry repeats its layer's mark and colour (${scheme})`, async () => {
@@ -934,12 +936,9 @@ describe('mark-aware Cartesian swatches (legend and tooltip)', () => {
       expect(by.Units!.parts[0]!.fillOpacity).toBe('1');
       expect(by.Share!.parts.find(p => p.d === AREA_D)!.fillOpacity).toBe('0.22');
       expect(by.Share!.parts.find(p => p.cls === 'axylo-swatch-line')!.stroke).toBe(by.Share!.color);
-      expect(by.Low!.parts[0]!.fillOpacity).toBe('0.22');
-      // A range or error bar is one mark in one colour: its centre's, else its low field's (cartesian/scene.ts).
-      expect(by.High!.color).toBe(by.Low!.color);
-      expect(by.Lower!.color).toBe(by.Mean!.color);
-      expect(by.Upper!.color).toBe(by.Mean!.color);
-      expect(by.Mean!.parts.some(p => p.cls === 'axylo-swatch-marker')).toBe(true);
+      expect(by.Band!.parts[0]!.fillOpacity).toBe('0.22');
+      // A range or error bar is one mark in one colour, so one swatch (EXPECTED above has no entry per bound).
+      expect(by.Error!.parts.some(p => p.cls === 'axylo-swatch-marker')).toBe(true);
       // Every swatch colour is a colour the plot paints, and no swatch is transparent.
       const painted = await page.evaluate(() => {
         const out = new Set<string>();
@@ -964,10 +963,10 @@ describe('mark-aware Cartesian swatches (legend and tooltip)', () => {
     const page = await openChartPage(SIZES[0]!, 'light', 'fr');
     await draw(page, 'cartesian', { title: 'Hollow', ...cartesianOptions('fr') });
     const entry = (label: string) => page.locator('#chart .axylo-toolbar').getByRole('button', { name: label, exact: true });
-    for (const label of ['Units', 'Share', 'Low', 'Mean']) await entry(label).click();
+    for (const label of ['Units', 'Share', 'Band', 'Error']) await entry(label).click();
     await ready(page);
     const by = Object.fromEntries((await swatches(page, '#chart .axylo-legend-entry')).map(s => [s.label, s]));
-    for (const label of ['Units', 'Share', 'Low', 'Mean']) {
+    for (const label of ['Units', 'Share', 'Band', 'Error']) {
       const s = by[label]!;
       expect(s.pressed, label).toBe('false');
       expect(markOf(s), label).toBe(EXPECTED[label]);

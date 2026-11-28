@@ -25,7 +25,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bundle, closeBrowser, cspPolicy, launch, open, problems, startServer, type Server } from './browser';
 import { fixture } from './paths';
-import { csvClosedOpen, expectClosedOpenCsv, expectPng, expectWholeFigure, pngExport, summarizeExport, type ExportSummary } from './export-conformance';
+import { csvClosedOpen, expectClosedOpenCsv, expectPng, expectWholeFigure, paintedShapes, pngExport, summarizeExport, type ExportSummary } from './export-conformance';
 
 let server: Server;
 let chartsUrl: string;
@@ -156,6 +156,7 @@ function familyChrome(selector: string) {
       gradientFill: [...s.querySelectorAll('rect')].some(r => /^url\(#/.test(r.getAttribute('fill') ?? '')),
       paths: s.querySelectorAll('path').length,
       shapes: [...s.querySelectorAll('path, rect')].filter(e => !e.closest('defs')).length,
+      paints: [...s.querySelectorAll('path, rect')].filter(e => !e.closest('defs')).map(e => [e.getAttribute('fill') ?? '', e.getAttribute('stroke') ?? ''] as const),
       area: Number(s.getAttribute('width')) * Number(s.getAttribute('height')),
       svgTexts: [...s.querySelectorAll('text')].map(t => (t.textContent ?? '').trim()),
     })),
@@ -280,6 +281,7 @@ describe('W4 spatial, hierarchy and violin export in packed Chrome', () => {
         const plot = [...h.nested].sort((a, b) => b.area - a.area)[0]!;
         expect(h.live.hierarchyMarks).toBeGreaterThan(0);
         expect(plot.shapes, 'every live mark is exported, and only those').toBe(h.live.hierarchyMarks);
+        expect(paintedShapes(plot), `${key} plot has painted marks (exported paints: ${JSON.stringify([...new Set(plot.paints.flat())].slice(0, 8))})`).toBeGreaterThan(0);
         for (const label of h.live.hierarchyLabels) expect(plot.svgTexts, `label "${label}"`).toContain(label);
         for (const scale of [1, 2]) {
           expectPng(await page.evaluate(pngExport, { selector: SELECTOR[key]!, scale }), { width: h.width, height: h.height } as ExportSummary, scale);

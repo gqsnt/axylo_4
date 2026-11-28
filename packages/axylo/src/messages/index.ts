@@ -7,6 +7,9 @@ const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from 
 const chartName = '{type} chart of {y} by {x}';
 const seriesSummary = '{series}: minimum {min}, maximum {max}, last {last}.';
 
+/** A page language that is English (any subtag). Not global and not sticky, so `test` keeps no state between pages. */
+export const ENGLISH_TAG = /^en(?:-|$)/i;
+
 export const CHART_TYPE_MESSAGE = {
   line: 'typeLine', area: 'typeArea', bar: 'typeBar', histogram: 'typeHistogram', scatter: 'typeScatter', donut: 'typeDonut',
 } as const;

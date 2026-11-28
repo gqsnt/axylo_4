@@ -29,8 +29,11 @@ export interface ExportSummary {
   readonly background: string | null;
   /** Each `<text>` in viewBox coordinates (the group's translation applied). */
   readonly texts: readonly { text: string; x: number; y: number; rotate: number; fill: string }[];
-  /** Each nested `<svg>` (the plot surface and the swatches), with the number of shapes painted in a concrete colour. */
-  readonly svgs: readonly (Box & { viewBox: string | null; painted: number })[];
+  /**
+   * Each nested `<svg>` (the plot surface and the swatches), with the fill and stroke of each shape outside its
+   * `<defs>` as exported (judged by `concretePaint`, see `paintedShapes`).
+   */
+  readonly svgs: readonly (Box & { viewBox: string | null; paints: readonly (readonly [fill: string, stroke: string])[] })[];
   /**
    * The exported image laid out in the page (then removed): each `<text>`'s rendered bounds and each
    * `.axylo-scene` shape's, in viewBox coordinates, with its geometry signature and paint.
@@ -71,15 +74,14 @@ export function summarizeExport(args: { selector: string; options?: Record<strin
   const shift = /translate\(([-\d.e]+) ([-\d.e]+)\)/.exec(group?.getAttribute('transform') ?? '');
   const tx = shift ? Number(shift[1]) : 0, ty = shift ? Number(shift[2]) : 0;
   const num = (el: Element, name: string) => Number(el.getAttribute(name) ?? 0);
-  const concrete = (v: string | null) => !!v && /^(rgb|#|hsl|color\()/.test(v) && !/^rgba\(.*,\s*0\)$/.test(v);
   const texts = [...(group?.querySelectorAll(':scope > text') ?? [])].map(t => ({
     text: t.textContent ?? '', x: num(t, 'x') + tx, y: num(t, 'y') + ty, fill: t.getAttribute('fill') ?? '',
     rotate: Number(/rotate\(([-\d.e]+)/.exec(t.getAttribute('transform') ?? '')?.[1] ?? 0),
   }));
   const svgs = [...(group?.querySelectorAll(':scope > svg') ?? [])].map(s => ({
     x: num(s, 'x') + tx, y: num(s, 'y') + ty, width: num(s, 'width'), height: num(s, 'height'), viewBox: s.getAttribute('viewBox'),
-    painted: [...s.querySelectorAll('path, rect, line, circle, polygon, polyline')]
-      .filter(e => !e.closest('defs') && (concrete(e.getAttribute('fill')) || concrete(e.getAttribute('stroke')))).length,
+    paints: [...s.querySelectorAll('path, rect, line, circle, polygon, polyline')].filter(e => !e.closest('defs'))
+      .map(e => [e.getAttribute('fill') ?? '', e.getAttribute('stroke') ?? ''] as const),
   }));
   const root = document.querySelector(args.selector)!;
   const figure = (root.closest('.axylo-figure') ?? root.querySelector('.axylo-figure'))!;
@@ -152,6 +154,21 @@ export async function pngExport(args: { selector: string; scale: number; options
   return api.exportPngDataUrl(args.selector, { ...args.options, scale: args.scale });
 }
 
+/**
+ * Whether an exported paint is a colour a reader sees: any concrete CSS colour as the browser computes it, which
+ * for a `color-mix(in oklab, …)` (the heatmap's bins) is `oklab(…)` and for a mix in another space `color(…)`
+ * or `lab(…)` …, never transparent (zero alpha), `none`, `currentColor`, a paint-server reference or missing.
+ */
+export function concretePaint(v: string | null | undefined): boolean {
+  return !!v && /^(#|rgba?\(|hsla?\(|hwb\(|(ok)?l(ab|ch)\(|color\()/i.test(v) &&
+    !/^(rgba|hsla)\(.*,\s*0(\.0*)?%?\)$|\/\s*0(\.0*)?%?\)$|^#([0-9a-f]{3}0|[0-9a-f]{6}00)$/i.test(v);
+}
+
+/** How many of a nested SVG's shapes are filled or stroked in a concrete colour. */
+export function paintedShapes(svg: { paints: readonly (readonly [string, string])[] }): number {
+  return svg.paints.filter(([fill, stroke]) => concretePaint(fill) || concretePaint(stroke)).length;
+}
+
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 const inside = (x: number, y: number, b: Box, slack = 0) =>
   x >= b.x - slack && x <= b.x + b.width + slack && y >= b.y - slack && y <= b.y + b.height + slack;
@@ -184,10 +201,10 @@ export function expectWholeFigure(s: ExportSummary, options: { plotOnly?: boolea
   }
   const plot = plotOf(s);
   expect(plot, 'plot surface').toBeDefined();
-  expect(plot.painted, 'plot has painted marks').toBeGreaterThan(0);
+  expect(paintedShapes(plot), `plot has painted marks (exported paints: ${JSON.stringify([...new Set(plot.paints.flat())].slice(0, 8))})`).toBeGreaterThan(0);
   // The data marks themselves: the exported scene holds exactly the live scene's shapes, with their geometry.
   expect([...s.marks.map(m => m.shape)].sort(), 'exported scene shapes = live scene shapes').toEqual([...s.dom.marks].sort());
-  expect(s.marks.some(m => /^(rgb|#)/.test(m.fill) || /^(rgb|#)/.test(m.stroke)), 'scene marks painted in a concrete colour').toBe(true);
+  expect(s.marks.some(m => concretePaint(m.fill) || concretePaint(m.stroke)), 'scene marks painted in a concrete colour').toBe(true);
   // Each line of a multi-line label is its own exported text.
   for (const line of s.dom.labelLines) expect(s.texts.some(t => squash(t.text) === squash(line)), `label line "${line}"`).toBe(true);
   expect(s.dom.name.length).toBeGreaterThan(0);
@@ -215,7 +232,7 @@ export function expectWholeFigure(s: ExportSummary, options: { plotOnly?: boolea
   expect(swatches.filter(b => b.viewBox === '0 0 20 12').length, 'every visible 20 × 12 swatch exported')
     .toBeGreaterThanOrEqual(s.dom.swatches - s.dom.chromeGraphics);
   expect(swatches.length, 'every visible swatch and chrome graphic exported').toBeGreaterThanOrEqual(s.dom.swatches);
-  for (const w of swatches) expect(w.painted, 'swatch painted in a concrete colour').toBeGreaterThan(0);
+  for (const w of swatches) expect(paintedShapes(w), 'swatch painted in a concrete colour').toBeGreaterThan(0);
   // Mark-aware swatches: each exported swatch draws the live swatch's shapes (bar, area, line, range, error bar).
   expect(s.swatchShapes, 'swatch geometry as shown').toEqual(s.dom.swatchShapes);
   // Chrome text (caption, legend, note) is beside the plot, never over it: each piece has an exported text
@@ -243,7 +260,7 @@ export function marksInBand(s: ExportSummary, from: number, to: number): number 
   const plot = plotOf(s);
   return s.marks.filter(m => {
     const y = (m.y + m.height / 2 - plot.y) / plot.height;
-    return y >= from && y <= to && m.width < plot.width * 0.9 && (/^(rgb|#)/.test(m.fill) || /^(rgb|#)/.test(m.stroke));
+    return y >= from && y <= to && m.width < plot.width * 0.9 && (concretePaint(m.fill) || concretePaint(m.stroke));
   }).length;
 }
 
