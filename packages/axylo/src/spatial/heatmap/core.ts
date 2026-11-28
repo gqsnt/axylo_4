@@ -404,22 +404,31 @@ function typedFloat(column: ArrayLike<unknown> | undefined): boolean {
 }
 
 class Categories {
-  readonly keys: string[] = [];
   readonly index = new Map<string, number>();
   readonly fixed: boolean;
+  private lastKey?: string;
+  private lastIndex = -1;
   constructor(given: readonly string[] | null) {
     this.fixed = given !== null;
-    if (given) for (const k of given) { this.index.set(k, this.keys.length); this.keys.push(k); }
+    if (given) for (const key of given) this.index.set(key, this.index.size);
   }
   /** The key's position, adding it when the categories are not fixed; -1 for a key outside fixed categories. */
   at(key: string): number {
-    const found = this.index.get(key);
-    if (found !== undefined) return found;
-    if (this.fixed) return -1;
-    this.index.set(key, this.keys.length);
-    this.keys.push(key);
-    return this.keys.length - 1;
+    if (key === this.lastKey) return this.lastIndex;
+    let found = this.index.get(key);
+    if (found === undefined && !this.fixed) {
+      found = this.index.size;
+      this.index.set(key, found);
+    }
+    this.lastKey = key;
+    return this.lastIndex = found ?? -1;
   }
+}
+
+function readField(table: Table, field: string): (i: number) => unknown {
+  // Only borrow an own data property. Accessor columns and row sources retain their per-read behavior.
+  const column: ArrayLike<unknown> | undefined = table.columns ? Object.getOwnPropertyDescriptor(table.columns, field)?.value : undefined;
+  return column ? i => column[i] : i => table.read(i, field);
 }
 
 interface Samples { count: number; rows: number[] }
@@ -445,24 +454,25 @@ export function normalizeHeatmap(
   const rowOf = new Int32Array(n);
   const unplaced = samples();
   const outside = samples();
+  const readX = readField(table, meta.xField), readY = readField(table, meta.yField);
   for (let i = 0; i < n; i++) {
-    const xk = keyText(table.read(i, meta.xField));
-    const yk = keyText(table.read(i, meta.yField));
+    const xk = keyText(readX(i));
+    const yk = keyText(readY(i));
     if (xk === null || yk === null) {
-      colOf[i] = rowOf[i] = -1;
+      colOf[i] = -1;
       note(unplaced, table.rowIndex(i));
       continue;
     }
     const c = xs.at(xk), r = ys.at(yk);
     if (c < 0 || r < 0) {
-      colOf[i] = rowOf[i] = -1;
+      colOf[i] = -1;
       note(outside, table.rowIndex(i));
       continue;
     }
     colOf[i] = c;
     rowOf[i] = r;
   }
-  const cols = xs.keys.length, rows = ys.keys.length;
+  const cols = xs.index.size, rows = ys.index.size;
   const total = rows * cols;
   if (total > MAX_CELLS) {
     sink.add({
@@ -473,7 +483,7 @@ export function normalizeHeatmap(
     return buildFrame(meta, version, table, 0, 0, new Float64Array(0), new Uint8Array(0), new Int32Array(0),
       [], [], NaN, NaN, 0, 0, 0, null, false, new Map(), new Map(), null);
   }
-  const values = new Float64Array(total).fill(NaN);
+  const values = new Float64Array(total);
   const state = new Uint8Array(total).fill(SLOT_NULL);
   const source = new Int32Array(total).fill(-1);
   const invalid = new Map<number, string>();
@@ -482,6 +492,7 @@ export function normalizeHeatmap(
   const notFinite = samples();
   const column = table.columns?.[meta.valueField];
   const typed = typedFloat(column);
+  const readValue = readField(table, meta.valueField);
   let min = Infinity, max = -Infinity, valueCount = 0, invalidCount = 0;
   for (let i = 0; i < n; i++) {
     const c = colOf[i]!;
@@ -493,11 +504,11 @@ export function normalizeHeatmap(
       let d = duplicates.get(cell);
       if (!d) duplicates.set(cell, d = { count: 0, values: [] });
       d.count++;
-      if (d.values.length < DUPLICATES_SHOWN) d.values.push(table.read(i, meta.valueField));
+      if (d.values.length < DUPLICATES_SHOWN) d.values.push(readValue(i));
       continue;
     }
     source[cell] = sourceRow;
-    const v = table.read(i, meta.valueField);
+    const v = readValue(i);
     if (typeof v === 'number' && Number.isFinite(v)) {
       values[cell] = v;
       state[cell] = SLOT_VALUE;
@@ -536,25 +547,17 @@ export function normalizeHeatmap(
   if (total > DENSE_CELLS) sink.add(heatmapDiagnostic('AX186', 'none', { count: total }));
 
   const hasValues = valueCount > 0;
-  let domain: ScaleDomain | null = null;
-  let explicit = false;
-  if (hasValues) {
-    if (meta.domain) {
-      explicit = true;
-      domain = makeDomain(meta.scheme, meta.domain[0], meta.domain[1], meta.mid, meta.bins);
-      if (max < meta.domain[0] || min > meta.domain[1]) {
-        sink.add(heatmapDiagnostic('AX184', 'none', {
-          field: 'color.domain',
-          detail: `No value lies inside "color.domain" [${meta.domain[0]}, ${meta.domain[1]}] (the data spans ${min} to ${max}): `
-            + 'every cell takes an end color. Exact values are unchanged.',
-        }));
-      }
-    } else {
-      domain = makeDomain(meta.scheme, min, max, meta.mid, meta.bins);
-    }
+  const limits = meta.domain;
+  const domain = hasValues ? makeDomain(meta.scheme, limits?.[0] ?? min, limits?.[1] ?? max, meta.mid, meta.bins) : null;
+  if (hasValues && limits && (max < limits[0] || min > limits[1])) {
+    sink.add(heatmapDiagnostic('AX184', 'none', {
+      field: 'color.domain',
+      detail: `No value lies inside "color.domain" [${limits[0]}, ${limits[1]}] (the data spans ${min} to ${max}): `
+        + 'every cell takes an end color. Exact values are unchanged.',
+    }));
   }
-  return buildFrame(meta, version, table, rows, cols, values, state, source, xs.keys, ys.keys,
-    hasValues ? min : NaN, hasValues ? max : NaN, valueCount, total - valueCount - invalidCount, invalidCount, domain, explicit, invalid,
+  return buildFrame(meta, version, table, rows, cols, values, state, source, [...xs.index.keys()], [...ys.index.keys()],
+    hasValues ? min : NaN, hasValues ? max : NaN, valueCount, total - valueCount - invalidCount, invalidCount, domain, hasValues && limits !== null, invalid,
     duplicates, resolved.values[0]?.unit ?? null);
 }
 
@@ -566,10 +569,16 @@ function buildFrame(
   duplicates: ReadonlyMap<number, Duplicates>, unit: string | null,
 ): AlignedFrame {
   const total = rows * cols;
-  const bin = new Uint8Array(total).fill(NO_BIN);
-  if (domain) for (let i = 0; i < total; i++) if (state[i] === SLOT_VALUE) bin[i] = binOf(domain, values[i]!);
+  const bin = new Uint8Array(total);
   const positions = new Float64Array(total);
-  for (let i = 0; i < total; i++) positions[i] = i;
+  for (let i = 0; i < total; i++) {
+    positions[i] = i;
+    if (state[i] === SLOT_VALUE) bin[i] = domain ? binOf(domain, values[i]!) : NO_BIN;
+    else {
+      values[i] = NaN;
+      bin[i] = NO_BIN;
+    }
+  }
   const series: Series = {
     // The controller's value formatter takes its unit from here (core/controller-helpers.ts formatSpecFor).
     key: meta.valueField || 'value', label: meta.valueLabel, field: meta.valueField, unit, valueScale: null,

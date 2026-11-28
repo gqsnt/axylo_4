@@ -4,7 +4,7 @@
  * Scene: the cells are quantized into the scale's bins and every cell of one bin goes into one rectangle mark,
  * so the SVG holds one <path> per non-empty bin plus one for missing cells (single diagonal hatch) and one for
  * invalid cells (crossed), whatever the number of cells: a 250 × 200 matrix is at most bins + 2 paths. Where
- * cells are too small to separate (no inset), horizontal runs of one bin in a row merge into one rectangle.
+ * cells have no inset, equal horizontal spans of one bin coalesce across rows with touching painted bounds.
  *
  * Lookup: O(1) arithmetic from a pixel to (row, column) and back; every reading comes from the frame's exact
  * values, never from a bin. Keyboard: a non-wrapping 2D grid (left/right along a row, up/down along a column).
@@ -42,14 +42,11 @@ export function cellTagOf(mark: Mark): CellTag | undefined {
   return tags?.get(mark);
 }
 
-function tagged(mark: RectMark, tag: CellTag): RectMark {
+function rects(xywh: Float32Array, tag: CellTag): RectMark {
+  // Variant 'missing' gives each mark a single <path> slot in the SVG renderer (a 'bar' is a group of rects).
+  const mark: RectMark = { type: 'rects', series: 0, xywh, fill: { kind: 'series', index: 0 }, variant: 'missing' };
   (tags ??= new WeakMap()).set(mark, tag);
   return mark;
-}
-
-function rects(xywh: Float32Array): RectMark {
-  // Variant 'missing' gives each mark a single <path> slot in the SVG renderer (a 'bar' is a group of rects).
-  return { type: 'rects', series: 0, xywh, fill: { kind: 'series', index: 0 }, variant: 'missing' };
 }
 
 const matrixOfView = (view: View): MatrixFrame | undefined =>
@@ -60,94 +57,115 @@ function emptyScene(layout: Layout): Scene {
   return { width, height, clip: { x: 0, y: 0, width, height }, marks: [] };
 }
 
+// The SVG writer rounds the Float32 origin and extent separately.
+const cents = (v: number): number => Math.round(Math.fround(v) * 100);
+
 export function buildHeatmapScene(view: View, layout: Layout, _dpr: number): Scene {
   const m = matrixOfView(view);
   const g = m ? cellGeometry(layout, m) : null;
   if (!m || !g || m.domain === null && m.missingCount === 0 && m.invalidCount === 0) return emptyScene(layout);
   const { rows, cols, bin, state } = m;
   const bins = m.domain?.bins ?? 0;
-  const merge = g.inset === 0;
-  // Pass 1: rectangles per bin (runs when merging), and missing / invalid counts.
-  const counts = new Uint32Array(bins);
-  let missing = 0, invalid = 0;
-  for (let r = 0; r < rows; r++) {
-    let previous = NO_BIN;
-    for (let c = 0, cell = r * cols; c < cols; c++, cell++) {
-      const b = bin[cell]!;
-      if (b !== NO_BIN) {
-        if (!merge || b !== previous) counts[b]!++;
-      } else if (state[cell] === SLOT_INVALID) invalid++;
-      else missing++;
-      previous = b;
-    }
-  }
-  const buffers: Float32Array[] = [];
-  for (let b = 0; b < bins; b++) buffers.push(new Float32Array(counts[b]! * 4));
-  const fill = new Uint32Array(bins);
-  const missingBox = new Float32Array(missing * 4), invalidBox = new Float32Array(invalid * 4);
-  let mi = 0, ii = 0;
   const { plot, cellWidth: cw, cellHeight: ch, inset } = g;
+  const merge = inset === 0;
+  const buffers = Array.from({ length: bins + 2 }, (_, b) =>
+    new Float32Array(4 * (b === bins ? m.missingCount : b === bins + 1 ? m.invalidCount : 0)));
+  const used = new Uint32Array(buffers.length);
+  // The absolute end cell identifies both the previous row and the span; stale entries never match.
+  const ends = new Uint32Array(merge && rows > 1 ? cols : 0), offsets = new Uint32Array(ends.length);
+  const w = cw - 2 * inset, h = ch - 2 * inset;
+  const heightCents = cents(h);
+  let previousBottom = -Infinity;
   for (let r = 0; r < rows; r++) {
-    const y = plot.y + r * ch + inset, h = ch - 2 * inset;
-    let previous = NO_BIN, runAt = 0;
-    for (let c = 0, cell = r * cols; c < cols; c++, cell++) {
-      const b = bin[cell]!;
-      const x = plot.x + c * cw + inset, w = cw - 2 * inset;
-      if (b !== NO_BIN) {
-        if (merge && b === previous) {
-          // Extend the run to the right edge of this cell.
-          const buf = buffers[b]!;
-          buf[runAt + 2] = x + w - buf[runAt]!;
-        } else {
-          const buf = buffers[b]!, at = fill[b]!;
-          buf[at] = x; buf[at + 1] = y; buf[at + 2] = w; buf[at + 3] = h;
-          runAt = at;
-          fill[b] = at + 4;
+    const y = plot.y + r * ch + inset, top = cents(y), bottom = top + heightCents;
+    const row = r * cols;
+    for (let c = 0; c < cols;) {
+      const start = c++, cell = row + start;
+      let b = bin[cell]!;
+      if (b === NO_BIN) b = state[cell] === SLOT_INVALID ? bins + 1 : bins;
+      else if (merge) {
+        while (c < cols && bin[row + c] === b) c++;
+        if (ends.length) {
+          const previousEnd = ends[start];
+          ends[start] = row + c;
+          if (top <= previousBottom && previousEnd === row + c - cols && bin[cell - cols] === b) {
+            const at = offsets[start]!, buf = buffers[b]!;
+            const extent = bottom - cents(buf[at + 1]!);
+            // Independent origin/extent rounding can leave a real seam or a non-representable Float32 height.
+            if (cents(extent / 100) === extent) {
+              buf[at + 3] = extent / 100;
+              continue;
+            }
+          }
+          offsets[start] = used[b]!;
         }
-      } else if (state[cell] === SLOT_INVALID) {
-        invalidBox[ii++] = x; invalidBox[ii++] = y; invalidBox[ii++] = w; invalidBox[ii++] = h;
-      } else {
-        missingBox[mi++] = x; missingBox[mi++] = y; missingBox[mi++] = w; missingBox[mi++] = h;
       }
-      previous = b;
+      const at = used[b]!;
+      let buf = buffers[b]!;
+      if (at === buf.length) {
+        // Reserve only for rectangles actually emitted; a uniform matrix can occupy a single box.
+        const grown = new Float32Array(Math.max(16, at * 2));
+        grown.set(buf);
+        buf = buffers[b] = grown;
+      }
+      const x = plot.x + start * cw + inset;
+      buf[at] = x; buf[at + 1] = y;
+      buf[at + 2] = c === start + 1 ? w : plot.x + (c - 1) * cw + w - buf[at]!;
+      buf[at + 3] = h;
+      used[b] = at + 4;
     }
+    previousBottom = bottom;
   }
   const marks: Mark[] = [];
-  const scheme = m.meta.scheme;
-  for (let b = 0; b < bins; b++) {
-    if (counts[b]! > 0) marks.push(tagged(rects(buffers[b]!), { kind: 'bin', bin: b, color: binColor(scheme, b, bins) }));
+  for (let b = 0; b < buffers.length; b++) {
+    if (used[b]) marks.push(rects(buffers[b]!.subarray(0, used[b]), b < bins
+      ? { kind: 'bin', bin: b, color: binColor(m.meta.scheme, b, bins) }
+      : { kind: b === bins ? 'missing' : 'invalid' }));
   }
-  if (missing) marks.push(tagged(rects(missingBox), { kind: 'missing' }));
-  if (invalid) marks.push(tagged(rects(invalidBox), { kind: 'invalid' }));
   return { width: layout.width, height: layout.height, clip: plot, marks };
 }
 
 // ───────────────────────────── SVG ─────────────────────────────
 
+let fractions: string[] | undefined;
+
 function num(v: number): string {
-  return String(Math.round(v * 100) / 100);
+  const c = Math.round(v * 100);
+  if (!(c >= 0 && c < 2e9)) return String(c / 100);
+  // Grid coordinates reuse just 100 fractional suffixes, including the empty suffix for whole pixels.
+  fractions ??= Array.from({ length: 100 }, (_, i) => String(i / 100).slice(1));
+  return Math.floor(c / 100) + fractions[c % 100]!;
+}
+
+function boxPaths(xywh: Float32Array, crossed?: boolean): string {
+  let d = '', w = '', h = '', tail = '';
+  let width = NaN, height = NaN;
+  for (let i = 0; i < xywh.length; i += 4) {
+    const x = num(xywh[i]!), y = num(xywh[i + 1]!);
+    if (width !== xywh[i + 2] || height !== xywh[i + 3]) {
+      width = xywh[i + 2]!;
+      height = xywh[i + 3]!;
+      w = num(width);
+      h = num(height);
+      tail = `h${w}v${h}h-${w}z`;
+    }
+    d += `M${x} ${y}${tail}`;
+    if (crossed !== undefined) {
+      d += `M${x} ${num(xywh[i + 1]! + height)}l${w} -${h}`;
+      if (crossed) d += `M${x} ${y}l${w} ${h}`;
+    }
+  }
+  return d;
 }
 
 /** One closed rectangle per quadruple: `M x y h w v h h -w z`. */
 export function cellPath(xywh: Float32Array): string {
-  let d = '';
-  for (let i = 0; i < xywh.length; i += 4) {
-    const w = num(xywh[i + 2]!);
-    d += `M${num(xywh[i]!)} ${num(xywh[i + 1]!)}h${w}v${num(xywh[i + 3]!)}h-${w}z`;
-  }
-  return d;
+  return boxPaths(xywh);
 }
 
 /** Outline plus one diagonal per cell (missing), or both diagonals (invalid): strokes only, never a fill. */
 export function hatchPath(xywh: Float32Array, crossed: boolean): string {
-  let d = '';
-  for (let i = 0; i < xywh.length; i += 4) {
-    const x = num(xywh[i]!), y = xywh[i + 1]!, w = num(xywh[i + 2]!), h = xywh[i + 3]!;
-    const ys = num(y), hs = num(h), bottom = num(y + h);
-    d += `M${x} ${ys}h${w}v${hs}h-${w}zM${x} ${bottom}l${w} -${hs}`;
-    if (crossed) d += `M${x} ${ys}l${w} ${hs}`;
-  }
-  return d;
+  return boxPaths(xywh, crossed);
 }
 
 function setStyle(el: SVGElement, name: string, value: string): void {
@@ -165,7 +183,7 @@ export const heatmapRects: SvgMark<RectMark> = (c, n, mark, bindings, dpr, clip)
   const el = n.el;
   const source = n.source ??= [];
   if (source[0] !== mark.xywh || source[1] !== tag.kind) {
-    el.setAttribute('d', tag.kind === 'bin' ? cellPath(mark.xywh) : hatchPath(mark.xywh, tag.kind === 'invalid'));
+    el.setAttribute('d', boxPaths(mark.xywh, tag.kind === 'bin' ? undefined : tag.kind === 'invalid'));
     source[0] = mark.xywh;
     source[1] = tag.kind;
   }

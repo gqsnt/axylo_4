@@ -79,7 +79,10 @@ function candleWidth(xScale: XScale, xVals: Float64Array, start: number, end: nu
   for (let i = start + 1; i < end; i++) {
     const cur = position(xScale, xVals[i]!);
     const gap = Math.abs(cur - prev);
-    if (gap > 0 && gap < minGap) minGap = gap;
+    if (gap > 0 && gap < minGap) {
+      if (gap * 0.65 <= 2) return 2;
+      minGap = gap;
+    }
     prev = cur;
   }
   const base = Number.isFinite(minGap) ? minGap * 0.65 : (plotWidth / count) * 0.65;
@@ -297,62 +300,52 @@ export function buildFinanceScene(
 
   const { open, high, low, close, volume } = findOhlcSeries(view.frame, meta);
   if (open && high && low && close) {
-    const flags = flagsForFrame(view.frame, meta);
     const xVals = view.frame.x.values;
     const { start, end } = view.visibleSlots;
-    const nSlots = Math.max(0, end - start);
     const bins = panes.bins;
+    const count = bins?.count ?? Math.max(0, end - start);
     const bodyW = bins ? BIN_WIDTH * 0.75 : candleWidth(xScale, xVals, start, end, plot.width);
     const halfW = bodyW / 2;
-    const vol = panes.volume;
-    const vScale = panes.volumeScale;
-
-    // Volume bars: proportional to the pane's own [0, volumeMax] scale, nothing drawn for zero or missing volume.
-    if (vol && vScale && volume && panes.volumeMax > 0) {
-      const vBottom = vol.y + vol.height;
-      const n = bins ? bins.count : nSlots;
-      const buf = new Float32Array(n * 4);
-      let vp = 0;
-      const push = (cx: number, v: number) => {
-        if (!(v > 0)) return;
-        const y = Math.max(vol.y, vScale.map(v));
-        const h = vBottom - y;
-        if (!(h > 0)) return;
-        buf[vp++] = cx - halfW; buf[vp++] = y; buf[vp++] = bodyW; buf[vp++] = h;
-      };
-      if (bins) {
-        for (let b = 0; b < bins.count; b++) push(bins.center[b]!, bins.volume[b]!);
-      } else {
-        for (let i = start; i < end; i++) {
-          if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC | FLAG_INVALID_VOLUME)) !== 0) continue;
-          if (volume.slot[i] !== SLOT_VALUE || !Number.isFinite(volume.y[i]!)) continue;
-          push(xCoord(xScale, xVals, i), volume.y[i]!);
-        }
-      }
-      if (vp > 0) {
-        marks.push(tagged({
-          type: 'rects', series: VOLUME_PAINT, xywh: used(buf, vp), fill: seriesPaint(VOLUME_PAINT), variant: 'bar',
-        } satisfies RectMark, { kind: 'volume', rect: vol }));
-      }
-    }
-
-    const candles = new CandleBuffers(bins ? bins.count : nSlots, pTop, pBottom);
+    const candles = new CandleBuffers(count, pTop, pBottom);
+    const vol = panes.volume, vScale = panes.volumeScale;
+    const bars = vol && vScale && volume && panes.volumeMax > 0 ? new Float32Array(count * 4) : null;
+    let vp = 0;
+    const pushVolume = (cx: number, v: number) => {
+      if (!bars || !(v > 0)) return;
+      const y = Math.max(vol!.y, vScale!.map(v));
+      const h = vol!.y + vol!.height - y;
+      if (!(h > 0)) return;
+      bars[vp++] = cx - halfW; bars[vp++] = y; bars[vp++] = bodyW; bars[vp++] = h;
+    };
     if (bins) {
       for (let b = 0; b < bins.count; b++) {
+        const cx = bins.center[b]!;
+        if (bars) pushVolume(cx, bins.volume[b]!);
         if (bins.candles[b] === 0) continue;
         const o = bins.open[b]!, c = bins.close[b]!;
-        candles.add(bins.center[b]!, halfW, position(yScale, o), position(yScale, bins.high[b]!), position(yScale, bins.low[b]!),
+        candles.add(cx, halfW, position(yScale, o), position(yScale, bins.high[b]!), position(yScale, bins.low[b]!),
           position(yScale, c), c > o ? 1 : c < o ? -1 : 0);
       }
     } else {
+      const flags = flagsForFrame(view.frame, meta);
       for (let i = start; i < end; i++) {
-        if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
+        const flag = flags[i]!;
+        if ((flag & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
+        const cx = xCoord(xScale, xVals, i);
+        if (bars && (flag & FLAG_INVALID_VOLUME) === 0 && volume!.slot[i] === SLOT_VALUE && Number.isFinite(volume!.y[i]!)) {
+          pushVolume(cx, volume!.y[i]!);
+        }
         const o = open.y[i]!, c = close.y[i]!;
-        candles.add(xCoord(xScale, xVals, i), halfW, position(yScale, o), position(yScale, high.y[i]!), position(yScale, low.y[i]!),
+        candles.add(cx, halfW, position(yScale, o), position(yScale, high.y[i]!), position(yScale, low.y[i]!),
           position(yScale, c), c > o ? 1 : c < o ? -1 : 0);
       }
     }
 
+    if (bars && vp) {
+      marks.push(tagged({
+        type: 'rects', series: VOLUME_PAINT, xywh: used(bars, vp), fill: seriesPaint(VOLUME_PAINT), variant: 'bar',
+      } satisfies RectMark, { kind: 'volume', rect: vol! }));
+    }
     if (candles.wickPos >= 4) {
       marks.push(tagged({
         type: 'path', series: UP_PAINT, xy: used(candles.wick, candles.wickPos), stroke: token('axis'), strokeWidth: 1.25,
@@ -450,8 +443,76 @@ const financePath: SvgMark<PathMark> = (c, n, mark, bindings, dpr, clip) => {
   clipToPane(c, n, mark);
 };
 
-const financeRects: SvgMark<RectMark> = (c, n, mark, bindings, dpr, clip) => {
-  svgRects(c, n, mark, financeBindings(bindings), dpr, clip);
+interface FinanceGroup extends SvgNode {
+  paths?: SVGPathElement[];
+}
+
+/** Keep small marks as individual bars. Larger marks retain the same painted and clipped group. */
+const RECT_BATCH_THRESHOLD = 64;
+
+let barFractions: string[] | undefined;
+function barNumber(cents: number): string {
+  if (!(cents >= 0 && cents < 2e9)) return String(cents / 100);
+  barFractions ??= Array.from({ length: 100 }, (_, i) => String(i / 100).slice(1));
+  return Math.floor(cents / 100) + barFractions[cents % 100]!;
+}
+
+function drawBarPaths(doc: Document, group: FinanceGroup, boxes: Float32Array): void {
+  const paths = group.paths!;
+  let count = 0;
+  let d = '';
+  let right = -Infinity;
+  const flush = () => {
+    const path = paths[count] ??= group.el.appendChild(svgElement(doc, 'path'));
+    path.setAttribute('d', d);
+    count++;
+    d = '';
+  };
+  // The scene's candles and volume bars each have one body width.
+  const w = boxes[2]!, width = Math.round(Math.abs(w) * 100);
+  const across = `h${width / 100}v`, back = `h-${width / 100}z`;
+  for (let i = 0; i < boxes.length; i += 4) {
+    const x = boxes[i]!, y = boxes[i + 1]!, h = boxes[i + 3]!;
+    // Match svgRects/paintBox: a non-finite box has zero area. SVG rounds the origin and size independently.
+    if (!Number.isFinite(x + y + w + h)) {
+      d += 'M0 0h0v0h-0z';
+      continue;
+    }
+    const left = Math.round((x + Math.min(0, w)) * 100);
+    // Separate paint operations preserve alpha where minimum-width candles or a clipped end column overlap.
+    if (left < right) flush();
+    d += `M${barNumber(left)} ${barNumber(Math.round((y + Math.min(0, h)) * 100))}${across}${barNumber(Math.round(Math.abs(h) * 100))}${back}`;
+    right = left + width;
+  }
+  if (d) flush();
+  while (paths.length > count) paths.pop()!.remove();
+}
+
+const financeRects: SvgMark<RectMark> = (c, n: FinanceGroup, mark, bindings, dpr, clip) => {
+  const colors = financeBindings(bindings);
+  const batch = mark.variant === 'bar' && !!paneOf(mark) && mark.xywh.length > 4 * RECT_BATCH_THRESHOLD;
+  if (batch !== !!n.paths) {
+    // The shared renderer pools groups by variant. Its child and style caches belong to the previous mode.
+    if (n.el.children.length) n.el.replaceChildren();
+    n.paths = batch ? [] : undefined;
+    n.rects = undefined;
+    n.boxes = undefined;
+    n.source = null;
+    n.styles = null;
+    if (batch) {
+      n.el.style.setProperty('fill', 'currentColor');
+      n.el.style.setProperty('stroke', 'none');
+    }
+  }
+  if (batch) {
+    if (n.boxes !== mark.xywh) {
+      drawBarPaths(c.doc, n, mark.xywh);
+      n.boxes = mark.xywh;
+    }
+    const style = n.el.style;
+    const color = colors.series[mark.series]!;
+    if (style.getPropertyValue('color') !== color) style.setProperty('color', color);
+  } else svgRects(c, n, mark, colors, dpr, clip);
   clipToPane(c, n, mark);
 };
 

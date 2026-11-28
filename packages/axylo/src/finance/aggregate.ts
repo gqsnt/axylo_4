@@ -74,8 +74,22 @@ export function aggregateOhlcv(columns: OhlcvColumns, start: number, end: number
   let column = -1;
   let maxVolume = 0;
   let saturated = 0;
-  let capped = false;
+  let lastSlot = -1, lastCandle = -1, candleCount = 0, sum = NaN;
   const { volume: vol } = columns;
+  // Publish once per occupied bin. A last drawable volume may come after the last candle.
+  const finishBin = (total: number) => {
+    const b = count - 1;
+    last[b] = lastSlot;
+    candles[b] = candleCount;
+    close[b] = lastCandle < 0 ? NaN : columns.close[lastCandle]!;
+    // Drawable volumes are finite and non-negative, so an overflowing sum stays saturated.
+    if (total === Infinity) {
+      total = Number.MAX_VALUE;
+      saturated++;
+    }
+    volume[b] = total;
+    if (total > maxVolume) maxVolume = total;
+  };
   for (let i = start; i < end; i++) {
     const px = columns.x(i);
     if (!Number.isFinite(px)) continue;
@@ -87,43 +101,33 @@ export function aggregateOhlcv(columns: OhlcvColumns, start: number, end: number
     else if (c >= cols) c = cols - 1;
     if (c !== column) {
       // Columns only grow with x; a NaN-free sorted x never revisits one.
+      if (count) finishBin(sum);
       column = c;
       const b = count++;
       center[b] = Math.min(left + width, left + (c + 0.5) * BIN_WIDTH);
       high[b] = -Infinity;
       low[b] = Infinity;
       open[b] = NaN;
-      close[b] = NaN;
-      volume[b] = NaN;
-      candles[b] = 0;
       first[b] = i;
-      capped = false;
+      candleCount = 0;
+      lastCandle = -1;
+      sum = NaN;
     }
     const b = count - 1;
-    last[b] = i;
+    lastSlot = i;
     if (isCandle) {
-      if (candles[b] === 0) open[b] = columns.open[i]!;
-      close[b] = columns.close[i]!;
+      if (candleCount++ === 0) open[b] = columns.open[i]!;
+      lastCandle = i;
       const h = columns.high[i]!;
       const l = columns.low[i]!;
       if (h > high[b]!) high[b] = h;
       if (l < low[b]!) low[b] = l;
-      candles[b]!++;
     }
     if (hasVolume) {
       const v = vol![i]!;
-      const was = volume[b]!;
-      let sum = was !== was ? v : was + v;
-      if (sum === Infinity) {
-        // A bar taller than any representable volume cannot be drawn as given: it is held at the top of
-        // the scale and counted once per bin, so the layout can say so. Readouts keep the raw values.
-        sum = Number.MAX_VALUE;
-        if (!capped) saturated++;
-        capped = true;
-      }
-      volume[b] = sum;
-      if (sum > maxVolume) maxVolume = sum;
+      sum = sum !== sum ? v : sum + v;
     }
   }
+  if (count) finishBin(sum);
   return { count, center, open, high, low, close, volume, candles, first, last, maxVolume, saturated };
 }

@@ -96,14 +96,14 @@ describe('constant DOM', () => {
     expect((invalid.getAttribute('d')!.match(/M/g) ?? []).length).toBe(2 * 3);
   });
 
-  it('merges runs of one bin in a row only when cells are too small to separate', () => {
+  it('merges runs of one bin across rows only when cells are too small to separate', () => {
     const big = stage({ data: grid(2, 4, () => 5) });
     const box = (big.scene.marks[0] as RectMark).xywh;
     // Cells ≥ 6 px keep a 0.5 px inset each side: 8 separate rectangles.
     expect(box.length / 4).toBe(8);
     const tiny = stage({ data: typedGrid(100, 300, () => 5) });
-    // Cells under 6 px: one run per row of equal values.
-    expect((tiny.scene.marks[0] as RectMark).xywh.length / 4).toBe(100);
+    // The 100 equal, touching row spans cover one rectangle.
+    expect((tiny.scene.marks[0] as RectMark).xywh.length / 4).toBe(1);
   });
 
   it('measures the 250 × 200 build (Node; reported for the ledger)', () => {
