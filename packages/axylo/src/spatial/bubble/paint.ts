@@ -85,9 +85,17 @@ interface Piece { cx: number; cy: number; rho: number; from: number; to: number 
 // The three/five bands include BELOW on the unoccupied side of each marker.
 const DISC = [SELF, NONE, BELOW];
 const RING = [BELOW, NONE, SELF, NONE, BELOW];
-const zeroInner = ZERO_RADIUS - 0.5 - GAP;
-const zeroOuter = ZERO_RADIUS + 0.5 + GAP;
-const zeroEdges = [zeroInner, ZERO_RADIUS - 0.5, ZERO_RADIUS + 0.5, zeroOuter];
+// The zero-size ring's four edges (inner gap, ring inner, ring outer, outer gap) are built on the first paint,
+// not at load: arithmetic on imported bindings is kept by bundlers that ignore purity annotations, so a bare
+// import would otherwise run code (even an empty array literal is an allocation). paintedMap is the only way in,
+// so it fills them once and every edge reuses them.
+let zeroEdges!: number[], zeroInner = 0, zeroOuter = 0;
+const zeroRing = (): void => {
+  if (zeroEdges) return;
+  zeroInner = ZERO_RADIUS - 0.5 - GAP;
+  zeroOuter = ZERO_RADIUS + 0.5 + GAP;
+  zeroEdges = [zeroInner, ZERO_RADIUS - 0.5, ZERO_RADIUS + 0.5, zeroOuter];
+};
 const bands = (r: number) => r ? DISC : RING;
 const edge = (r: number, i: number) => r ? r + i * GAP : zeroEdges[i]!;
 
@@ -172,6 +180,7 @@ let maps: WeakMap<BubbleGeometry, PaintedMap> | undefined;
  * the circle is covered, and only for its visible angles the lower ones.
  */
 export function paintedMap(g: BubbleGeometry, seriesCount: number): PaintedMap {
+  zeroRing();
   const known = (maps ??= new WeakMap()).get(g);
   if (known && known.series.length === seriesCount) return known;
   const S = Math.max(0, seriesCount);
