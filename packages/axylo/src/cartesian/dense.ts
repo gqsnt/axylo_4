@@ -8,18 +8,77 @@
  * slot with no row is bridged outside stacks, and a run of one value is an isolated point. Exact values for
  * readouts come from the frame, never from what was kept.
  *
- * Why not simplify/index.ts itself: its block index, selection cache and affine search are built for the root
- * line's million-point zoom path, and importing them adds about 9.3 kB minified to this entry, past the entry's
- * enforced 127,000 B gzip cap (tests/dist/subpaths.test.ts). This is one linear pass with typed buffers.
- *
  * A log axis cannot place a value at or below zero (RFC C4.1 §4.4). With `log`, such a slot is drawn as a
  * SLOT_GAP would be: the line breaks there exactly as before, no column extreme is read from it, and
- * `position()` never sees it. The value and state columns are borrowed from the frame: neither is copied nor
- * changed, and no derived column is made.
+ * `position()` never sees it. The value and state columns are borrowed from the frame: both retain their original
+ * contents. Large ranges share indexes of the earliest extrema of complete windows.
  */
-import { SLOT_NO_ROW, SLOT_VALUE, type IndexRange, type Rect } from '../core/contracts';
+import { SLOT_NO_ROW, SLOT_VALUE, type IndexRange, type Rect, type Series, type XScale } from '../core/contracts';
+
+import { denseSlots, seriesSlots, WINDOW_SIZE } from '../data/store-statistics';
+import { COORDINATE_LIMIT } from '../scene/geometry';
+
+/** On sorted finite inputs between low and high, interpolation follows the committed map
+ * including its endpoint shortcuts. Extreme spans and extrapolation use position() instead. */
+export function linearPixels(scale: XScale, low: number, high: number) {
+  if (scale.type !== 'time' && scale.type !== 'linear') return;
+  const [a, b] = scale.domain, [origin, edge] = scale.range;
+  const span = b - a, extent = edge - origin;
+  const pixel = (v: number) => origin + (v - a) / span * extent;
+  if (Number.isFinite(span) && span !== 0 && extent !== 0 && Object.is(pixel(a), origin) && Object.is(pixel(b), edge) &&
+      Math.max(Math.abs(pixel(low)), Math.abs(pixel(high))) <= COORDINATE_LIMIT) return pixel;
+}
 
 type Values = Float64Array | Float32Array;
+
+/** A normalized layer can already have materialized its all-value slot column. */
+export function mixedSlots(s: Series) {
+  const slot = seriesSlots(s);
+  return slot && denseSlots.has(slot) ? null : slot;
+}
+
+let windows: WeakMap<Series, Float64Array | null> | undefined;
+
+/** Defer the index until the same immutable series is visited again. Each zoom
+ * populates only complete windows. A new revision can share y with different slots. */
+export function seriesWindows(s: Series, lookupOnly = false) {
+  const cache = windows ??= new WeakMap();
+  let indexes = cache.get(s);
+  if (lookupOnly) return indexes;
+  if (indexes === undefined) cache.set(s, null);
+  else if (!indexes) cache.set(s, indexes = new Float64Array(2 * Math.floor(s.y.length / WINDOW_SIZE)).fill(-2));
+  return indexes;
+}
+
+export function extremaIndexes(y: Values, slot: Uint8Array | null, start: number, end: number, seed = -1, blocks?: Float64Array | null): readonly [number, number] {
+  let min = seed, max = seed;
+  for (let i = start; i < end;) {
+    const stop = blocks ? Math.min(end, i + WINDOW_SIZE - i % WINDOW_SIZE) : end;
+    const cache = stop - i === WINDOW_SIZE ? blocks : null, pair = 2 * i / WINDOW_SIZE;
+    let a = -1, b = -1;
+    if (cache && cache[pair] !== -2) {
+      a = cache[pair]!;
+      b = cache[pair + 1]!;
+    } else {
+      let low = Infinity, high = -Infinity;
+      for (let j = i; j < stop; j++) {
+        if (slot && slot[j] !== SLOT_VALUE) continue;
+        const value = y[j]!;
+        if (value < low) { low = value; a = j; }
+        if (value > high) { high = value; b = j; }
+      }
+      if (cache) {
+        // -2 marks an uncomputed window, -1 an empty one.
+        cache[pair] = a;
+        cache[pair + 1] = b;
+      }
+    }
+    if (y[a]! < (y[min] ?? Infinity)) min = a;
+    if (y[b]! > (y[max] ?? -Infinity)) max = b;
+    i = stop;
+  }
+  return [min, max];
+}
 
 /** The source slots a drawing keeps. */
 export interface Kept {
@@ -44,11 +103,24 @@ export function columnLimit(plot: Rect, ratio: number): number {
 const drawnAt = (y: Values, slot: Uint8Array | null, log: boolean) => (i: number) =>
   (!slot || slot[i] === SLOT_VALUE) && (!log || (y[i]! > 0 && y[i]! < Infinity));
 
-function grow(buffer: Uint32Array, length: number): Uint32Array {
-  if (length < buffer.length) return buffer;
-  const next = new Uint32Array(Math.max(4, buffer.length * 2));
-  next.set(buffer);
-  return next;
+export class Slots {
+  data: Uint32Array;
+  length = 0;
+
+  constructor(capacity = 4) {
+    this.data = new Uint32Array(capacity);
+  }
+
+  push(slot: number) {
+    if (this.length === this.data.length) {
+      const next = new Uint32Array(Math.max(4, 2 * this.length));
+      next.set(this.data);
+      this.data = next;
+    }
+    this.data[this.length++] = slot;
+  }
+
+  used() { return this.data.subarray(0, this.length); }
 }
 
 /**
@@ -58,85 +130,82 @@ function grow(buffer: Uint32Array, length: number): Uint32Array {
  */
 export function keep(
   y: Values, slot: Uint8Array | null, range: IndexRange, xAt: (i: number) => number,
-  ratio: number, limit: number, bridge: boolean, log = false,
+  ratio: number, limit: number, bridge: boolean, log = false, monotone = false, series?: Series,
 ): Kept {
   const { start, end } = range;
   // Density is decided on the values that can be drawn, as simplify/index.ts decides it on its values: a range
   // aligned to a long bar layer may hold only a few drawable line samples, and those are all kept.
   const drawn = drawnAt(y, slot, log);
-  let drawable = 0;
-  for (let i = start; i < end; i++) if (drawn(i)) drawable++;
+  const continuous = !log && !slot && start >= 0 && end <= y.length;
+  let drawable = end - start;
+  if (!continuous && drawable > limit) {
+    drawable = 0;
+    for (let i = start; i < end; i++) if (drawn(i) && ++drawable > limit) break;
+  }
   const dense = drawable > limit;
-  let out: Uint32Array = new Uint32Array(Math.max(4, dense ? Math.min(drawable, limit + 8) : drawable));
-  let ends: Uint32Array = new Uint32Array(4);
-  let isolated: Uint32Array = new Uint32Array(0);
-  let n = 0, runs = 0, singles = 0, runStart = 0, values = 0;
-  let column = NaN, first = -1, last = -1, min = -1, max = -1, low = 0, high = 0;
-  const push = (i: number) => { out = grow(out, n); out[n++] = i; };
-  const flush = () => {
-    if (first < 0) return;
-    // An extreme may also be an endpoint: each slot once, in source order.
-    const earlier = Math.min(min, max), later = Math.max(min, max);
-    push(first);
-    if (earlier > first && earlier < last) push(earlier);
-    if (later > earlier && later < last) push(later);
-    if (last > first) push(last);
-    first = -1;
-  };
+  const jump = monotone && dense && continuous;
+  const blocks = jump && series ? seriesWindows(series) : null;
+  const columnAt = (i: number) => Math.floor(xAt(i) * ratio);
+  const out = new Slots(Math.max(4, Math.min(drawable, limit + 8)));
+  const ends = new Slots(), isolated = new Slots(0);
+  let runStart = 0;
   const endRun = () => {
-    flush();
-    if (values === 1) {
-      isolated = grow(isolated, singles);
-      isolated[singles++] = out[runStart]!;
-      n = runStart;
-    } else if (values > 1) {
-      ends = grow(ends, runs);
-      ends[runs++] = n;
-    }
-    values = 0;
-    column = NaN;
+    if (out.length === runStart + 1) isolated.push(out.data[--out.length]!);
+    else if (out.length > runStart) ends.push(out.length);
+    runStart = out.length;
   };
-  for (let i = start; i < end; i++) {
-    const value = y[i]!;
+  for (let i = start; i < end;) {
     if (!drawn(i)) {
       if (!(bridge && slot?.[i] === SLOT_NO_ROW)) endRun();
+      i++;
       continue;
     }
-    if (values++ === 0) runStart = n;
-    if (!dense) { push(i); continue; }
-    const c = Math.floor(xAt(i) * ratio);
-    if (c !== column) {
-      flush();
-      column = c;
-      first = min = max = last = i;
-      low = high = value;
+    const first = i++;
+    out.push(first);
+    if (!dense) continue;
+    const column = columnAt(first);
+    let last = first;
+    if (jump) {
+      // Forward probes preserve rounded column boundaries on uneven and reversed scales.
+      let step = 1;
+      while (first + step < end && columnAt(first + step) === column) step *= 2;
+      for (step = Math.floor(step / 2); step >= 1; step = Math.floor(step / 2)) {
+        if (last + step < end && columnAt(last + step) === column) last += step;
+      }
+      i = last + 1;
     } else {
-      last = i;
-      if (value < low) { low = value; min = i; }
-      if (value > high) { high = value; max = i; }
+      for (; i < end; i++) {
+        if (!drawn(i)) {
+          if (bridge && slot?.[i] === SLOT_NO_ROW) continue;
+          break;
+        }
+        if (columnAt(i) !== column) break;
+        last = i;
+      }
     }
+    if (first === last) continue;
+    const [min, max] = extremaIndexes(y, continuous ? null : slot, first + 1, last + 1, first, blocks);
+    const earlier = Math.min(min, max), later = Math.max(min, max);
+    if (earlier > first && earlier < last) out.push(earlier);
+    if (later > earlier && later < last) out.push(later);
+    out.push(last);
   }
   endRun();
-  return { indexes: out.subarray(0, n), ends: ends.subarray(0, runs), isolated: isolated.subarray(0, singles) };
+  return { indexes: out.used(), ends: ends.used(), isolated: isolated.used() };
 }
 
-/** A path through every run of `kept`, the pen lifted between runs. */
-export function pathOf(kept: Kept, xAt: (i: number) => number, yAt: (i: number) => number): Float32Array {
-  const { indexes, ends } = kept;
-  const xy = new Float32Array(2 * (indexes.length + Math.max(0, ends.length - 1)));
+/** XY vertices with a pen lift at each supplied run boundary. */
+export function pointsOf(indexes: Uint32Array, xAt: (i: number) => number, yAt: (i: number) => number, ends?: Uint32Array): Float32Array {
+  const xy = new Float32Array(2 * (indexes.length + Math.max(0, (ends?.length ?? 1) - 1)));
   let o = 0, run = 0;
   for (let j = 0; j < indexes.length; j++) {
-    if (j === ends[run]) { xy[o++] = NaN; xy[o++] = NaN; run++; }
+    if (j === ends?.[run]) { xy[o++] = NaN; xy[o++] = NaN; run++; }
     const i = indexes[j]!;
     xy[o++] = xAt(i);
     xy[o++] = yAt(i);
   }
   return xy;
 }
-
-/** The points of `indexes`, with no pen lifts. */
-export const pointsOf = (indexes: Uint32Array, xAt: (i: number) => number, yAt: (i: number) => number): Float32Array =>
-  pathOf({ indexes, ends: indexes.subarray(0, 0), isolated: indexes }, xAt, yAt);
 
 /** An area over the runs of `kept`: each run one region between its upper and lower boundary. */
 export function bandOf(
