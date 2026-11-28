@@ -60,6 +60,7 @@ export function hierarchyCss(): string {
 .axylo-h-region caption { padding: 4px 8px; text-align: start; font-weight: 600; }
 .axylo-h-region th, .axylo-h-region td { padding: 2px 8px; text-align: end; white-space: nowrap; border-bottom: 1px solid ${GRID}; }
 .axylo-h-region th[scope="row"], .axylo-h-region thead th:first-child { text-align: start; }
+.axylo-h-pager { display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: max(12px, 0.875em); }
 }
 `;
 }

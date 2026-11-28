@@ -208,7 +208,7 @@ export type Disclosure = { readonly omitted: number; readonly changed: number };
 export interface ReaderEntry { readonly reader: ReaderModel; readonly inputs: readonly unknown[] }
 
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
-export type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'naming' | 'internal';
+export type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'size' | 'naming' | 'internal';
 
 export interface Candidate {
   readonly options: OptionRecord;
@@ -295,6 +295,14 @@ export interface ControllerCore {
   publicDiagnostics(inputs: readonly DiagnosticInput[]): Diagnostic[];
   resolveTheme(keys: readonly string[], colors: unknown): void;
   schedule(): void;
+  /**
+   * Reports that an author format for `field` threw and the default text was the fallback (AX160 'changed'): delivered
+   * at once outside a frame, with the frame inside one; nothing for a superseded frame or a destroyed chart.
+   * Absent before the first frame has built formatters. A composition's own format passes the controller itself as
+   * `own` (the formatters pass what was thrown there, which can be anything else), so its finding is kept apart from
+   * a stock one on the same field; with `retire` as well, that finding alone is withdrawn instead.
+   */
+  readonly fallback?: (field: string, own?: unknown, retire?: unknown) => void;
   setPaused(paused: boolean): void;
   toggleSeries(key: string): void;
   update(patch: unknown): void;

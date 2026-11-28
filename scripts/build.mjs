@@ -51,7 +51,7 @@ export const DEVELOPMENT = { __DEV__: 'true', __BENCH__: 'false' };
 async function main() {
   const dist = path.join(pkg, 'dist');
   fs.rmSync(dist, { recursive: true, force: true });
-  const { minified } = await stylesheets();
+  const { readable, minified } = await stylesheets();
   const common = { entryPoints: [path.join(pkg, 'src/index.ts')], bundle: true, target: 'es2022', legalComments: 'none', logLevel: 'warning', absWorkingDir: root };
   const prod = { define: PRODUCTION, plugins: [stylesheetPlugin(minified)] };
   const dev = { define: DEVELOPMENT };
@@ -62,11 +62,14 @@ async function main() {
     build({ ...common, ...prod, format: 'iife', globalName: 'Axylo', minify: true, outfile: path.join(dist, 'axylo.iife.min.js') }),
     // The opt-in subpaths (axylo/static, axylo/stream): ESM only, each its own self-contained file, so the root
     // file above is built exactly as before and a page pays only for the entry it imports.
-    ...['static', 'stream', 'cartesian', 'stats', 'sync', 'export', 'finance'].flatMap(name => {
+    ...['static', 'stream', 'cartesian', 'stats', 'sync', 'export', 'finance', 'spatial', 'hierarchy'].flatMap(name => {
       const entry = { ...common, entryPoints: [path.join(pkg, `src/${name}.ts`)] };
+      // The Wave 4 subpaths' development files carry the readable stylesheet as a literal (the text css.ts
+      // computes, unminified): computed at import time, it would make a bare import of them bundle to bytes.
+      const flavour = name === 'spatial' || name === 'hierarchy' ? { ...dev, plugins: [stylesheetPlugin(readable)] } : dev;
       return [
         build({ ...entry, ...prod, format: 'esm', minify: true, outfile: path.join(dist, `${name}.js`) }),
-        build({ ...entry, ...dev, format: 'esm', outfile: path.join(dist, `${name}.dev.js`) }),
+        build({ ...entry, ...flavour, format: 'esm', outfile: path.join(dist, `${name}.dev.js`) }),
       ];
     }),
   ]);

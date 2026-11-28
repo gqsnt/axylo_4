@@ -9,39 +9,14 @@
  * AX101 from an earlier call). A strict chart therefore rejects a size patch from the call that made it.
  */
 import type { DiagnosticInput, DiagnosticSink } from '../../core/contracts';
-import type { NumberKey, ScatterOptions, StringKey } from '../../public';
+import type { BubbleOptions } from '../../spatial';
 import { report } from '../../diagnostics';
 import type { ResolvedOptions } from '../../data/options';
 import type { Table } from '../../data/table';
 import type { NumberFormatOption } from '../../format';
 
-export interface SizeFieldOptions {
-  /** Legend title and the name used in tooltip, table and announcements. Default: the field name. */
-  label?: string;
-  /** Unit appended to sizes in tooltip, table, legend and announcements. */
-  unit?: string;
-  /** How sizes are written in tooltip, table, legend and announcements. Default: locale grouping, as values (F6). */
-  format?: Intl.NumberFormatOptions | ((value: number) => string);
-}
-
-/** The field whose value sets each bubble's area. Sizes are magnitudes: zero and positive values only. */
-export type SizeField<Row> =
-  | NumberKey<Row>
-  | ({ field: NumberKey<Row>; parse?: never } & SizeFieldOptions)
-  | ({ field: StringKey<Row>; parse: 'number' } & SizeFieldOptions);
-
-/** Radius range in CSS px: the largest size is drawn at `max`; a positive size never below `min`. */
-export interface BubbleRadius {
-  /** Default 2. */
-  min?: number;
-  /** Default 24. */
-  max?: number;
-}
-
-export type BubbleOptions<Row> = ScatterOptions<Row> & {
-  size: SizeField<Row>;
-  radius?: BubbleRadius;
-};
+// Declared in the entry file (spatial.ts): the package ships that declaration file, not this module's.
+export type { BubbleOptions, BubbleRadius, SizeField, SizeFieldOptions } from '../../spatial';
 
 export const DEFAULT_MIN_RADIUS = 2;
 export const DEFAULT_MAX_RADIUS = 24;

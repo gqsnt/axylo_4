@@ -48,6 +48,8 @@ export interface ExportSummary {
     readonly legend: readonly string[];
     readonly legendValues: readonly string[];
     readonly swatches: number;
+    /** Of those, the graphics that are not 20 × 12 legend swatches (a family's colour bar or size legend). */
+    readonly chromeGraphics: number;
     readonly rotatedLabels: number;
     readonly multilineLabels: number;
     /** Each line of each visible multi-line label, as shown. */
@@ -97,7 +99,8 @@ export function summarizeExport(args: { selector: string; options?: Record<strin
     for (let at: Element | null = e; at && !at.matches('.axylo-scene'); at = at.parentElement) if (getComputedStyle(at).display === 'none') return false;
     return true;
   };
-  const liveSwatches = [...figure.querySelectorAll('.axylo-legend-entry svg, .axylo-legend-list svg')].filter(shown);
+  // Legend swatches and the graphics of a family's own chrome (data-axylo-export: a colour bar, a size legend).
+  const liveSwatches = [...figure.querySelectorAll('.axylo-legend-entry svg, .axylo-legend-list svg, [data-axylo-export] svg')].filter(shown);
   // Lay the exported image out in the page for its real text and mark bounds, then take it out again.
   const holder = document.createElement('div');
   holder.style.position = 'fixed';
@@ -131,7 +134,8 @@ export function summarizeExport(args: { selector: string; options?: Record<strin
       title: textOf('.axylo-title'), subtitle: textOf('.axylo-subtitle'), note: textOf('.axylo-note'),
       legend: [...figure.querySelectorAll('.axylo-legend-entry .axylo-control-label, .axylo-legend-name')].filter(shown).map(e => e.textContent!.trim()),
       legendValues: [...figure.querySelectorAll('.axylo-legend-value')].filter(shown).map(e => e.textContent!.trim()),
-      swatches: [...figure.querySelectorAll('.axylo-legend-entry svg, .axylo-legend-list svg')].filter(shown).length,
+      swatches: liveSwatches.length,
+      chromeGraphics: liveSwatches.filter(x => x.getAttribute('viewBox') !== '0 0 20 12').length,
       rotatedLabels: labels.filter(l => angle(l) !== 0).length,
       multilineLabels: labels.filter(l => l.children.length > 1).length,
       labelLines: labels.filter(l => l.children.length > 1).flatMap(l => [...l.children].map(c => c.textContent!.trim())),
@@ -205,8 +209,12 @@ export function expectWholeFigure(s: ExportSummary, options: { plotOnly?: boolea
   expect(vw).toBeGreaterThanOrEqual(Math.floor(s.dom.figure.width));
   expect(vh).toBeGreaterThanOrEqual(Math.floor(s.dom.figure.height));
   for (const t of chrome) expect(all, `exported SVG shows "${t}"`).toContain(squash(t));
-  const swatches = s.svgs.filter(b => b !== plot && b.viewBox === '0 0 20 12');
-  expect(swatches.length, 'every visible swatch exported').toBeGreaterThanOrEqual(s.dom.swatches);
+  // Every nested SVG but the plot is chrome graphics: the legend's swatches (20 × 12) and, W4, a family's marked
+  // chrome (a colour bar, a nested-circle size legend). Each is painted in a concrete colour.
+  const swatches = s.svgs.filter(b => b !== plot);
+  expect(swatches.filter(b => b.viewBox === '0 0 20 12').length, 'every visible 20 × 12 swatch exported')
+    .toBeGreaterThanOrEqual(s.dom.swatches - s.dom.chromeGraphics);
+  expect(swatches.length, 'every visible swatch and chrome graphic exported').toBeGreaterThanOrEqual(s.dom.swatches);
   for (const w of swatches) expect(w.painted, 'swatch painted in a concrete colour').toBeGreaterThan(0);
   // Mark-aware swatches: each exported swatch draws the live swatch's shapes (bar, area, line, range, error bar).
   expect(s.swatchShapes, 'swatch geometry as shown').toEqual(s.dom.swatchShapes);

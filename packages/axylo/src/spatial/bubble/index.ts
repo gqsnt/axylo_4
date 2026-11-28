@@ -11,7 +11,8 @@
  *   holding the visible parts of its discs (paint.ts).
  * - Picking by containment (the bubble painted on top under the pointer), then nearest edge within 24 px.
  */
-import type { Chart, Diagnostic, Target } from '../../public';
+import type { Diagnostic, Target } from '../../public';
+import type { BubbleChart } from '../../spatial';
 import { createStaticChart } from '../../core/chart';
 import type { ChartHandle } from '../../core/instrument';
 import { dedupe, namingDiagnostics, publicOptions, toPublic, viewStateFor } from '../../core/stages';
@@ -31,8 +32,7 @@ import type { BubbleGeometry } from './geometry';
 export type { BubbleOptions, BubbleRadius, SizeField, SizeFieldOptions } from './options';
 export type { BubbleSnapshot } from './composition';
 
-/** A bubble chart: everything a static chart has (no `append`: sizes are read per update, not streamed). */
-export type BubbleChart<Row> = Omit<Chart<Row, BubbleOptions<Row>>, 'append'>;
+export type { BubbleChart } from '../../spatial';
 
 let internals: WeakMap<object, BubbleState> | undefined;
 

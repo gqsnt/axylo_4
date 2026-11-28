@@ -287,6 +287,8 @@ export class HeatmapLegend {
     if (!own) {
       own = doc.createElement('ul');
       own.className = 'axylo-legend axylo-heatmap-legend';
+      // Family chrome for a whole-figure export (export/contract.ts CHROME): the bar, its ticks and the swatches.
+      own.setAttribute('data-axylo-export', 'color-bar');
       css(own, ['list-style', 'none', 'display', 'flex', 'flex-wrap', 'wrap', 'align-items', 'center', 'gap', '4px 16px', 'margin', '0', 'padding', '0']);
       this.#painted = undefined;
     }

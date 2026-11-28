@@ -38,7 +38,7 @@ import { paintedMap } from './paint';
 import { bubbleTable, rowSizeText } from './table';
 import { legendModel, referenceSizes, renderLegend, type LegendModel } from './legend';
 import { resolveBubble, sameMeta, scatterPart, type BubbleMeta } from './options';
-import { sizeFormatFailed, sizeText, watchSizeFormat } from './text';
+import { sizeFormatFailed, sizeMissed, sizeText, watchSizeFormat } from './text';
 import { createDiagnostic } from '../../diagnostics';
 
 const NO_DATA = { noData: '' } as const;
@@ -63,12 +63,20 @@ export interface BubbleMark extends PointMark {
 
 /** What a bubble chart keeps beside its controller, for the legend now and for export wiring later. */
 export interface BubbleState {
-  controller: Pick<ControllerCore, 'accepted' | 'destroyed' | 'drawn' | 'schedule'> | null;
+  controller: Pick<ControllerCore, 'accepted' | 'destroyed' | 'drawn' | 'inFrame' | 'inflight' | 'schedule' | 'fallback'> | null;
   last: BubbleMeta | null;
   readonly metas: WeakMap<ResolvedOptions, BubbleMeta>;
   readonly layouts: WeakMap<Layout, BubbleMeta>;
   /** The committed revision's table (every row through `row(i)`), built by the reader stage. */
   table: TableModel | null;
+  /** The bubble table whose row is being formatted right now, if any: who a size format failure belongs to. */
+  reading: TableModel | null;
+  /** Tables whose size format failure was already reported (AX160 once per finding of a table). */
+  readonly reported: WeakSet<TableModel>;
+  /** Per table, the revision whose frame built it: only that revision, once accepted, owns what its rows find. */
+  readonly owners: WeakMap<TableModel, object>;
+  /** The meta whose size format failure was reported to the controller: withdrawn once another meta is read. */
+  failed: BubbleMeta | null;
   /** The legend model of the latest lookup (what the size legend shows). */
   legend: LegendModel | null;
   /** Per layout, the legend model its lookup built and the legend drew: what a snapshot of that layout reads. */
@@ -88,7 +96,7 @@ export interface BubbleState {
 
 export function createBubbleState(): BubbleState {
   return {
-    controller: null, last: null, metas: new WeakMap(), layouts: new WeakMap(), table: null, legend: null, legends: new WeakMap(), checked: new WeakSet(), drawn: null,
+    controller: null, last: null, metas: new WeakMap(), layouts: new WeakMap(), table: null, reading: null, reported: new WeakSet(), owners: new WeakMap(), failed: null, legend: null, legends: new WeakMap(), checked: new WeakSet(), drawn: null,
     list: null, rendered: null, refreshQueued: false, locale: 'en-US', geometries: new WeakMap(),
   };
 }
@@ -107,13 +115,52 @@ export function resolveWith(state: BubbleState) {
     // An equal meta is the same object, so the layout key (and so the scene and lookup) survive a title update.
     if (state.last && sameMeta(state.last, meta)) meta = state.last;
     state.last = meta;
-    // A row's size is formatted lazily, maybe long after its frame: its first failure asks for a frame, whose
-    // layout stage then reports AX160 (layoutDiagnostics below). schedule() requests a frame and returns, so a
-    // failure inside a frame or inside update() never re-enters the controller; it coalesces repeated requests.
-    if (meta.format) watchSizeFormat(meta, () => { const c = state.controller; if (c && !c.destroyed) c.schedule(); });
+    // A row's size is formatted lazily, maybe long after its frame: a failure goes to the controller's formatter
+    // report (AX160 'changed'), which delivers late findings to the diagnostics, onDiagnostic and the note against
+    // the accepted options (an empty or compact chart has no layout stage). That is right only for a read the
+    // accepted revision owns, so ownership is checked here (sizeFailureOwned). Neither path re-enters update() or
+    // a frame. Before the first frame there is no report yet: a frame is requested, whose layout stage reports it.
+    if (meta.format) {
+      watchSizeFormat(meta, () => {
+        const c = state.controller, reading = state.reading;
+        // A table row it could not report for is marked: a later read, maybe owned by then, offers it again.
+        if (!c || c.destroyed || !sizeFailureOwned(state, c)) {
+          if (reading) (missed ??= new WeakSet()).add(reading);
+          return false;
+        }
+        if (reading) {
+          if (state.reported.has(reading)) return true;
+          state.reported.add(reading);
+        } else if (sizeFormatFailed(meta)) return true;
+        state.failed = meta;
+        c.fallback ? c.fallback(meta.field, c) : c.schedule();
+        return true;
+      });
+    }
     state.metas.set(resolved, meta);
     return resolved;
   };
+}
+
+/**
+ * Whether a failing size read belongs to the revision the controller reports against (the accepted one): a row
+ * of the drawn table while nothing newer is accepted, or of the table the frame drawing the accepted revision
+ * built. A read of a table that is not the active one (the visible table of a revision an accepted update will
+ * replace, or one retained after it was replaced) still shows its fallback text but is neither reported to the
+ * newer revision's handler, diagnostics and note, nor counted as a failure it found. Reads that are not table
+ * rows (legend, summary, layout: inside a frame; a tooltip of the drawn lookup) follow the same rule outside a
+ * frame, and the controller's own guards inside one.
+ */
+function sizeFailureOwned(state: BubbleState, c: NonNullable<BubbleState['controller']>): boolean {
+  const d = c.drawn;
+  const settled = d !== null && d.accepted === c.accepted;
+  const drawing = c.inFrame && c.inflight !== null && c.inflight === c.accepted;
+  const reading = state.reading;
+  if (!reading) return settled || c.inFrame || !d;
+  // The table drawn for the accepted revision is that revision's, also when the core reused it from an earlier one.
+  // A table read during a newer revision's frame (an x.tickFormat reading the visible table before the new reader
+  // is made) is not that revision's, though it is still `state.table`: ownership is fixed when the table is built.
+  return (settled && reading === d.reader.table) || (drawing && reading === state.table && state.owners.get(reading) === c.accepted);
 }
 
 function bubbleLayout(state: BubbleState): Composition['layout'] {
@@ -182,6 +229,8 @@ function sceneWith(state: BubbleState): Composition['scene'] {
 }
 
 let noMembers: Uint32Array | undefined;
+/** Tables with a failing size read not reported for want of ownership: their rows are cached, so a later read offers it again. */
+let missed: WeakSet<TableModel> | undefined;
 
 function bubbleMark(geometry: BubbleGeometry, members: Uint32Array, series: number, paint: BubbleMark['bubble']['paint'], seriesCount: number): BubbleMark {
   return {
@@ -644,15 +693,31 @@ export function bubbleSnapshot(state: BubbleState): BubbleSnapshot | null {
 function updateLegend(state: BubbleState, model: LegendModel): void {
   state.legend = model;
   // The toolbar redraws the legend only when its own inputs change, which a single-series chart's size, data or
-  // locale change does not touch. The new model is rendered right after this frame commits instead.
-  if (!state.list || state.rendered?.signature === model.signature || state.refreshQueued) return;
+  // locale change does not touch, so the bubble writes it. Inside the frame that draws the accepted revision this
+  // lookup stage is past every point that can abandon the frame (author code ran above, and nothing of the
+  // author's runs before the plot is written and published): the legend is written now, with the plot, so no
+  // callback after the frame and no export sees a new plot beside the old legend.
+  if (!state.list) return;
+  const c = state.controller;
+  // A lookup made inside a frame is published by that frame, also when author code it ran (a size format calling
+  // update) accepted a newer revision meanwhile: the core still publishes the in-flight plot and table once it has
+  // started writing, so the legend is written with them, before any callback runs.
+  if (c && !c.destroyed && c.inFrame && c.inflight !== null) {
+    if (state.rendered?.signature !== model.signature) renderLegend(state.list.ownerDocument, state.list, model);
+    state.rendered = model;
+    if (c.inflight === c.accepted) return;
+  } else if (state.rendered?.signature === model.signature) return;
+  // Otherwise (a lookup made outside a frame, or a superseded frame that may stop before it writes) the legend
+  // follows the layout actually drawn once the current task is done.
+  if (state.refreshQueued) return;
   state.refreshQueued = true;
   queueMicrotask(() => {
     state.refreshQueued = false;
-    const list = state.list;
-    if (list && state.legend && state.controller && !state.controller.destroyed) {
-      renderLegend(list.ownerDocument, list, state.legend);
-      state.rendered = state.legend;
+    const list = state.list, ctl = state.controller, d = ctl?.drawn;
+    const shown = (d && state.legends.get(d.layout)) ?? state.legend;
+    if (list && shown && ctl && !ctl.destroyed && state.rendered?.signature !== shown.signature) {
+      renderLegend(list.ownerDocument, list, shown);
+      state.rendered = shown;
     }
   });
 }
@@ -661,14 +726,34 @@ function readerWith(state: BubbleState): ReaderParts {
   return {
     table(view, caption, formatters, messages, labels, locale) {
       const meta = committedMeta(state) ?? state.last;
+      retire(state, meta);
       if (!meta || view.kind !== 'scatter') return scatterReader.table(view, caption, formatters, messages, labels, locale);
-      const table = bubbleTable(view, caption, formatters, messages, labels, meta, sizeChannel(view.frame, meta.sizes), locale ?? state.locale);
+      const built = bubbleTable(view, caption, formatters, messages, labels, meta, sizeChannel(view.frame, meta.sizes), locale ?? state.locale);
+      // Every row read names its table, so a size format failure is reported only for the table that owns it.
+      // The controller caches each row once per table (it replaces `row`), so a failure a read could not report
+      // (the table was not the accepted revision's yet) is offered again on any later read (every read looks `row`
+      // up), as a read of this table under the same guard.
+      // A negative ordinal is that offer: a missed failure is the meta's, read as this table's.
+      const read: TableModel['row'] = i => {
+        const outer = state.reading;
+        state.reading = table;
+        try { return i < 0 ? (missed?.has(table) && sizeMissed(meta)) as never : built.row(i); } finally { state.reading = outer; }
+      };
+      let row = read;
+      const table: TableModel = {
+        ...built,
+        get row() { return read(-1), row; },
+        set row(kept) { row = kept; },
+      };
+      const c = state.controller;
+      if (c) state.owners.set(table, (c.inFrame && c.inflight) || c.accepted!);
       state.table = table;
       return table;
     },
     text(input, type, xLabel, yLabel, table, listReady) {
       const sentences = scatterReader.text(input, type, xLabel, yLabel, table, listReady);
       const meta = committedMeta(state) ?? state.last;
+      retire(state, meta);
       if (!meta || input.view.kind !== 'scatter') return sentences;
       const channel = sizeChannel(input.view.frame, meta.sizes);
       const locale = input.locale ?? state.locale;
@@ -679,6 +764,19 @@ function readerWith(state: BubbleState): ReaderParts {
     },
     stateKey: () => committedMeta(state),
   };
+}
+
+/**
+ * A size format finding belongs to the size options (meta) that made it, as a stock formatter's belongs to its
+ * formatters: once the reader of a revision with another meta is made, the controller's report for the old one
+ * is withdrawn (an empty chart has no layout stage whose findings would replace it). An equal meta is the same
+ * object (resolveWith), so an update that keeps the size options keeps its finding.
+ */
+function retire(state: BubbleState, meta: BubbleMeta | null): void {
+  const failed = state.failed, c = state.controller;
+  if (!failed || failed === meta || !c) return;
+  state.failed = null;
+  c.fallback?.(failed.field, c, c);
 }
 
 function sliceListWith(state: BubbleState): NonNullable<Composition['interaction']['sliceList']> {

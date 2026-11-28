@@ -86,6 +86,8 @@ async function main() {
     { entry: "sync (export * from 'axylo/sync')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export * from 'axylo/sync';" }) },
     { entry: "export (export * from 'axylo/export')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export * from 'axylo/export';" }) },
     { entry: "finance (export { candlestick } from 'axylo/finance')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export { candlestick } from 'axylo/finance';" }) },
+    { entry: "spatial (export * from 'axylo/spatial')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export * from 'axylo/spatial';" }) },
+    { entry: "hierarchy (export * from 'axylo/hierarchy')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export * from 'axylo/hierarchy';" }) },
     {
       entry: "bare import (import 'axylo')", targetKiB: null, cssFile: false,
       build: () => consumer({ cwd: npm, contents: "import 'axylo';" }),

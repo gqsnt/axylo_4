@@ -121,5 +121,21 @@ describe.each(NAMES)('%s tarball', name => {
     it('ships both script-tag flavours', () => {
       for (const f of SCRIPT_TAG.axylo) expect(files).toContain(f);
     });
+
+    // The exact inventory, written out by hand (plan M7): every subpath ships its production and development
+    // files and one self-contained declaration file (W4: ./spatial and ./hierarchy), nothing more and nothing less.
+    it('ships exactly the documented inventory', () => {
+      const subpaths = ['static', 'stream', 'cartesian', 'stats', 'sync', 'export', 'finance', 'spatial', 'hierarchy'];
+      const inventory = [
+        ...ALWAYS, ...SCRIPT_TAG.axylo, 'dist/axylo.js', 'dist/axylo.dev.js', 'dist/axylo.css', 'dist/index.d.ts', 'dist/public.d.ts',
+        ...subpaths.flatMap(n => [`dist/${n}.js`, `dist/${n}.dev.js`, `dist/${n}.d.ts`]),
+      ];
+      expect([...files].sort()).toEqual([...new Set(inventory)].sort());
+      for (const n of ['spatial', 'hierarchy']) {
+        const { files: closure, missing } = declarationClosure(name, `dist/${n}.d.ts`);
+        expect(missing, `dist/${n}.d.ts imports unshipped declarations`).toEqual([]);
+        for (const f of closure) expect(files, `${f} (from dist/${n}.d.ts)`).toContain(f);
+      }
+    });
   }
 });

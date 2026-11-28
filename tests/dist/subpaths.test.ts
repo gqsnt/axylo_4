@@ -1,7 +1,8 @@
 /**
- * The opt-in subpaths `axylo/static` and `axylo/stream`, as packed (C3.1). Node only: bundles are built with
- * esbuild from the npm fixture that installed the tarball, declarations are checked with tsc there, and the
- * Node import runs plain Node through the fixture guard.
+ * The opt-in subpaths `axylo/static` and `axylo/stream`, as packed (C3.1), and the later ones up to Wave 4's
+ * `axylo/spatial` and `axylo/hierarchy`. Node only: bundles are built with esbuild from the npm fixture that
+ * installed the tarball, declarations are checked with tsc there, and the Node imports run plain Node through
+ * the fixture guard, one fresh process per entry and condition.
  */
 import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
@@ -23,9 +24,9 @@ const gzip = (text: string) => gzipSync(Buffer.from(text), { level: 9 }).length;
 const STREAMING_MARKERS = ['adoptNormalized', 'StreamSession'];
 
 describe('package.json', () => {
-  it('exports ./static, ./stream, ./cartesian, ./stats, ./sync, ./export and ./finance with types, development and default files that were packed', () => {
+  it('exports ./static, ./stream, ./cartesian, ./stats, ./sync, ./export, ./finance, ./spatial and ./hierarchy with types, development and default files that were packed', () => {
     const json = packedJson('axylo');
-    for (const name of ['static', 'stream', 'cartesian', 'stats', 'sync', 'export', 'finance']) {
+    for (const name of ['static', 'stream', 'cartesian', 'stats', 'sync', 'export', 'finance', 'spatial', 'hierarchy']) {
       expect(json.exports?.[`./${name}`]).toEqual({ types: `./dist/${name}.d.ts`, development: `./dist/${name}.dev.js`, default: `./dist/${name}.js` });
       for (const file of [`${name}.js`, `${name}.dev.js`, `${name}.d.ts`]) expect(fs.existsSync(installed('axylo', 'dist', file)), file).toBe(true);
     }
@@ -33,10 +34,28 @@ describe('package.json', () => {
 });
 
 describe('import for effect, with side-effect hints ignored', () => {
-  for (const specifier of ['axylo', 'axylo/static', 'axylo/stream', 'axylo/cartesian', 'axylo/stats', 'axylo/sync', 'axylo/export', 'axylo/finance']) {
+  for (const specifier of ['axylo', 'axylo/static', 'axylo/stream', 'axylo/cartesian', 'axylo/stats', 'axylo/sync', 'axylo/export', 'axylo/finance', 'axylo/spatial', 'axylo/hierarchy']) {
     it(`"import '${specifier}'" bundles to 0 raw bytes`, async () => {
       expect((await consumer(`import '${specifier}';`, { ignoreAnnotations: true })).length).toBe(0);
     });
+  }
+
+  // W4: the new subpaths' production and development files both bundle to nothing. `ignoreAnnotations` makes
+  // esbuild disregard the package's `sideEffects` and every pure annotation, so only the code itself counts;
+  // the metafile proves the condition picked the file named here.
+  for (const name of ['spatial', 'hierarchy']) {
+    for (const [condition, file] of [['production', `${name}.js`], ['development', `${name}.dev.js`]] as const) {
+      it(`"import 'axylo/${name}'" under the ${condition} condition reads dist/${file} and bundles to 0 raw bytes`, async () => {
+        const r = await build({
+          stdin: { contents: `import 'axylo/${name}';`, resolveDir: cwd, loader: 'ts' }, absWorkingDir: cwd, bundle: true, minify: true, format: 'esm',
+          target: 'es2022', write: false, conditions: [condition], ignoreAnnotations: true, metafile: true, logLevel: 'silent',
+          outdir: path.join(out, 'subpaths'), plugins: [fixtureGuard([cwd])],
+        });
+        const inputs = Object.keys(r.metafile.inputs).map(p => fs.realpathSync(path.resolve(cwd, p)));
+        expect(inputs).toContain(fs.realpathSync(installed('axylo', 'dist', file)));
+        expect(r.outputFiles?.[0]?.text.length ?? 0).toBe(0);
+      });
+    }
   }
 });
 
@@ -63,6 +82,21 @@ describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/expo
     expect(statsGz).toBeLessThanOrEqual(3_500);
     expect(syncGz).toBeLessThanOrEqual(3_500);
     expect(exportGz).toBeLessThanOrEqual(3_500);
+  });
+});
+
+describe('axylo/spatial and axylo/hierarchy packed sizes stay under caps', () => {
+  // W4 integration (docs/progress/w4-wire-ledger.md): measured 142,020 B (spatial, both families with their
+  // core) and 21,525 B (hierarchy) gzip-9 from an equivalent workspace build; caps a little above those. After
+  // the review repair: 142,342 B and 21,591 B, under the same caps.
+  it('spatial (<= 142,500 B) and hierarchy (<= 21,600 B) standalone bundles stay under gzip-9 caps', async () => {
+    const spatial = await consumer("export * from 'axylo/spatial';");
+    const hierarchy = await consumer("export * from 'axylo/hierarchy';");
+    for (const marker of STREAMING_MARKERS) expect(spatial, `axylo/spatial contains ${marker}`).not.toContain(marker);
+    const spatialGz = gzip(spatial), hierarchyGz = gzip(hierarchy);
+    console.info(`spatial: ${spatialGz} B, hierarchy: ${hierarchyGz} B gzip-9`);
+    expect(spatialGz).toBeLessThanOrEqual(142_500);
+    expect(hierarchyGz).toBeLessThanOrEqual(21_600);
   });
 });
 
@@ -123,6 +157,10 @@ describe('declarations', () => {
         "import type { Dashboard, DashboardPanel } from 'axylo/sync';",
         "import { exportSvg, exportPng, exportCsv, parseCsv } from 'axylo/export';",
         "import { candlestick, validateCandlestick } from 'axylo/finance';",
+        "import { heatmap, validateHeatmap, bubble, validateBubble } from 'axylo/spatial';",
+        "import type { HeatmapOptions, HeatmapChart, HeatmapColorOptions, BubbleOptions, BubbleChart, SizeField } from 'axylo/spatial';",
+        "import { treemap, sunburst, validateTreemap, validateSunburst } from 'axylo/hierarchy';",
+        "import type { TreemapChart, SunburstChart, HierarchyOptions, HierarchyCrumb, TableModel as HierarchyTable } from 'axylo/hierarchy';",
         "import type { StaticChart, LineOptions, Diagnostic } from 'axylo/static';",
         "type Row = { x: number; y: number };",
         "declare const el: HTMLElement;",
@@ -186,6 +224,28 @@ describe('declarations', () => {
         "const csvText = exportCsv([{ x: 1, y: 2 }]); const parsedCsv = parseCsv(csvText);",
         "const fin = candlestick(el, { data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
         "const finD = validateCandlestick({ data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
+        "// W4: the packed axylo/spatial and axylo/hierarchy declarations type the families and their options.",
+        "type Cell = { r: string; c: string; v: number };",
+        "const hmColor: HeatmapColorOptions = { scheme: 'diverging', mid: 0, bins: 16 };",
+        "const hmOptions: HeatmapOptions<Cell> = { data: [{ r: 'a', c: 'x', v: 1 }], x: 'c', y: { field: 'r', categories: ['a'] }, value: { field: 'v', unit: 'ms' }, color: hmColor };",
+        "const hm: HeatmapChart<Cell> = heatmap(el, hmOptions); hm.update({ color: { bins: 8 } }); const hmD: readonly Diagnostic[] = validateHeatmap(hmOptions);",
+        "// @ts-expect-error a heatmap value names a field of the rows",
+        "heatmap(el, { data: [{ r: 'a', c: 'x', v: 1 }], x: 'c', y: 'r', value: 'nope' });",
+        "type Dot = { x: number; y: number; s: number; t: string };",
+        "const sf: SizeField<Dot> = { field: 's', label: 'Size', format: v => `${v}` };",
+        "const bOptions: BubbleOptions<Dot> = { data: [{ x: 1, y: 2, s: 3, t: '4' }], x: 'x', y: 'y', size: sf, radius: { min: 1, max: 20 } };",
+        "const bc: BubbleChart<Dot> = bubble(el, bOptions); bc.update({ size: { field: 't', parse: 'number' } }); const bD: Diagnostic[] = validateBubble(bOptions);",
+        "// @ts-expect-error a size names a numeric field unless it parses",
+        "bubble(el, { data: [{ x: 1, y: 2, s: 3, t: '4' }], x: 'x', y: 'y', size: 't' });",
+        "// @ts-expect-error a bubble chart has no append",
+        "bc.append([{ x: 2, y: 3, s: 1, t: '1' }]);",
+        "const hOptions: HierarchyOptions = { data: { label: 'R', children: [{ label: 'a', value: 1 }] }, value: { unit: 'kg' } };",
+        "const tm: TreemapChart = treemap(el, hOptions); const sbc: SunburstChart = sunburst(el, hOptions);",
+        "const crumbs: readonly HierarchyCrumb[] = tm.breadcrumb; const ht: HierarchyTable | null = tm.table; const htPage: number | undefined = ht?.pageSize;",
+        "const hD: readonly Diagnostic[] = validateTreemap(hOptions).concat(validateSunburst(hOptions)); tm.drill('a'); sbc.destroy();",
+        "// @ts-expect-error a hierarchy node's value is a number",
+        "treemap(el, { data: { label: 'R', value: 'one' } });",
+        "export { hm, hmD, bc, bD, crumbs, htPage, hD };",
         "export { vd, kd, kdN, vc };",
         "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD, sb, sbD, dash, dashIds };",
       ].join('\n'));
@@ -195,6 +255,8 @@ describe('declarations', () => {
       expect(result.files).toContain(installed('axylo', 'dist', 'static.d.ts'));
       expect(result.files).toContain(installed('axylo', 'dist', 'stream.d.ts'));
       expect(result.files).toContain(installed('axylo', 'dist', 'cartesian.d.ts'));
+      expect(result.files).toContain(installed('axylo', 'dist', 'spatial.d.ts'));
+      expect(result.files).toContain(installed('axylo', 'dist', 'hierarchy.d.ts'));
     });
   }
 });
@@ -224,4 +286,37 @@ describe('Node import (no DOM)', () => {
       expect(probe[specifier]!.diagnostics).toEqual(rootResult.diagnostics);
     }
   });
+});
+
+describe('Node SSR import of every entry, one fresh process per entry and condition (no DOM)', () => {
+  // W4 integration: each JS entry is imported alone in a new Node process, under the default and the development
+  // condition. The DOM globals a browser has must be absent before and after the import (the entry neither needs
+  // nor installs them), and the entry must have exports.
+  const SPECIFIERS = ['axylo', 'axylo/static', 'axylo/stream', 'axylo/cartesian', 'axylo/stats', 'axylo/sync', 'axylo/export', 'axylo/finance', 'axylo/spatial', 'axylo/hierarchy'];
+  const DOM_GLOBALS = ['window', 'document', 'HTMLElement', 'Element', 'Node', 'customElements', 'ResizeObserver', 'getComputedStyle', 'requestAnimationFrame', 'matchMedia'];
+  const dir = path.join(cwd, '.out', 'subpaths-ssr');
+  fs.mkdirSync(dir, { recursive: true });
+  const script = path.join(dir, 'probe.mjs');
+  fs.writeFileSync(script, [
+    `const globals = ${JSON.stringify(DOM_GLOBALS)};`,
+    "const present = () => globals.filter(name => typeof globalThis[name] !== 'undefined');",
+    'const before = present();',
+    'const m = await import(process.argv[2]);',
+    "console.log(JSON.stringify({ before, after: present(), exports: Object.keys(m).sort(), resolved: import.meta.resolve(process.argv[2]) }));",
+  ].join('\n'));
+  type Probe = { before: string[]; after: string[]; exports: string[]; resolved: string };
+
+  for (const specifier of SPECIFIERS) {
+    for (const condition of ['default', 'development'] as const) {
+      it(`imports ${specifier} (${condition}) with no DOM globals before or after`, () => {
+        const args = condition === 'development' ? ['--conditions=development', script, specifier] : [script, specifier];
+        const probe = nodeJson<Probe>(cwd, args);
+        expect(probe.before).toEqual([]);
+        expect(probe.after).toEqual([]);
+        expect(probe.exports.length).toBeGreaterThan(0);
+        expect(probe.resolved.endsWith(condition === 'development' ? '.dev.js' : '.js') && probe.resolved.includes('/dist/')).toBe(true);
+        if (condition === 'default') expect(probe.resolved.endsWith('.dev.js')).toBe(false);
+      });
+    }
+  }
 });

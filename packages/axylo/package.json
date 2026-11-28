@@ -33,7 +33,13 @@
     "dist/export.d.ts",
     "dist/finance.js",
     "dist/finance.dev.js",
-    "dist/finance.d.ts"
+    "dist/finance.d.ts",
+    "dist/spatial.js",
+    "dist/spatial.dev.js",
+    "dist/spatial.d.ts",
+    "dist/hierarchy.js",
+    "dist/hierarchy.dev.js",
+    "dist/hierarchy.d.ts"
   ],
   "exports": {
     ".": {
@@ -75,6 +81,16 @@
       "types": "./dist/finance.d.ts",
       "development": "./dist/finance.dev.js",
       "default": "./dist/finance.js"
+    },
+    "./spatial": {
+      "types": "./dist/spatial.d.ts",
+      "development": "./dist/spatial.dev.js",
+      "default": "./dist/spatial.js"
+    },
+    "./hierarchy": {
+      "types": "./dist/hierarchy.d.ts",
+      "development": "./dist/hierarchy.dev.js",
+      "default": "./dist/hierarchy.js"
     },
     "./axylo.css": "./dist/axylo.css"
   }

@@ -374,6 +374,25 @@ describe('N7b exportSvg on a registered figure: scope, clipping, references and 
     expect(svg).toContain('<pattern id="hatch"');
   });
 
+  it('gives each gradient stop its computed stop-color as an attribute, without the inline style that set it (W4 heatmap colour bar)', () => {
+    const doc = new FakeDocument();
+    const { fig } = family(doc);
+    const stop = (offset: string, color: string) => el(doc, 'stop', { offset, class: 'axylo-heatmap-stop', style: 'stop-color: var(--axylo-a)' }, { display: 'none', 'stop-color': color }, { x: 0, y: 0, w: 0, h: 0 });
+    const bar = el(doc, 'div', { 'data-axylo-export': 'color-bar' }, {}, { x: 200, y: 244, w: 80, h: 10 },
+      el(doc, 'svg', { viewBox: '0 0 80 10' }, {}, { x: 200, y: 244, w: 80, h: 10 },
+        el(doc, 'defs', {}, { display: 'none' }, { x: 0, y: 0, w: 0, h: 0 },
+          el(doc, 'linearGradient', { id: 'scale-1' }, { display: 'none' }, { x: 0, y: 0, w: 0, h: 0 }, stop('0', 'rgb(10, 20, 30)'), stop('1', 'oklab(0.9 0.01 0.02)'))),
+        el(doc, 'rect', { width: '80', height: '10', style: 'fill: url("#scale-1")' }, { fill: 'url("https://example.test/page?q=1#scale-1")' }, { x: 200, y: 244, w: 80, h: 10 })));
+    fig.append(bar);
+    const svg = exportSvg(fig as unknown as HTMLElement);
+    const stops = [...svg.matchAll(/<stop [^>]*>/g)].map(m => m[0]);
+    expect(stops).toHaveLength(2);
+    expect(stops[0]).toContain('stop-color="rgb(10, 20, 30)"');
+    expect(stops[1]).toContain('stop-color="oklab(0.9 0.01 0.02)"');
+    for (const s of stops) expect(s).not.toContain('style=');
+    expect(svg).toMatch(/<rect [^>]*fill="url\(#scale-1\)"/);
+  });
+
   it('keeps the renderer background by default and lets an explicit or transparent background replace it in the plot too', () => {
     const doc = new FakeDocument();
     const { root } = family(doc);

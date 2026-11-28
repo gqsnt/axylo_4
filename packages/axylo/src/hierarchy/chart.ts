@@ -20,55 +20,15 @@ import type { Diagnostic } from '../public';
 import { Delivery, diagnosticKey, StrictError } from '../core/delivery';
 import { mergeOptions, noteFor, prepare, type HierarchyType, type Prepared, type RawOptions } from './core';
 import { installHierarchyStyles } from './styles';
+import { EXPORT, register, type ExportSeam } from '../export/contract';
 import { svg, type Driver, type Measure, type Rendered } from './draw';
 import { activate, activates, isHierarchyKey, navigate } from './nav';
 import { nodeSentence, type NodeText } from './reader';
 import { childAt, childCount, indexOfId, isBranch, isPositive, pathOf, restoreIndex, within, type HierarchyModel } from './tree';
 
-/** A node as events and the handle report it: identity, place and the caller's value. */
-export interface HierarchyPoint {
-  readonly id: string;
-  readonly label: string;
-  /** Labels from the root down to this node. */
-  readonly path: readonly string[];
-  readonly depth: number;
-  /** The rolled-up value; null for a leaf whose value is missing or invalid. */
-  readonly value: number | null;
-  /** The caller's row (flat) or pre-order node index (nested); -1 for a made-up root. */
-  readonly row: number;
-}
-
-export interface HierarchyEvents {
-  hover: HierarchyPoint | null;
-  select: HierarchyPoint;
-  /** The drilled root changed: the new root. */
-  drill: HierarchyPoint;
-}
-
-/** One entry of the breadcrumb, from the root to the drilled node, with the texts the bar shows. */
-export interface HierarchyCrumb extends NodeText {
-  readonly current: boolean;
-}
-
-export interface HierarchyChart<Options> {
-  /** Changes options (plan 1.5). A `strict` chart throws here and keeps its last valid state. */
-  update(patch: Partial<Options>): void;
-  on<E extends keyof HierarchyEvents>(event: E, listener: (payload: HierarchyEvents[E]) => void): () => void;
-  /** Drills to the node with this id (`null`: the root). Unknown ids leave the chart as it is and return false. */
-  drill(id: string | null): boolean;
-  /** Diagnostics for the committed options and data. */
-  readonly diagnostics: readonly Diagnostic[];
-  /** The committed table: every node, unpaginated (one page). null when `table: false`. */
-  readonly table: TableModel | null;
-  /** The breadcrumb as shown: root first, the drilled node last. */
-  readonly breadcrumb: readonly HierarchyCrumb[];
-  /** The drilled root and the focused node. */
-  readonly drilled: HierarchyPoint;
-  readonly focused: HierarchyPoint | null;
-  /** The chart's root element (the figure). */
-  readonly element: HTMLElement;
-  destroy(): void;
-}
+// Declared in the entry file (hierarchy.ts): the package ships that declaration file, not this module's.
+export type { HierarchyChart, HierarchyCrumb, HierarchyEvents, HierarchyPoint } from '../hierarchy';
+import type { HierarchyChart, HierarchyCrumb, HierarchyEvents, HierarchyPoint } from '../hierarchy';
 
 type Listener = (payload: unknown) => void;
 
@@ -151,6 +111,8 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
   // first, and when `epoch` moved meanwhile it writes nothing and is drawn again from the new state, so the
   // last change always wins and no stale index or text reaches the DOM.
   let committed: Prepared | null = null;
+  /** The committed state once every part of the figure shows it (null before the first paint and after destroy). */
+  let shown: Prepared | null = null;
   /** Bumped on every commit and on destroy: a finding queued for an older revision is stale. */
   let revision = 0;
   /** Bumped on every commit, drilled-root change and destroy: an event queued for an older view is stale. */
@@ -268,7 +230,8 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
 
   // ── structure ──
   const figure = el(doc, 'figure', { class: 'axylo-hierarchy', 'data-axylo-type': type });
-  const header = el(doc, 'div', { class: 'axylo-h-header' });
+  // The title and the breadcrumb (the drilled path) are family chrome for a whole-figure export (export/contract.ts).
+  const header = el(doc, 'div', { class: 'axylo-h-header', 'data-axylo-export': 'header' });
   let heading: HTMLElement | null = null;
   const nav = el(doc, 'nav', { class: 'axylo-h-breadcrumb' });
   const crumbList = el(doc, 'ol', { class: 'axylo-h-crumbs' });
@@ -279,17 +242,25 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
   const svgRoot = svg(doc, 'svg', { class: 'axylo-h-svg', 'aria-hidden': 'true', focusable: 'false' });
   const marks = svg(doc, 'g', { class: 'axylo-hierarchy-marks' });
   const labels = svg(doc, 'g', { class: 'axylo-hierarchy-labels' });
-  const overlay = svg(doc, 'g', { class: 'axylo-hierarchy-overlay' });
+  // `axylo-overlay`: the focus ring and hover outline are transient, never exported (export.ts SKIP).
+  const overlay = svg(doc, 'g', { class: 'axylo-hierarchy-overlay axylo-overlay' });
   svgRoot.append(marks, labels, overlay);
   const item = el(doc, 'div', { id: `${id}-item`, role: 'treeitem', class: HIDDEN });
-  const empty = el(doc, 'p', { class: 'axylo-h-empty' });
+  // Visible text over the plot when there is nothing (or nothing drilled) to show: exported with the figure.
+  const empty = el(doc, 'p', { class: 'axylo-h-empty', 'data-axylo-export': 'empty' });
   const tip = el(doc, 'div', { class: 'axylo-h-tip', 'aria-hidden': 'true', hidden: '' });
   plot.append(svgRoot, item, empty, tip);
-  const note = el(doc, 'p', { class: 'axylo-h-note', id: `${id}-note`, hidden: '' });
+  const note = el(doc, 'p', { class: 'axylo-h-note', id: `${id}-note`, hidden: '', 'data-axylo-export': 'note' });
   const controls = el(doc, 'div', { class: 'axylo-h-controls' });
   const toggle = el(doc, 'button', { type: 'button', class: 'axylo-h-button', 'aria-expanded': 'false', 'aria-controls': `${id}-table` });
   controls.appendChild(toggle);
   const region = el(doc, 'div', { id: `${id}-table`, class: 'axylo-h-region', role: 'region', tabindex: '0', hidden: '' });
+  // Kept across pages and redraws, so a reader paging with the keyboard keeps focus on the button they pressed.
+  const pager = el(doc, 'div', { class: 'axylo-h-pager' });
+  const previous = el(doc, 'button', { type: 'button', class: 'axylo-h-button' });
+  const pageText = el(doc, 'span', { class: 'axylo-h-page' });
+  const next = el(doc, 'button', { type: 'button', class: 'axylo-h-button' });
+  pager.append(previous, pageText, next);
   figure.append(header, summary, instructions, plot, note, controls, region);
   host.appendChild(figure);
   const rootNode = host.getRootNode?.() as Document | ShadowRoot | undefined;
@@ -301,6 +272,7 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
   let focus = 0;
   let hover = -1;
   let tableOpen = false;
+  let tablePage = 0;
   let rendered: Rendered | null = null;
   /** The state `rendered` was drawn for: picking answers for that model and root only. */
   let renderedFor: Prepared | null = null;
@@ -343,10 +315,14 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
         if (drawPart(part, e) || destroyed) continue;
         dirty |= part;
         if (++superseded > SUPERSEDED_LIMIT) {
-          dirty = 0;
           if (typeof console !== 'undefined') console.error('[axylo] a value formatter keeps changing the chart while it is drawn; drawing stopped.');
+          break;
         }
       }
+      // Every part now shows the committed state: it is what export reads until the next one is drawn. Drawing
+      // that stopped (past the limit) keeps the parts it did not draw marked, so the figure mixes revisions and
+      // nothing is exported until a later paint, whatever action runs it, has drawn every one of them.
+      if (!destroyed) shown = dirty ? null : committed;
     } finally { painting = false; }
   }
 
@@ -449,9 +425,14 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
     const c = committed!;
     const open = tableOpen && tableOn();
     const tm = c.reader.table;
+    const pages = Math.max(1, Math.ceil(tm.rowCount / tm.pageSize));
+    const page = Math.min(tablePage, pages - 1);
+    const first = page * tm.pageSize;
     const rows: (readonly string[] | null)[] = [];
-    if (open) for (let r = 0; r < tm.rowCount; r++) rows.push(tm.row(r));
+    // Only the shown page is formatted; export reads every row through the model, open or closed.
+    if (open) for (let r = first; r < Math.min(tm.rowCount, first + tm.pageSize); r++) rows.push(tm.row(r));
     if (epoch !== e) return false;
+    tablePage = page;
     toggle.textContent = tableOpen ? c.messages.hideTable : c.messages.viewAsTable;
     toggle.setAttribute('aria-expanded', String(tableOpen));
     controls.hidden = !tableOn();
@@ -467,7 +448,7 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
     const tbody = el(doc, 'tbody');
     rows.forEach((cells, r) => {
       if (!cells) return;
-      const tr = el(doc, 'tr', { 'data-node': String(r) });
+      const tr = el(doc, 'tr', { 'data-node': String(first + r) });
       cells.forEach((text, k) => {
         const cell = el(doc, k === 0 ? 'th' : 'td', k === 0 ? { scope: 'row' } : {});
         cell.textContent = text;
@@ -476,8 +457,14 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
       tbody.appendChild(tr);
     });
     table.append(caption, thead, tbody);
+    previous.textContent = c.messages.previousPage;
+    next.textContent = c.messages.nextPage;
+    previous.setAttribute('aria-disabled', String(page === 0));
+    next.setAttribute('aria-disabled', String(page >= pages - 1));
+    pageText.textContent = c.messages.pageOf.replace('{page}', String(page + 1)).replace('{count}', String(pages));
+    pager.hidden = pages <= 1;
     region.hidden = false;
-    region.replaceChildren(table);
+    region.replaceChildren(table, pager);
     return true;
   }
 
@@ -705,6 +692,13 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
   const onBlur = (): void => run(() => { keyed = false; if (!destroyed) change(OVERLAY); });
   const onDown = (): void => { keyed = false; };
   const onToggle = (): void => run(() => { if (destroyed) return; tableOpen = !tableOpen; change(TABLE); });
+  const turn = (by: number) => (): void => run(() => {
+    if (destroyed || !tableOpen) return;
+    const tm = committed!.reader.table;
+    const target = Math.max(0, Math.min(tablePage + by, Math.ceil(tm.rowCount / tm.pageSize) - 1));
+    if (target !== tablePage) { tablePage = target; change(TABLE); }
+  });
+  const onPrevious = turn(-1), onNext = turn(1);
   plot.addEventListener('pointermove', onMove);
   plot.addEventListener('pointerdown', onDown);
   plot.addEventListener('pointerleave', onLeave);
@@ -713,6 +707,8 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
   plot.addEventListener('focus', onFocus);
   plot.addEventListener('blur', onBlur);
   toggle.addEventListener('click', onToggle);
+  previous.addEventListener('click', onPrevious);
+  next.addEventListener('click', onNext);
   let observer: ResizeObserver | null = null;
   if (win && typeof win.ResizeObserver === 'function') {
     let last = '';
@@ -838,10 +834,27 @@ export function openHierarchyChart<Options>(driver: Driver, target: string | HTM
       plot.removeEventListener('focus', onFocus);
       plot.removeEventListener('blur', onBlur);
       toggle.removeEventListener('click', onToggle);
+      previous.removeEventListener('click', onPrevious);
+      next.removeEventListener('click', onNext);
       listeners.clear();
+      unregister?.();
+      shown = null;
       figure.remove();
     },
   };
+
+  // The read-only capability for axylo/export (export/contract.ts). It reads the state the figure fully shows:
+  // while parts are drawn (a value formatter runs in between, and may export) the header and note can already
+  // show the next state over the previous marks, so the plot is absent; the table stays the one last shown. The
+  // plot is the mark surface: the tooltip, the focused item and the overlay's focus ring and hover outline are
+  // not part of an exported image.
+  const seam: ExportSeam = Object.freeze({
+    get table() { return shown && shown.raw.table !== false ? shown.reader.table : null; },
+    get figure() { return shown && figure; },
+    get plot() { return shown && !painting && !dirty && shown === committed ? svgRoot : null; },
+  });
+  Object.defineProperty(handle, EXPORT, { value: seam });
+  const unregister = register(seam, figure);
 
   // Create-call findings go out after the chart is drawn: a handler may already read the handle.
   run(() => {

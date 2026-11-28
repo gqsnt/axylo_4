@@ -147,13 +147,13 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   #accepted: Accepted | null = null;
   // The wrappers read through getters so the controller can keep its own accesses private.
   get accepted(): Accepted | null { return this.#accepted; }
-  #presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null = null;
+  #presentation?: Map<PresentationStage, readonly DiagnosticInput[]> | null;
   /**
    * Keys of the current diagnostics already printed and handed to `onDiagnostic`, each with every handler it was
    * given to (undefined: none) while it is current. Strict rejections read it (#reject). A handler is held only
    * until its finding stops being current (a WeakSet would avoid even that, but costs more than the size budget).
    */
-  #deliveredKeys: Map<string, Set<unknown>> | null = null;
+  #deliveredKeys?: Map<string, Set<unknown>> | null;
   /** The finding list whose keys `deliveredKeys` holds after the last full delivery pass (see deliverChanges). */
   #settledInputs: readonly DiagnosticInput[] | null = null;
   #destroyed: boolean = false;
@@ -170,7 +170,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
    */
   onScreen: Accepted | null = null;
   /** The wider x domain the layout drew a scatter's automatic domain on, with the domain it widened. */
-  #widenedX: { epoch: number; drawn: readonly [number, number] } | null = null;
+  #widenedX?: { epoch: number; drawn: readonly [number, number] } | null;
   #epochs: number = 0;
   #frameRevision: number = 0;
   #commits: number = 0;
@@ -184,7 +184,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
    * is a snapshot taken when it is made and is drained in full, and one made by author code during a drain
    * waits behind it. Only destruction stops a drain (review 3, finding 7).
    */
-  #notifications: (() => void)[] | null = null;
+  #notifications?: (() => void)[] | null;
   #draining: boolean = false;
   #presentationVersion: number = 0;
   // ── frame phase ────────────────────────────────────────────────────────────────────────────────
@@ -235,14 +235,22 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   /** What the late theme probe reported, written by one callback made once per chart. */
   #probeWrote: boolean = true;
   /** The interaction layer's and the page watchers' ways in, made when first asked for (a sparkline has no interaction layer). */
-  #actionsMade: ChartActions | null = null;
-  #invalidateMade: ChartInvalidate | null = null;
+  #actionsMade?: ChartActions;
+  #invalidateMade?: ChartInvalidate;
   /** Callbacks the host keeps (the frame request, the formatters' error report, the late theme probe), each made once when first needed. */
-  #frameCallback: ((time?: number) => void) | null = null;
-  #formatterError: ((field: string) => void) | null = null;
+  #frameCallback?: (time?: number) => void;
+  /**
+   * The formatters' error report: an author format for `field` threw and its default text was the fallback
+   * (AX160, effect 'changed'). Made by the first frame that builds formatters. Not private: a composition that
+   * formats a field of its own (a bubble's size) reports through it, with the same guards (drawn table,
+   * superseded frame, destroyed) and late delivery. `declare`d: no field is emitted.
+   * Several lazily made members below are left undefined rather than set to null for the same reason: each is
+   * only read through `??=`, `?.` or a truth test, and the root bundle must not grow (W4 integration ledger).
+   */
+  declare fallback?: (field: string, own?: unknown, retire?: unknown) => void;
   /** The table whose row is being read (an author formatter can run inside a frame then). */
   #reading: ReaderModel['table'] | undefined;
-  #probeReport: ((wrote: boolean) => void) | null = null;
+  #probeReport?: (wrote: boolean) => void;
   readonly handle: ChartHandle;
 
   constructor(composition: Composition, input: unknown, page: Host) {
@@ -315,12 +323,6 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       // The reader's note may change with it (spec F12).
       this.schedule();
     }
-  }
-
-  #addPresentation(where: PresentationStage, d: DiagnosticInput): void {
-    const list = this.#presentation?.get(where);
-    if (list && list.some(o => o.code === d.code && o.field === d.field)) return;
-    this.#setPresentation(where, list ? [...list, d] : [d]);
   }
 
   #enqueue(work: () => void): void {
@@ -1185,11 +1187,15 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       f.fKey = previous.formattersKey;
       f.formatters = previous.formatters;
     } else {
-      const spec = buildFormatSpec(a, locale, this.#formatterError ??= field => {
+      const spec = buildFormatSpec(a, locale, this.fallback ??= (field, own, retire) => {
         // A frame a formatter's own call superseded is not drawn: what its formatters threw on is not reported,
-        // unless the cell was the drawn table's. Nothing is reported once the chart is destroyed.
-        if (!this.#destroyed && (this.#reading && this.#reading === this.drawn?.reader.table || !this.inFrame || this.inflight === null || this.inflight === this.#accepted)) {
-          this.#addPresentation('format', createDiagnostic('AX160', 'changed', { field }, 'presentation'));
+        // unless the cell was the drawn table's. Nothing is reported once the chart is destroyed. Each bucket holds
+        // one AX160 per field. The formatters pass what was thrown second; a composition's own format (a bubble
+        // size) passes the controller, so its finding has a bucket of its own: withdrawing it (`retire`, its
+        // options were replaced) keeps a stock finding on the same field.
+        if (!this.#destroyed && (retire || this.#reading && this.#reading === this.drawn?.reader.table || !this.inFrame || this.inflight === null || this.inflight === this.#accepted)) {
+          const kept = (this.#presentation?.get((own = own === this ? own : 'format') as PresentationStage) ?? []).filter(d => d.field != field);
+          this.#setPresentation(own as PresentationStage, retire ? kept : [...kept, createDiagnostic('AX160', 'changed', { field }, 'presentation')]);
         }
       });
       const fKey = f.fKey = formattersKeyOf(spec, a.resolved.values.length);

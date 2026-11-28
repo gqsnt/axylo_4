@@ -21,6 +21,7 @@ import { applyPatch, sameValue, type OptionRecord } from '../../core/options';
 import type { DataEnvironment } from '../../data/normalize';
 import type { Diagnostic } from '../../public';
 import { lineSwatch } from '../../dom/swatch';
+import { forwardSeams } from '../../export/contract';
 import {
   buildHeatmapView, createHeatmapResolver, frameKeyOf, normalizeForController, parseHeatmapInput,
   type HeatmapIssue, type HeatmapMeta, type HeatmapStateRef, type ParsedHeatmap,
@@ -297,6 +298,9 @@ export function openHeatmapChart(
     },
     destroy() { destroyed = true; waiting.length = 0; try { inner.destroy(); } finally { instance.legend.dispose(); } },
   };
+  // axylo/sync and axylo/export reach the chart through the inner handle's seams (core/peer.ts, export/contract.ts):
+  // the inner handle reads the controller's committed frame, which this wrapper never runs ahead of.
+  forwardSeams(handle, inner);
   const drawnNow = (): Drawn | null => (destroyed || !controller || controller.destroyed ? null : controller.drawn);
   (internalsByHandle ??= new WeakMap()).set(handle, {
     table: () => drawnNow()?.reader.table ?? null,

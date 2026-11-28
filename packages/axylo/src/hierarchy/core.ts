@@ -16,29 +16,9 @@ import {
 
 export type HierarchyType = 'treemap' | 'sunburst';
 
-export interface HierarchyTitle { text: string; visible?: boolean; level?: 2 | 3 | 4 | 5 | 6 }
-
-export interface HierarchyOptions {
-  /** A nested tree (one root, or several top-level nodes) or flat rows that name their `parent`. */
-  data: HierarchyData;
-  title?: string | HierarchyTitle;
-  labelledBy?: string;
-  description?: string;
-  /** How values read in the tooltip, focused item, breadcrumb and table. */
-  value?: { label?: string; unit?: string; format?: NumberFormatOption };
-  /** Name of the made-up root when the data has several top-level nodes. Default: the title, else "All". */
-  rootLabel?: string;
-  tooltip?: boolean;
-  table?: boolean;
-  messages?: Partial<HierarchyMessages>;
-  locale?: string;
-  /** Throw on any warning or error found while validating a create or update call; the chart keeps its last valid state. */
-  strict?: boolean;
-  onDiagnostic?: (diagnostic: Diagnostic) => void;
-}
-
-export type TreemapOptions = HierarchyOptions;
-export type SunburstOptions = HierarchyOptions;
+// Declared in the entry file (hierarchy.ts): the package ships that declaration file, not this module's.
+export type { HierarchyOptions, HierarchyTitle, SunburstOptions, TreemapOptions } from '../hierarchy';
+import type { HierarchyOptions, HierarchyTitle } from '../hierarchy';
 
 const KNOWN: ReadonlySet<string> = new Set([
   'data', 'title', 'labelledBy', 'description', 'value', 'rootLabel', 'tooltip', 'table', 'messages', 'locale', 'strict', 'onDiagnostic',

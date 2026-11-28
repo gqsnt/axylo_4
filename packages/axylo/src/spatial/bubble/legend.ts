@@ -79,6 +79,8 @@ const SVG = 'http://www.w3.org/2000/svg';
 
 export function renderLegend(doc: Document, list: HTMLUListElement, model: LegendModel): void {
   if (list.className !== 'axylo-legend-list axylo-bubble-legend') list.className = 'axylo-legend-list axylo-bubble-legend';
+  // Family chrome for a whole-figure export (export/contract.ts CHROME): the nested circles and their values.
+  list.setAttribute('data-axylo-export', 'size-legend');
   if (list.dataset.signature === model.signature) return;
   list.dataset.signature = model.signature;
   const item = doc.createElement('li');

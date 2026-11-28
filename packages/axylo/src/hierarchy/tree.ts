@@ -11,23 +11,9 @@
  */
 import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink } from '../core/contracts';
 
-/** A nested node: `children` makes it a branch; a leaf carries `value`. */
-export interface HierarchyNode {
-  readonly id?: string | number;
-  readonly label?: string;
-  readonly value?: number | null;
-  readonly children?: readonly HierarchyNode[];
-}
-
-/** A flat row: `parent` names the id of the row it belongs to; a row without a parent is a top-level node. */
-export interface HierarchyRow {
-  readonly id: string | number;
-  readonly parent?: string | number | null;
-  readonly label?: string;
-  readonly value?: number | null;
-}
-
-export type HierarchyData = HierarchyNode | readonly HierarchyNode[] | readonly HierarchyRow[];
+// Declared in the entry file (hierarchy.ts): the package ships that declaration file, not this module's.
+export type { HierarchyData, HierarchyNode, HierarchyRow } from '../hierarchy';
+import type { HierarchyData, HierarchyNode, HierarchyRow } from '../hierarchy';
 
 export type HierarchyDiagnosticCode = 'AX190' | 'AX191' | 'AX192';
 

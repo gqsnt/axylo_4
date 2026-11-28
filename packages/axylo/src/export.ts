@@ -86,8 +86,6 @@ function combine(a: Box, b: Box | null, low = Math.max, high = Math.min): Box {
   return new DOMRect(x, y, high(a.right, b.right) - x, high(a.bottom, b.bottom) - y);
 }
 
-const DIMENSIONS = ['x', 'y', 'width', 'height'] as const;
-
 const windowOf = (el: Element) => el.ownerDocument.defaultView ?? fail('no window.');
 
 function resolveTarget<T extends object>(target: T | string): T | HTMLElement {
@@ -147,7 +145,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
   const range = doc.createRange();
   const style = (el: Element) => win.getComputedStyle(el);
 
-  const PAINT = 'color fill fill-opacity stroke stroke-width stroke-opacity stroke-dasharray stroke-linecap stroke-linejoin opacity visibility clip-path mask transform'.split(' ');
+  const PAINT = 'stop-color color fill fill-opacity stroke stroke-width stroke-opacity stroke-dasharray stroke-linecap stroke-linejoin opacity visibility clip-path mask transform'.split(' ');
   const TEXT = 'font-family font-size font-weight font-style letter-spacing word-spacing text-decoration'.split(' ');
   const serializer = new win.XMLSerializer();
 
@@ -174,8 +172,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
       } else if (local !== value) clone.setAttribute(name, local);
     }
     // Work backwards over the live collection: removing a hidden child cannot shift the next pair.
-    for (let i = clone.children.length; i > 0;) {
-      i--;
+    for (let i = clone.children.length; i--;) {
       inlinePaint(source.children[i]!, clone.children[i]!);
     }
   }
@@ -215,7 +212,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
         matrix.f = box.y + box.height / 2;
         clone.setAttribute('transform', String(matrix));
       }
-      for (const key of DIMENSIONS) clone.setAttribute(key, String(rect[key]));
+      for (const key of ['x', 'y', 'width', 'height'] as const) clone.setAttribute(key, String(rect[key]));
       return put(serializer.serializeToString(clone), box, clip);
     }
     if (matrix) deg += Math.atan2(matrix.b, matrix.a) * 180 / Math.PI;

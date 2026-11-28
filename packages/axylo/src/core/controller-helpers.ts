@@ -130,7 +130,7 @@ export function internalFailure(): DiagnosticInput {
  * Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one,
  * the one with an effect on the figure if either has one (a value shown differently keeps its note).
  */
-export function presentationDiagnostics(presentation: ReadonlyMap<PresentationStage, readonly DiagnosticInput[]> | null): readonly DiagnosticInput[] {
+export function presentationDiagnostics(presentation: ReadonlyMap<PresentationStage, readonly DiagnosticInput[]> | null | undefined): readonly DiagnosticInput[] {
   if (!presentation || presentation.size === 0) return EMPTY_DIAGNOSTICS;
   if (presentation.size === 1) {
     const only = presentation.values().next().value!;

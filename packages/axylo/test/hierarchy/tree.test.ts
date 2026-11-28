@@ -70,12 +70,14 @@ describe('rollup and shares', () => {
     expect(shareOfRoot(m, 2)).toBe(0.75);
   });
 
-  it('the five-column table is unpaginated and agrees with the shares (spec A4, brief)', () => {
+  // W4 integration: the reader pages the table 100 rows at a time (spec A4); the model still holds every node.
+  it('the five-column table holds every node, 100 rows per page, and agrees with the shares (spec A4)', () => {
     const { m } = build(NESTED);
     const t = reader(m).table;
     expect(t.headers).toEqual(['Path', 'Depth', 'Value', '% of Parent', '% of Root']);
     expect(t.rowCount).toBe(5);
-    expect(t.pageSize).toBe(5);
+    expect(t.pageSize).toBe(100);
+    expect(t.pageForX('a1')).toBe(0);
     expect(t.row(0)).toEqual(['Root', '0', '8', '—', '100%']);
     expect(t.row(2)).toEqual(['Root / A / a1', '2', '3', '75%', '37.5%']);
     expect(t.row(4)).toEqual(['Root / B', '1', '4', '50%', '50%']);
