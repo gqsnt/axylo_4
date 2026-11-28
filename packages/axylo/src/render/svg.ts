@@ -1,8 +1,8 @@
 /**
  * SVG mark renderer (plan 2.3). Paints with `bindings`, CSS expressions such as
  * `var(--axylo-series-color-1)`, through style properties, so the browser restyles the marks on a theme
- * change with no call. Dash patterns switch under `prefers-contrast: more` and forced colors through the
- * stylesheet (theme/css.ts).
+ * change. On redraw, dense bars also use the resolved color to decide whether overlapping rectangles
+ * can be merged. Dash patterns switch under `prefers-contrast: more` and forced colors through the stylesheet.
  *
  * Every paint goes through the `color` property and is used as `currentColor` for fill or stroke. So a
  * series color is always a color, never an SVG paint server (`url(#…)`), exactly as for the canvas
@@ -34,6 +34,8 @@ export interface SvgNode {
   styles: Record<string, string> | null;
   kids?: SvgNode[];
   rects?: SVGRectElement[];
+  /** The coordinates of the mounted rects, which may be a reduced copy of the scene geometry. */
+  boxes?: Float32Array;
   /** The inputs the current `d` was built from, compared by identity. */
   source: unknown[] | null;
 }
@@ -79,19 +81,17 @@ function attr(n: SvgNode, name: string, input: number | string | null): void {
 // Match only generated color expressions. Other CSS values still go through CSSOM validation.
 const generatedColor = /^var\(--axylo-(?:series-color-\d+|(axis|grid|reference|muted|focus), var\(--axylo-default-\1\))\)$/;
 
-function isTrustedCss(name: string, value: string): boolean {
-  if (name === 'color') return (value.endsWith(')') && generatedColor.test(value))
+function trustedColor(value: string): boolean {
+  return (value.endsWith(')') && generatedColor.test(value))
     || value === 'var(--axylo-background, transparent)'
     || value === 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))'
     || value === 'var(--axylo-text, currentColor)';
-  if (name === 'fill-opacity') return value === '0' || value === '0.25' || value === '0.5' || value === '0.8' || value === '1';
-  return (name === 'fill' || name === 'stroke') && (value === 'none' || value === 'currentColor');
 }
 
 // Style properties, not presentation attributes: those do not accept var(), and CSSOM writes are allowed
 // under a Content Security Policy without 'unsafe-inline' (spec DX8).
-function setCss(style: CSSStyleDeclaration, name: string, value: string): boolean {
-  if (isTrustedCss(name, value)) {
+function setCss(style: CSSStyleDeclaration, name: string, value: string, trusted = false): boolean {
+  if (trusted || (name === 'color' && trustedColor(value))) {
     style.setProperty(name, value);
     return true;
   }
@@ -115,9 +115,7 @@ function css(n: SvgNode, name: string, value: string | null, trusted = false): v
       n.el.style.removeProperty(name);
     }
   } else if (cached !== value) {
-    const style = n.el.style;
-    if (trusted) style.setProperty(name, value);
-    else if (!setCss(style, name, value)) {
+    if (!setCss(n.el.style, name, value, trusted)) {
       if (n.styles) delete n.styles[name];
       return;
     }
@@ -129,29 +127,22 @@ function css(n: SvgNode, name: string, value: string | null, trusted = false): v
 function paint(n: SvgNode, role: 'fill' | 'stroke', value: string | null): void {
   if (value !== null && n.styles?.color === value && n.styles[role] === 'currentColor') return;
   css(n, role === 'fill' ? 'stroke' : 'fill', 'none', true);
-  if (value === null) { css(n, role, 'none', true); css(n, 'color', null); return; }
   css(n, 'color', value);
-  css(n, role, 'currentColor', true);
+  css(n, role, value === null ? 'none' : 'currentColor', true);
 }
 
 function paintFill(n: SvgNode, mark: AreaMark | BandMark, bindings: PaintBindings): void {
   paint(n, 'fill', paintOf(mark.fill, bindings));
-  css(n, 'fill-opacity', String(mark.opacity));
+  css(n, 'fill-opacity', String(mark.opacity), [0, 0.25, 0.5, 0.8, 1].includes(mark.opacity));
 }
 
 /** Two decimals: well below a device pixel at any realistic ratio, and keeps `d` short. */
 const f = (v: number): number => Math.round(v * 100) / 100;
 
+// Integer cents avoid the shortest-round-trip double printer on every bar attribute.
 function fstr(v: number): string {
-  if (v >= -2e7 && v <= 2e7) {
-    const c = Math.round(v * 100);
-    if (c === 0) return '0';
-    const ac = c < 0 ? -c : c;
-    const q = (ac / 100) | 0;
-    const r = ac - q * 100;
-    return (c < 0 ? '-' : '') + q + (r === 0 ? '' : r % 10 === 0 ? '.' + r / 10 : r < 10 ? '.0' + r : '.' + r);
-  }
-  return String(f(v));
+  const c = Math.round(v * 100), a = Math.abs(c), r = a % 100;
+  return a < 2e9 ? (c < 0 ? '-' : '') + (a / 100 | 0) + (r ? (r < 10 ? '.0' : '.') + (r % 10 ? r : r / 10) : '') : String(c / 100);
 }
 
 let pathDecoder: TextDecoder | null = null;
@@ -164,20 +155,12 @@ let polyScratch: Float64Array | null = null;
 const NUMBER_BYTES = 24;
 const XY_BYTES = 50; // Two worst-case numbers, a command and a space.
 const XY_ESTIMATE = 26;
-let digitsCache: Uint8Array | null = null;
-function digitTable(): Uint8Array {
-  if (digitsCache !== null) return digitsCache;
-  const d = new Uint8Array(200);
-  for (let i = 0; i < 100; i++) {
-    d[2 * i] = 48 + ((i / 10) | 0);
-    d[2 * i + 1] = 48 + i % 10;
-  }
-  return digitsCache = d;
-}
-
 function ensureBuf(need: number): Uint8Array {
-  if (pathBuf === null) return pathBuf = new Uint8Array(need > 4096 ? need : 4096);
-  return pathBuf.length < need ? pathBuf = new Uint8Array(Math.max(Math.min(pathBuf.length * 2, MAX_RETAINED_BUF), need)) : pathBuf;
+  if (!pathBuf || pathBuf.length < need) {
+    const capacity = pathBuf ? Math.min(pathBuf.length * 2, MAX_RETAINED_BUF) : 4096;
+    pathBuf = new Uint8Array(Math.max(capacity, need));
+  }
+  return pathBuf;
 }
 
 function viewOf(buf: Uint8Array): DataView {
@@ -198,23 +181,20 @@ function writeText(b: Uint8Array, pos: number, s: string): number {
 
 function writeFixed(b: Uint8Array, pos: number, cents: number): number {
   if (!(cents > -1_000_000 && cents < 1_000_000)) return writeText(b, pos, String(cents / 100));
-  const digits = digitTable();
   if (cents < 0) { b[pos++] = 45; cents = -cents; }
-  let q = (cents / 100) | 0;
-  const r = cents - q * 100;
-  if (q >= 100) {
-    const hi = (q / 100) | 0;
-    q -= hi * 100;
-    if (hi >= 10) b[pos++] = digits[2 * hi]!;
-    b[pos++] = digits[2 * hi + 1]!;
-    b[pos++] = digits[2 * q]!;
-  } else if (q >= 10) b[pos++] = digits[2 * q]!;
-  b[pos++] = digits[2 * q + 1]!;
-  if (r) {
-    b[pos++] = 46;
-    b[pos++] = digits[2 * r]!;
-    const last = digits[2 * r + 1]!;
-    if (last !== 48) b[pos++] = last;
+  const whole = (cents / 100) | 0;
+  const words = decimalWords ??= decimalTable();
+  // The integer table holds up to three digits. A four-digit integer needs one more byte.
+  const four = whole >= 1000;
+  pos = writeWord(b, pos, words[four ? (whole / 10) | 0 : whole]!);
+  if (four) b[pos++] = 48 + whole % 10;
+  return writeWord(b, pos, words[1000 + cents % 100]!);
+}
+
+function writeWord(b: Uint8Array, pos: number, packed: number): number {
+  for (let left = packed >>> 24; left; left--) {
+    b[pos++] = packed;
+    packed >>>= 8;
   }
   return pos;
 }
@@ -239,18 +219,13 @@ let decimalWords: Uint32Array | null = null;
 
 function decimalTable(): Uint32Array {
   const words = new Uint32Array(1100);
-  // The low three bytes hold ASCII in little-endian order. The high byte holds its length.
-  for (let n = 0; n < 10; n++) words[n] = (1 << 24) | (48 + n);
-  for (let n = 10; n < 1000; n++) {
-    const prefix = words[(n / 10) | 0]!;
-    const length = prefix >>> 24;
-    words[n] = ((length + 1) << 24) | ((48 + n % 10) << (8 * length)) | (prefix & 0xffffff);
-  }
-  // A whole pixel has no fraction, and a trailing zero takes no byte.
-  for (let n = 1; n < 100; n++) {
-    const tenths = 48 + ((n / 10) | 0);
-    const last = n % 10;
-    words[1000 + n] = ((last ? 3 : 2) << 24) | ((48 + last) << 16) | (tenths << 8) | 46;
+  // Low bytes hold ASCII, high byte its length. Both integer and fractional
+  // parts use the same layout, including an empty fraction at index 1000.
+  const bytes = new Uint8Array(4), view = new DataView(bytes.buffer);
+  for (let i = 0; i < words.length; i++) {
+    const digits = i < 1000 ? String(i) : String((i - 1000) / 100).slice(1);
+    bytes[3] = writeText(bytes, 0, digits);
+    words[i] = view.getUint32(0, true);
   }
   return words;
 }
@@ -312,12 +287,15 @@ export function pathData(xy: Float32Array): string {
 export function areaData(mark: AreaMark): string {
   const { upper, lower, runs } = mark;
   const upperCount = upper.length >> 1, lowerCount = lower.length >> 1;
+  const visitRuns = (visit: (us: number, ue: number, ls: number, le: number) => void) => {
+    for (let r = 0; r + 3 < runs.length; r += 4) {
+      const us = runs[r]!, ue = Math.min(us + runs[r + 1]!, upperCount);
+      const ls = runs[r + 2]!, le = Math.min(ls + runs[r + 3]!, lowerCount);
+      if (ue > us && le > ls) visit(us, ue, ls, le);
+    }
+  };
   let maxVerts = 0;
-  for (let r = 0; r + 3 < runs.length; r += 4) {
-    const us = runs[r]!, ue = Math.min(us + runs[r + 1]!, upperCount);
-    const ls = runs[r + 2]!, le = Math.min(ls + runs[r + 3]!, lowerCount);
-    if (ue > us && le > ls) maxVerts += ue - us + le - ls;
-  }
+  visitRuns((us, ue, ls, le) => { maxVerts += ue - us + le - ls; });
   if (maxVerts === 0) return '';
   let b = ensureBuf(maxVerts * XY_ESTIMATE + (runs.length >> 2));
   let bytes = viewOf(b);
@@ -334,16 +312,12 @@ export function areaData(mark: AreaMark): string {
       pos = writePixelPair(b, bytes, words, pos, pos > runStart ? 76 : 77, x, y);
     }
   };
-  for (let r = 0; r + 3 < runs.length; r += 4) {
-    const us = runs[r]!, ue = Math.min(us + runs[r + 1]!, upperCount);
-    const ls = runs[r + 2]!, le = Math.min(ls + runs[r + 3]!, lowerCount);
-    // A region between two boundaries needs both: a run with an empty side draws nothing.
-    if (ue <= us || le <= ls) continue;
+  visitRuns((us, ue, ls, le) => {
     runStart = pos;
     emit(upper, us, ue, 1);
     emit(lower, le - 1, ls - 1, -1);
     if (pos > runStart) b[pos++] = 90;
-  }
+  });
   return decodeBuf(pos);
 }
 
@@ -356,63 +330,46 @@ function packedTenths() {
   // Each entry contains ASCII bytes. A word store replaces the digit writes at an unaligned position.
   const bytes = new Float64Array(TENTH_COUNT), lengths = new Uint8Array(TENTH_COUNT);
   const scratch = new Uint8Array(8), view = new DataView(scratch.buffer);
-  const words = decimalWords ??= decimalTable();
-  for (let whole = 0; whole < TENTH_COUNT / 10; whole++) {
-    const integer = words[whole]!, size = integer >>> 24, base = 10 * whole;
-    view.setUint32(0, integer, true);
-    lengths[base] = size;
-    bytes[base] = view.getFloat64(0, true);
-    scratch[size] = 46;
-    for (let digit = 1; digit < 10; digit++) {
-      scratch[size + 1] = 48 + digit;
-      lengths[base + digit] = size + 2;
-      bytes[base + digit] = view.getFloat64(0, true);
-    }
+  for (let i = 0; i < TENTH_COUNT; i++) {
+    lengths[i] = writeFixed(scratch, 0, i * 10);
+    bytes[i] = view.getFloat64(0, true);
   }
   return { bytes, lengths };
 }
 
-interface PackedArcs {
-  readonly radius: number;
-  readonly arcLength: number;
-  readonly backLength: number;
-  readonly arc0: number;
-  readonly arc1: number;
-  readonly back0: number;
-  readonly back1: number;
-  readonly back2: number;
+/** Up to 24 ASCII bytes copied with word stores in the dense circle loop. */
+function packArc(text: string) {
+  const bytes = new Uint8Array(24), view = new DataView(bytes.buffer);
+  writeText(bytes, 0, text);
+  return { length: text.length, first: view.getFloat64(0), second: view.getFloat64(8), third: view.getFloat64(16) };
 }
 
-let denseArcs: PackedArcs | null = null;
+let denseArcs: { radius: number; forward: ReturnType<typeof packArc>; back: ReturnType<typeof packArc> } | undefined;
 
-function packedArcs(radius: number): PackedArcs {
+function packedArcs(radius: number) {
   if (denseArcs?.radius === radius) return denseArcs;
-  const r = fstr(radius), diameter = fstr(2 * radius);
-  const bytes = new Uint8Array(40), view = new DataView(bytes.buffer);
-  // At this radius limit the arc prefix fits in two words and the return arc in three.
-  // Each flag consumes one byte, so the following flag or coordinate needs no separator.
-  const arcLength = writeText(bytes, 0, `A${r} ${r} 0 11`);
-  const backLength = writeText(bytes, 16, `a${r} ${r} 0 11${diameter} 0`) - 16;
-  return denseArcs = {
-    radius, arcLength, backLength,
-    arc0: view.getFloat64(0, true), arc1: view.getFloat64(8, true),
-    back0: view.getFloat64(16, true), back1: view.getFloat64(24, true), back2: view.getFloat64(32, true),
-  };
+  const r = fstr(radius), prefix = `${r} ${r} 0 11`;
+  return denseArcs = { radius, forward: packArc('A' + prefix), back: packArc(`a${prefix}${fstr(2 * radius)} 0`) };
 }
 
-let absoluteArc: { radius: number; bytes: Uint8Array } | null = null;
+let absoluteArc: { radius: number; arc: string; bytes?: Uint8Array } | undefined;
 
-function absoluteArcFor(radius: number): Uint8Array {
-  if (absoluteArc?.radius !== radius) absoluteArc = { radius, bytes: new TextEncoder().encode(circleArc(radius, 1)) };
-  return absoluteArc.bytes;
+function absoluteArcFor(radius: number) {
+  if (absoluteArc?.radius !== radius) absoluteArc = { radius, arc: circleArc(radius, 1) };
+  return absoluteArc;
 }
 
 function denseCircles(xy: Float32Array, radius: number): string | null {
-  const { arcLength, backLength, arc0, arc1, back0, back1, back2 } = packedArcs(radius);
-  // Four signed coordinates of up to eight bytes, three command/separator bytes and the arcs.
-  // A word store may extend past the last byte. Each following write starts at the true length.
-  const b = ensureBuf((xy.length >> 1) * (35 + arcLength + backLength) + 7);
+  const { forward, back } = packedArcs(radius);
+  // The final word may extend up to seven bytes beyond its logical end.
+  const b = ensureBuf((xy.length >> 1) * (35 + forward.length + back.length) + 7);
   const view = viewOf(b);
+  const arcAt = (pos: number, arc: typeof forward) => {
+    view.setFloat64(pos, arc.first);
+    view.setFloat64(pos + 8, arc.second);
+    if (arc.length > 16) view.setFloat64(pos + 16, arc.third);
+    return pos + arc.length;
+  };
   const { bytes, lengths } = tenthsTable ??= packedTenths();
   const write = (at: number, value: number): number => {
     const magnitude = Math.abs(value);
@@ -421,7 +378,7 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
     view.setFloat64(at, bytes[magnitude]!, true);
     return at + lengths[magnitude]!;
   };
-  const radiusTenths = radius * 10, longBack = backLength > 16;
+  const radiusTenths = radius * 10;
   let pos = 0;
   const len = xy.length - 1;
   for (let i = 0; i < len; i += 2) {
@@ -438,87 +395,73 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
     const yStart = pos;
     pos = write(pos, cy);
     const yLength = pos - yStart;
-    view.setFloat64(pos, arc0, true);
-    view.setFloat64(pos + 8, arc1, true);
-    pos = write(pos + arcLength, cx - radiusTenths);
+    pos = write(arcAt(pos, forward), cx - radiusTenths);
     if (cy >= 0) b[pos++] = 32;
     view.setFloat64(pos, view.getFloat64(yStart, true), true);
     pos += yLength;
     // The second arc returns by one diameter. The fill closes the subpath.
-    view.setFloat64(pos, back0, true);
-    view.setFloat64(pos + 8, back1, true);
-    if (longBack) view.setFloat64(pos + 16, back2, true);
-    pos += backLength;
+    pos = arcAt(pos, back);
   }
   return decodeBuf(pos);
 }
 
-function pointData(mark: PointMark, source: unknown[]): string {
+/** Both polygon and circle markers use the same finite-coordinate and buffer bounds checks. */
+function pointPaths(xy: Float32Array, estimate: number, maxPoint: number,
+  emit: (b: Uint8Array, pos: number, x: number, y: number) => number): string {
+  let b = ensureBuf((xy.length >> 1) * estimate), pos = 0;
+  for (let i = 0; i + 1 < xy.length; i += 2) {
+    const x = xy[i]!, y = xy[i + 1]!;
+    if (lifted(x) || lifted(y)) continue;
+    if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
+    pos = emit(b, pos, x, y);
+    b[pos++] = 90;
+  }
+  return decodeBuf(pos);
+}
+
+function pointData(mark: PointMark): string {
   const { xy, size } = mark;
-  const len = xy.length - 1;
-  if (!(size > 0) || len <= 0) return '';
-  const nPts = xy.length >> 1;
+  const count = xy.length >> 1;
+  if (!(size > 0) || !count) return '';
   if (mark.shape === 'circle') {
     const r = size / 2;
-    if (nPts === 1) {
+    if (count === 1) {
       if (lifted(xy[0]!) || lifted(xy[1]!)) return '';
-      if (source[4] !== r) {
-        source[3] = circleArc(r, 1);
-        source[4] = r;
-      }
-      return circlePath(xy[0]!, xy[1]!, r, 1, source[3] as string);
+      return circlePath(xy[0]!, xy[1]!, r, 1, absoluteArcFor(r).arc);
     }
-    // Quantize the center once and offset by the radius to keep both semicircles symmetric.
-    if (nPts >= 2000 && r > 0 && r < DENSE_RADIUS_LIMIT && Number.isInteger(r * 10)) {
+    if (count >= 2000 && r > 0 && r < DENSE_RADIUS_LIMIT && Number.isInteger(r * 10)) {
       const dense = denseCircles(xy, r);
       if (dense !== null) return dense;
     }
     // Sparse marker geometry is read by consumers that expect both endpoints to be absolute.
-    const arc = absoluteArcFor(r);
-    const maxPoint = 6 * NUMBER_BYTES + 5 + 2 * arc.length;
-    let b = ensureBuf(nPts * (77 + 2 * arc.length));
-    let pos = 0;
-    for (let i = 0; i < len; i += 2) {
-      const x = xy[i]!, y = xy[i + 1]!;
-      if (lifted(x) || lifted(y)) continue;
-      if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
-      const right = Math.round((x + r) * 100), left = Math.round((x - r) * 100);
+    const cached = absoluteArcFor(r);
+    const arc = cached.bytes ??= new TextEncoder().encode(cached.arc);
+    return pointPaths(xy, 77 + 2 * arc.length, 6 * NUMBER_BYTES + 5 + 2 * arc.length, (b, pos, x, y) => {
       b[pos++] = 77;
       const start = pos;
-      pos = writeFixed(b, pos, right);
+      pos = writeFixed(b, pos, Math.round((x + r) * 100));
       b[pos++] = 32;
       const yStart = pos;
       const end = pos = writeFixed(b, pos, Math.round(y * 100));
       b.set(arc, pos);
-      pos = writeFixed(b, pos + arc.length, left);
+      pos = writeFixed(b, pos + arc.length, Math.round((x - r) * 100));
       b[pos++] = 32;
       b.copyWithin(pos, yStart, end);
       pos += end - yStart;
       b.set(arc, pos);
       pos += arc.length;
       b.copyWithin(pos, start, end);
-      pos += end - start;
-      b[pos++] = 90;
-    }
-    return decodeBuf(pos);
+      return pos + end - start;
+    });
   }
   const poly = MARKER_POLYGONS[mark.shape];
-  const polyLen = poly.length;
   const scratch = polyScratch ??= new Float64Array(24);
-  for (let k = 0; k < polyLen; k++) scratch[k] = poly[k]! * size;
-  const vertices = polyLen >> 1, maxPoint = vertices * XY_BYTES + 1;
-  let b = ensureBuf(nPts * (vertices * XY_ESTIMATE + 1));
-  let pos = 0;
-  for (let i = 0; i < len; i += 2) {
-    const x = xy[i]!, y = xy[i + 1]!;
-    if (lifted(x) || lifted(y)) continue;
-    if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
-    for (let k = 0; k < polyLen; k += 2) {
-      pos = writeXY(b, pos, k ? 76 : 77, x + scratch[k]!, y + scratch[k + 1]!);
-    }
-    b[pos++] = 90;
-  }
-  return decodeBuf(pos);
+  for (let k = 0; k < poly.length; k++) scratch[k] = poly[k]! * size;
+  const vertices = poly.length >> 1;
+  return pointPaths(xy, vertices * XY_ESTIMATE + 1, vertices * XY_BYTES + 1, (b, pos, x, y) => {
+    for (let k = 0; k < poly.length; k += 2) pos = writeXY(b, pos, k ? 76 : 77, x + scratch[k]!, y + scratch[k + 1]!);
+    return pos;
+  });
 }
 
 function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): string {
@@ -585,7 +528,13 @@ export interface SvgContext {
   patterns?: Map<string, { url: string; node: SvgNode }>;
 }
 
-export type SvgMark<M extends Mark = Mark> = (c: SvgContext, n: SvgNode, mark: M, bindings: PaintBindings, dpr: number, clip: Rect | null) => void;
+/** Cartesian supplies zero only for independent bar series. Root scenes have no series metadata. */
+export interface BarScene extends Scene { readonly barBaselines?: readonly (number | null)[] }
+
+export type SvgMark<M extends Mark = Mark> = (
+  c: SvgContext, n: SvgNode, mark: M, bindings: PaintBindings, dpr: number, clip: Rect | null,
+  paints?: PaintBindings, scene?: BarScene,
+) => void;
 /** A handler per mark type the scenes of a chart kind can produce; a mark with no handler is not drawn. */
 export type SvgMarks = { readonly [K in Mark['type']]?: SvgMark<Extract<Mark, { type: K }>> };
 
@@ -615,18 +564,18 @@ function slidingPath(source: unknown[], xy: Float32Array): string | null {
   }
   const b = ensureBuf(8 * length), out = viewOf(b);
   const decimals = decimalWords ??= decimalTable();
+  const remember = (index: number, prefix: number, value: number) => {
+    cache!.lengths[index] = writePixel(b, out, decimals, 0, prefix, value);
+    cache!.words[index] = out.getFloat64(0, true);
+  };
   if (!cache) {
     cache = { words: new Float64Array(length), lengths: new Uint8Array(length), head: 1 };
     for (let i = 0; i < length; i++) {
-      const value = xy[i]!;
-      const prefix = i % 2 ? 32 : i ? 76 : 77;
-      cache.lengths[i] = writePixel(b, out, decimals, 0, prefix, value);
-      cache.words[i] = out.getFloat64(0, true);
+      remember(i, i % 2 ? 32 : i ? 76 : 77, xy[i]!);
     }
     source[1] = cache;
   } else {
-    cache.lengths[cache.head] = writePixel(b, out, decimals, 0, 32, xy[length - 1]!);
-    cache.words[cache.head] = out.getFloat64(0, true);
+    remember(cache.head, 32, xy[length - 1]!);
     cache.head = cache.head + 2 >= length ? 1 : cache.head + 2;
   }
   const { lengths, words } = cache;
@@ -656,16 +605,11 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
   attr(n, 'stroke-width', mark.strokeWidth);
   const { normal, contrast } = mark.dash;
-  if (normal === null && contrast === null) {
-    attr(n, 'class', null);
-    css(n, 'stroke-dasharray', null);
-    css(n, '--axylo-dash-contrast', null);
-  } else {
-    // The normal pattern inline; the stylesheet swaps in the contrast pattern with !important.
-    attr(n, 'class', 'axylo-dashed');
-    css(n, 'stroke-dasharray', dashText(normal));
-    css(n, '--axylo-dash-contrast', dashText(contrast));
-  }
+  // The stylesheet can supply a contrast-only dash even when the normal stroke is solid.
+  const dashed = normal !== null || contrast !== null;
+  attr(n, 'class', dashed ? 'axylo-dashed' : null);
+  css(n, 'stroke-dasharray', dashed ? dashText(normal) : null);
+  css(n, '--axylo-dash-contrast', dashed ? dashText(contrast) : null);
 };
 
 export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
@@ -679,8 +623,8 @@ export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
   paintFill(n, mark, bindings);
 };
 
-export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) => {
-  if (mark.variant === 'bar') updateBars(c.doc, n, mark, bindings, mark.pattern && mark.pattern !== 'none' ? patternUrl(c, mark.pattern, bindings) : null);
+export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip, paints, scene) => {
+  if (mark.variant === 'bar') updateBars(c, n, mark, bindings, paints, scene);
   else {
     const source = [mark.xywh, clip?.x, clip?.y, clip?.width, clip?.height];
     if (!sameKey(n.source, source)) {
@@ -696,15 +640,13 @@ export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) =>
 export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
   const source = n.source ??= [];
   const old = source[0] as Float32Array | undefined;
-  const xy = mark.xy;
-  if (old !== xy || source[1] !== mark.shape || source[2] !== mark.size) {
-    // A hover halo and its marker often arrive as fresh pairs at the same datum.
-    if (xy.length !== 2 || old?.length !== 2 || xy[0] !== old[0] || xy[1] !== old[1] ||
-        source[1] !== mark.shape || source[2] !== mark.size) setPath(n, pointData(mark, source));
-    source[0] = mark.xy;
-    source[1] = mark.shape;
-    source[2] = mark.size;
-  }
+  const { xy, shape, size } = mark;
+  // A hover halo and its marker often arrive as fresh pairs at the same datum.
+  const sameXY = old === xy || (xy.length === 2 && old?.length === 2 && xy[0] === old[0] && xy[1] === old[1]);
+  if (!sameXY || source[1] !== shape || source[2] !== size) setPath(n, pointData(mark));
+  source[0] = xy;
+  source[1] = shape;
+  source[2] = size;
   paint(n, 'fill', paintOf(mark.fill, bindings));
 };
 
@@ -841,14 +783,14 @@ class SvgRenderer implements MarkRenderer, SvgContext {
     svg.append(defs, background, sceneGroup, overlayGroup);
   }
 
-  #sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+  #sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null, paints?: PaintBindings, scene?: BarScene): void {
     const key = mark.type === 'rects' ? (mark.variant === 'bar' ? 'bars' : 'missing') : mark.type;
     const n = slotAt(this.doc, list, i, key, clipUrl);
-    (this.#marks[mark.type] as SvgMark | undefined)?.(this, n, mark, bindings, dpr, clip);
+    (this.#marks[mark.type] as SvgMark | undefined)?.(this, n, mark, bindings, dpr, clip, paints, scene);
     mountSlot(parent, list, i, n);
   }
 
-  draw(scene: Scene, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
+  draw(scene: BarScene, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void {
     const element = this.element, slots = this.#slots, sceneGroup = this.#sceneGroup;
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
     if (scene.width !== this.#width || scene.height !== this.#height) {
@@ -877,7 +819,7 @@ class SvgRenderer implements MarkRenderer, SvgContext {
           continue;
         }
       }
-      this.#sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
+      this.#sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip, theme.paints, scene);
       i++;
     }
     trim(slots, slot);
@@ -939,72 +881,115 @@ function clipPath(doc: Document, defs: SVGElement): PlotClip {
 }
 
 const unrounded = (v: number): number => v;
+const BOX_ATTRS = ['x', 'y', 'width', 'height'] as const;
 
-function setRect(rect: SvgNode, r: Rect, round = unrounded): void {
-  attr(rect, 'x', round(r.x));
-  attr(rect, 'y', round(r.y));
-  attr(rect, 'width', round(Math.max(0, r.width)));
-  attr(rect, 'height', round(Math.max(0, r.height)));
+function setRect(rect: SvgNode, bounds: Rect, round = unrounded): void {
+  for (let d = 0; d < 4; d++) {
+    const name = BOX_ATTRS[d]!, v = bounds[name];
+    attr(rect, name, round(d < 2 ? v : Math.max(0, v)));
+  }
 }
 
-function setBox(rect: SVGRectElement, x: string, y: string, w: string, h: string, fresh: boolean): void {
-  if (fresh || rect.getAttribute('x') !== x) rect.setAttribute('x', x);
-  if (fresh || rect.getAttribute('y') !== y) rect.setAttribute('y', y);
-  if (fresh || rect.getAttribute('width') !== w) rect.setAttribute('width', w);
-  if (fresh || rect.getAttribute('height') !== h) rect.setAttribute('height', h);
+function paintBox(rect: SVGRectElement, q: Float32Array, i: number, old: Float32Array | undefined, j: number): void {
+  if (old) {
+    let same = 0;
+    while (same < 4 && q[i + same] === old[j + same]) same++;
+    if (same > 3) return;
+  }
+  const bad = lifted(q[i]! + q[i + 1]! + q[i + 2]! + q[i + 3]!);
+  for (let d = 0; d < 4; d++) {
+    const name = BOX_ATTRS[d]!, v = q[i + d]!;
+    const text = bad ? '0' : fstr(d < 2 ? v + Math.min(0, q[i + d + 2]!) : Math.abs(v));
+    if (!old || rect.getAttribute(name) !== text) rect.setAttribute(name, text);
+  }
 }
 
-function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBindings, pattern: string | null): void {
-  // The group carries the color; each <rect> is painted on its own so overlaps composite.
-  // With a pattern, every rectangle is repeated once more, filled with the pattern, after all the fills.
-  const color = paintOf(mark.fill, bindings);
+/** Snap left edges into CSS pixel columns. Work and storage depend on the number of bars,
+ * even with a sparse or unbounded coordinate range. The native SVG clip still clips both modes. */
+function barEnvelope(q: Float32Array, baseline: number | undefined): Float32Array {
+  const width = q[2]!, first = Math.floor(q[0]!);
+  const columns = Math.floor(q[q.length - 4]!) - first + 1, root = baseline === undefined;
+  // Bound both scratch arrays before allocation. Unsorted interior columns are fine
+  // as long as they actually fit this span. Wide bars and subpixel bins keep their edges.
+  // A horizontal root series of this width spans at most three left-edge columns.
+  if (!(width >= 1 && width <= 2 && columns > +root * 3 && columns * 8 < q.length)) return q;
+  const winners = new Uint32Array(columns * 2);
+  // A root mark has no axis metadata. Either edge of its first rectangle might be zero.
+  for (const zero of root ? [q[1]!, q[1]! + q[3]!] : [baseline!]) {
+    winners.fill(0);
+    let i = 0;
+    for (; i < q.length; i += 4) {
+      const col = Math.floor(q[i]!) - first, y = q[i + 1]!, h = q[i + 3]!;
+      if (!(col >= 0 && col < columns && q[i + 2] === width && h >= 0) || lifted(y + h)) return q;
+      // A minimum-height Cartesian bar may cross zero, or round to zero on the wrong side.
+      if (!root && h === 1) return q;
+      const bottom = y + h, up = zero >= y + h / 2;
+      if (!(Math.abs((up ? bottom : y) - zero) <= 0.001)) break;
+      // The y offset is one past the rectangle's start, leaving index zero for an empty side.
+      const j = 2 * col + Number(!up), old = winners[j]!;
+      if (h && (!old || (up ? y < q[old]! : bottom > q[old]! + q[old + 2]!))) winners[j] = i + 1;
+    }
+    if (i < q.length) continue;
+    const out = new Float32Array(columns * 8);
+    let used = 0;
+    // Retain the original Float32 ordinate and height, including SVG's separate rounding of each.
+    for (const y of winners) if (y) {
+      out[used++] = Math.floor(q[y - 1]!);
+      for (let k = 0; k < 3; k++) out[used++] = q[y + k]!;
+    }
+    return out.subarray(0, used);
+  }
+  return q;
+}
+
+function updateBars(c: SvgContext, g: SvgNode, mark: RectMark, bindings: PaintBindings, paints?: PaintBindings, scene?: BarScene): void {
+  const doc = c.doc, input = mark.xywh, color = paintOf(mark.fill, bindings);
+  const pattern = mark.pattern && mark.pattern !== 'none' ? patternUrl(c, mark.pattern, bindings) : null;
   paint(g, 'fill', color);
-  const q = mark.xywh, count = q.length >> 2, total = pattern === null ? count : 2 * count;
-  const prev = g.source, oldPattern = prev?.[1], oldColor = prev?.[2];
-  if (prev?.[0] === q && oldPattern === pattern && oldColor === color) return;
+  let baseline: number | null | undefined = null;
+  // More than 2048 bars of four floats each.
+  if (input.length > 8192 && !pattern && scene && paints && color && mark.fill.kind === 'series'
+      // Only forms that cannot carry alpha: a computed opaque color serializes as rgb(r, g, b), while
+      // theme/resolve's canvas fallback writes rgba() with 8-bit alpha, where 1 may hide a translucent color.
+      && /^(#[\da-f]{6}|rgb\(\d+, \d+, \d+\))$/.test(paintOf(mark.fill, paints)!)) {
+    // Root groups have no stack metadata. A stack's first component can share zero
+    // at every slot, so keep any multi-series root scene exact.
+    if (scene.barBaselines) baseline = scene.barBaselines[mark.series] ?? null;
+    else if (!scene.marks.some(m => m !== mark && m.type === 'rects' && m.variant === 'bar')) baseline = undefined;
+  }
+  const key = [input, pattern, color, baseline], prev = g.source;
+  if (sameKey(prev, key)) return;
+  const oldPattern = prev?.[1], oldColor = prev?.[2];
+  const q = baseline === null ? input : barEnvelope(input, baseline);
+  const count = q.length >> 2, total = pattern === null ? count : 2 * count;
   if (total === 0 && !prev) return;
   // A static bar group needs no JS references to its rects after mounting. Snapshot its
   // children on the first geometry change, then reuse that list on subsequent updates.
   const rects = g.rects ?? (prev ? g.rects = Array.from(g.el.children) as SVGRectElement[] : []);
-  const oldTotal = rects.length;
-  const oldOverlayStart = oldPattern == null ? oldTotal : oldTotal / 2;
+  const oldTotal = rects.length, oldBoxes = g.boxes;
+  const oldCount = oldPattern ? oldTotal / 2 : oldTotal;
   while (rects.length > total) rects.pop()!.remove();
-  // A new group is still detached. Only an already-mounted group needs a fragment for batch insertion.
-  const freshRects = total > oldTotal + 1 && g.el.parentNode ? doc.createDocumentFragment() : null;
-  while (rects.length < total) {
-    const rect = svgElement(doc, 'rect');
-    (freshRects ?? g.el).appendChild(rect);
-    rects.push(rect);
-  }
-  const oldBoxes = prev?.[0] as Float32Array | undefined;
-  for (let k = 0; k < count; k++) {
-    const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
-    // The previous immutable mark already describes the attributes of every surviving fill.
-    if (oldPattern === pattern && oldColor === color && oldBoxes?.length === q.length &&
-        x === oldBoxes[4 * k] && y === oldBoxes[4 * k + 1] && w === oldBoxes[4 * k + 2] && h === oldBoxes[4 * k + 3]) continue;
-    const bad = lifted(x) || lifted(y) || lifted(w) || lifted(h);
-    const xs = bad ? '0' : fstr(w < 0 ? x + w : x), ys = bad ? '0' : fstr(h < 0 ? y + h : y);
-    const ws = bad ? '0' : fstr(w < 0 ? -w : w), hs = bad ? '0' : fstr(h < 0 ? -h : h);
-    const kid = rects[k]!;
-    setBox(kid, xs, ys, ws, hs, k >= oldTotal);
-    if (k >= oldOverlayStart && k < oldTotal) {
-      kid.style.removeProperty('fill');
-      kid.style.removeProperty('color');
+  const fragment = total > oldTotal + 1 && g.el.parentNode ? doc.createDocumentFragment() : null;
+  for (let k = 0; k < total; k++) {
+    const fresh = k >= oldTotal, overlay = k >= count, wasOverlay = !fresh && k >= oldCount;
+    const rect = rects[k] ?? svgElement(doc, 'rect');
+    paintBox(rect, q, 4 * (overlay ? k - count : k), fresh ? undefined : oldBoxes, 4 * (wasOverlay ? k - oldCount : k));
+    if (overlay) {
+      if (!wasOverlay || oldPattern !== pattern) rect.style.setProperty('fill', pattern!);
+      if (color !== null && (!wasOverlay || oldColor !== color)) setCss(rect.style, 'color', color);
+      else if (wasOverlay && color === null && oldColor !== null) rect.style.removeProperty('color');
+    } else if (wasOverlay) {
+      rect.style.removeProperty('fill');
+      rect.style.removeProperty('color');
     }
-    if (pattern !== null) {
-      const j = k + count, overlay = rects[j]!, wasOverlay = j >= oldOverlayStart && j < oldTotal;
-      setBox(overlay, xs, ys, ws, hs, j >= oldTotal);
-      if (!wasOverlay || oldPattern !== pattern) overlay.style.setProperty('fill', pattern);
-      if (color === null) {
-        if (wasOverlay && oldColor !== null) overlay.style.removeProperty('color');
-      } else if (!wasOverlay || oldColor !== color) setCss(overlay.style, 'color', color);
+    if (fresh) {
+      (fragment ?? g.el).appendChild(rect);
+      g.rects?.push(rect);
     }
   }
-  if (freshRects) g.el.appendChild(freshRects);
-  const source = g.source ??= [];
-  source[0] = q;
-  source[1] = pattern;
-  source[2] = color;
+  if (fragment) g.el.appendChild(fragment);
+  g.source = key;
+  g.boxes = q;
 }
 
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {

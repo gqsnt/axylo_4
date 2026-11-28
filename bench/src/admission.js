@@ -431,8 +431,67 @@ function checkCartesianView(expected, seen, opts) {
 }
 
 /**
- * Bars of one series on a linear axis with the zero baseline (F1), from painted rectangles in source order.
- * The right axis's domain is not in the shared hook, so values are checked by proportion: every bar stands on one
+ * The line + bar workload has one centred bar lane on a continuous x axis. Reconstruct
+ * its width from *all* visible slots, including missing y values, before projecting the
+ * finite samples. The scene stores left edges in Float32 before the renderer buckets them.
+ */
+function checkBarEnvelope(x, col, slots, xywh, plot, xDomain, window, label, domain) {
+  if (!Array.isArray(domain) || domain.length !== 2 || !domain.every(num)
+      || !(domain[1] > domain[0]) || domain[0] > 0 || domain[1] < 0)
+    return [`${label}: no valid committed right-axis domain containing zero`];
+  const px = v => v === xDomain[1] ? plot.x + plot.width
+    : plot.x + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plot.width;
+  const py = v => plot.y + ((domain[1] - v) / (domain[1] - domain[0])) * plot.height;
+  const zero = py(0);
+  if (!num(zero)) return [`${label}: invalid projected zero`];
+  const [start, end] = window;
+  let gap = Infinity, previous = px(x[start]);
+  for (let i = start + 1; i <= end; i++) {
+    const current = px(x[i]), distance = Math.abs(current - previous);
+    if (distance > 0) gap = Math.min(gap, distance);
+    previous = current;
+  }
+  const width = Math.max(2, Math.min(48, 0.72 * (num(gap) ? gap : plot.width / (end - start + 1))));
+  const expected = new Map();
+  for (const i of slots) {
+    const value = col[i];
+    if (!num(x[i]) || x[i] < xDomain[0] || x[i] > xDomain[1] || value < domain[0] || value > domain[1])
+      return [`${label}: committed domains do not cover slot ${i}`];
+    const column = Math.floor(Math.fround(px(x[i]) - width / 2));
+    // Cartesian paints a zero value as one pixel starting at zero.
+    const up = value > 0, key = 2 * column + Number(up);
+    const height = value === 0 ? 1 : Math.abs(py(value) - zero);
+    if (!Number.isSafeInteger(key) || !num(height)) return [`${label}: invalid projection at slot ${i}`];
+    expected.set(key, Math.max(expected.get(key) ?? 0, height));
+  }
+
+  // SVG serializes y and height separately to hundredths. Only that rounding can
+  // move the zero edge across the committed baseline. The sign of the extension is strict.
+  const rounding = 0.011;
+  let tallest = 0;
+  for (let i = 0; i < xywh.length; i += 4) {
+    const left = xywh[i], top = xywh[i + 1], w = xywh[i + 2], h = xywh[i + 3];
+    const bottom = top + h, middle = top + h / 2;
+    if (!Number.isInteger(left) || w < 1 || Math.abs(w - width) > rounding || !(h > 0))
+      return [`${label}: invalid column position or rectangle size at x=${left}`];
+    const up = middle < zero, key = 2 * left + Number(up), want = expected.get(key);
+    const base = up ? bottom : top, tip = up ? top : bottom;
+    if (middle === zero || want === undefined || Math.abs(base - zero) > rounding
+        || Math.abs(Math.abs(tip - zero) - want) > PX_TOLERANCE
+        || top < plot.y - rounding || bottom > plot.y + plot.height + rounding)
+      return [`${label}: unexpected extent on the committed right-axis mapping at x=${left} (${up ? 'above' : 'below'} zero)`];
+    tallest = Math.max(tallest, h);
+    expected.delete(key); // A second rectangle on the same side would invent coverage.
+  }
+  if (expected.size) return [`${label}: missing ${expected.size} column extrema`];
+  if (tallest < plot.height / Y_LOOSENESS - PX_TOLERANCE)
+    return [`${label}: tallest column envelope is only ${tallest} px of a ${plot.height} px plot`];
+  return [];
+}
+
+/**
+ * Bars of one series on a linear axis with the zero baseline (F1). Dense envelopes match independently
+ * projected column extrema. With one rectangle per finite slot, values are checked by proportion: every bar stands on one
  * zero baseline inside the plot, on the side of its value's sign; the n-th rectangle is the n-th drawn slot (a
  * clipped overscan neighbour on either side is allowed); its centre is at its x; its height is its value times the
  * one pixels-per-unit factor of the tallest bar (1 px); the window's extremes are drawn; the tallest bar is inside
@@ -444,24 +503,25 @@ function checkCartesianView(expected, seen, opts) {
  */
 export function checkBarRectangles(x, col, xywh, plot, xDomain, window, label, yDomain) {
   const reasons = [];
-  if (!plot || !num(plot.x) || !num(plot.y) || !(plot.width > 0) || !(plot.height > 0)) return [`${label}: no plot rectangle`];
+  if (!plot || !num(plot.x) || !num(plot.y) || !num(plot.width) || !num(plot.height)
+      || !(plot.width > 0) || !(plot.height > 0)) return [`${label}: no plot rectangle`];
   if (!Array.isArray(xDomain) || !num(xDomain[0]) || !num(xDomain[1]) || !(xDomain[1] > xDomain[0])) return [`${label}: no committed x domain`];
-  if (!Array.isArray(xywh) || xywh.length % 4 || !xywh.every(num)) return [`${label}: malformed rectangle readback`];
+  if (!Array.isArray(xywh) || xywh.length % 4) return [`${label}: malformed rectangle readback`];
+  // Iterate values so holes in a malformed readback cannot masquerade as finite edges.
+  for (const edge of xywh) if (!num(edge)) return [`${label}: malformed rectangle readback`];
   const [i0, i1] = window;
   const slots = [];
   for (let i = i0; i <= i1; i++) if (Number.isFinite(col[i])) slots.push(i);
   const n = xywh.length / 4;
   if (!slots.length) return n ? [`${label}: ${n} rectangles for a window with no values`] : [];
+  if (n < slots.length && slots.length > 2 * plot.width)
+    return checkBarEnvelope(x, col, slots, xywh, plot, xDomain, window, label, yDomain);
   const extra = n - slots.length;
   if (extra < 0 || extra > 2) return [`${label}: ${n} rectangles, fixture has ${slots.length} values in the window (plus at most 2 clipped neighbours)`];
   const top = k => xywh[4 * k + 1], bottom = k => xywh[4 * k + 1] + xywh[4 * k + 3];
   let tall = 0;
   for (let j = 1; j < slots.length; j++) if (Math.abs(col[slots[j]]) > Math.abs(col[slots[tall]])) tall = j;
   const px = v => plot.x + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plot.width;
-  const value = (s, k) => {
-    const i = s + k;
-    return i >= 0 && i < col.length ? col[i] : NaN;
-  };
   // The first drawn slot: the window's first value or one of the clipped neighbours before it.
   let lead = null;
   for (let o = 0; o <= extra && lead === null; o++) {
@@ -470,7 +530,10 @@ export function checkBarRectangles(x, col, xywh, plot, xDomain, window, label, y
     lead = first;
   }
   if (lead === null) return [`${label}: the first rectangle is not at the x of the window's first value or a neighbour before it`];
-  const kTall = slots[tall] - lead;
+  const before = slots[0] - lead;
+  const slotAt = k => k < before ? lead + k : k < before + slots.length ? slots[k - before]
+    : slots[slots.length - 1] + k - before - slots.length + 1;
+  const kTall = before + tall;
   // The baseline is the edge of the tallest bar on the side of zero (its bottom when positive).
   const zero = col[slots[tall]] >= 0 ? bottom(kTall) : top(kTall);
   if (!(zero >= plot.y - PX_TOLERANCE && zero <= plot.y + plot.height + PX_TOLERANCE)) reasons.push(`${label}: zero baseline ${zero} is outside the plot`);
@@ -480,14 +543,14 @@ export function checkBarRectangles(x, col, xywh, plot, xDomain, window, label, y
   // Every rectangle in source order is checked: position, baseline, side and height. Constant work per bar.
   let wrong = 0, first = '';
   for (let k = 0; k < n; k++) {
-    const v = value(lead, k);
+    const slot = slotAt(k), v = col[slot];
     const want = Math.abs(v) * height;
     const sideOk = v >= 0 ? Math.abs(bottom(k) - zero) <= PX_TOLERANCE : Math.abs(top(k) - zero) <= PX_TOLERANCE;
-    const inWindow = lead + k >= i0 && lead + k <= i1;
+    const inWindow = slot >= i0 && slot <= i1;
     const ok = Number.isFinite(v) && sideOk
-      && (!inWindow || Math.abs(px(x[lead + k]) - (xywh[4 * k] + xywh[4 * k + 2] / 2)) <= PX_TOLERANCE)
+      && (!inWindow || Math.abs(px(x[slot]) - (xywh[4 * k] + xywh[4 * k + 2] / 2)) <= PX_TOLERANCE)
       && (!inWindow || Math.abs(xywh[4 * k + 3] - want) <= PX_TOLERANCE);
-    if (!ok && wrong++ === 0) first = `slot ${lead + k} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected height ${want.toFixed(2)} on baseline ${zero.toFixed(2)} at x ${px(x[lead + k]).toFixed(2)}`;
+    if (!ok && wrong++ === 0) first = `slot ${slot} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected height ${want.toFixed(2)} on baseline ${zero.toFixed(2)} at x ${px(x[slot]).toFixed(2)}`;
   }
   if (wrong) reasons.push(`${label}: ${wrong} rectangle(s) do not show their value; first: ${first}`);
   if (!Array.isArray(yDomain) || yDomain.length !== 2 || !num(yDomain[0]) || !num(yDomain[1]) || !(yDomain[1] > yDomain[0])) {
@@ -502,12 +565,12 @@ export function checkBarRectangles(x, col, xywh, plot, xDomain, window, label, y
   const near = (got, want, inWindow) => Math.abs(got - want) <= PX_TOLERANCE || (!inWindow && Math.abs(got - clamp(want)) <= PX_TOLERANCE);
   let bad = 0, firstBad = '';
   for (let k = 0; k < n; k++) {
-    const v = value(lead, k);
-    const inWindow = lead + k >= i0 && lead + k <= i1;
+    const slot = slotAt(k), v = col[slot];
+    const inWindow = slot >= i0 && slot <= i1;
     const wantTop = py(Math.max(v, 0)), wantBottom = py(Math.min(v, 0));
     const sized = v === 0 || (xywh[4 * k + 2] > 0 && xywh[4 * k + 3] > 0);
     const ok = Number.isFinite(v) && sized && near(top(k), wantTop, inWindow) && near(bottom(k), wantBottom, inWindow);
-    if (!ok && bad++ === 0) firstBad = `slot ${lead + k} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected positive size with top ${wantTop.toFixed(2)} and bottom ${wantBottom.toFixed(2)} on domain ${JSON.stringify(yDomain)}`;
+    if (!ok && bad++ === 0) firstBad = `slot ${slot} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected positive size with top ${wantTop.toFixed(2)} and bottom ${wantBottom.toFixed(2)} on domain ${JSON.stringify(yDomain)}`;
   }
   if (bad) reasons.push(`${label}: ${bad} rectangle(s) disagree with the committed right-axis mapping; first: ${firstBad}`);
   return reasons;
