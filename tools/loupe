@@ -352,6 +352,7 @@ case "$VERB" in
     reject_selectors verify "$@"
     run_lint verify-lint
     "$CAP" verify-build node "$REPO_ROOT/scripts/build.mjs"
+    "$CAP" verify-closure node "$REPO_ROOT/scripts/check-dist-closure.mjs"
     run_tsc verify-tsc
     run_js_tests verify-test
     echo "PASS: ${LAST_PASS_COUNT} tests"
