@@ -265,9 +265,10 @@ export function buildFormatSpec(a: Accepted, locale: string, onFormatterError: (
 }
 
 export function formattersKeyOf(spec: FormatSpec, valueCount: number): unknown[] {
-  return [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit, spec.x.scale,
-    spec.messages.noData, spec.messages.noObservation,
-    spec.series.map(s => `${s.field}\u0001${s.unit}\u0001${s.scale}`).join('\u0002'), ...spec.series.map(s => s.format), valueCount];
+  const key: unknown[] = [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit, spec.x.scale,
+    spec.messages.noData, spec.messages.noObservation, valueCount];
+  for (const series of spec.series) key.push(series.field, series.unit, series.scale, series.format);
+  return key;
 }
 
 export function sameFormatInputs(before: Accepted, after: Accepted): boolean {
@@ -301,17 +302,6 @@ function noteLangFor(f: FrameState, disclosure: Disclosure): string | null {
   return shownKeys.length > 0 && keysList.every(k => english(k)) ? 'en' : null;
 }
 
-function noteRunsFor(f: FrameState, r: ReaderModel, disclosure: Disclosure): { text: string; lang: string | null }[] {
-  const runs = (r as ReaderModel & { noteSegments?: readonly { text: string; lang: 'en' | null }[] | null }).noteSegments;
-  if (!runs) return [{ text: r.note ?? '', lang: noteLangFor(f, disclosure) }];
-  const out = new Array<{ text: string; lang: string | null }>(runs.length);
-  for (let i = 0; i < runs.length; i++) {
-    const run = runs[i]!;
-    out[i] = { text: run.text, lang: run.lang === 'en' && f.foreignPage ? 'en' : null };
-  }
-  return out;
-}
-
 /** The reader's inputs equal `k` (sameKey's rule), without making the array to compare. */
 export function readerInputsMatch(k: readonly unknown[], f: FrameState, labelsHidden: number, disclosure: Disclosure, tag?: unknown): boolean {
   if (k.length !== READER_INPUTS) return false;
@@ -331,8 +321,13 @@ export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, di
   const english = f.english;
   const message = shown.kind === 'ready' ? null : shown.text;
   const messageLang = message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null;
-  const noteSegments = f.noteShown && r.note !== null ? noteRunsFor(f, r, disclosure) : null;
-  const compactErrorNote = compact && message !== null && shown.kind !== 'ready' && shown.kind !== 'empty' && noteSegments !== null;
+  const note = f.noteShown ? r.note : null;
+  const noteLang = f.foreignPage ? noteLangFor(f, disclosure) : null;
+  // The reader already marked its English runs. On an English page the whole note inherits one language.
+  const noteSegments = f.foreignPage && note !== null
+    ? (r as ReaderModel & Pick<FigureModel, 'noteSegments'>).noteSegments ?? [{ text: note, lang: noteLang }]
+    : null;
+  const compactErrorNote = compact && message !== null && shown.kind !== 'ready' && shown.kind !== 'empty' && note !== null;
   // A compact chart is one image: its description says what state it is in (C1).
   // Loading and error are not empty (documentation findings 1 and 3): their description is the state, not
   // a reading of data the plot does not show.
@@ -340,15 +335,15 @@ export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, di
     : shown.kind === 'empty' ? (compact ? `${message} ${r.summary}` : r.summary)
     // A compact error still shows the omission marker, whose text equivalent is this description (C5).
     : compactErrorNote ? `${message} ${r.note}` : message;
-  const summarySegments = compactErrorNote && noteSegments.some(run => run.lang !== messageLang)
+  const summarySegments = compactErrorNote && noteSegments?.some(run => run.lang !== messageLang)
     ? [{ text: `${message} `, lang: messageLang }, ...noteSegments]
     : null;
   return {
     compact, title: named ? null : f.title, labelledBy: named ? f.by : null, name: r.name || a.name,
     subtitle: stringOption(a.options, 'subtitle'), summary,
-    summaryVisible: small, note: f.noteShown ? r.note : null, message,
+    summaryVisible: small, note, message,
     messageLang,
-    noteLang: noteLangFor(f, disclosure),
+    noteLang,
     // The reader's runs, each in its own language (reader review, finding 5); English is marked only on a
     // page in another language (A10).
     noteSegments,

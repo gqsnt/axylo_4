@@ -10,7 +10,7 @@
  */
 import type { PaintBindings, PaintToken, ResolvedTheme } from '../core/contracts';
 import { composedParent } from '../core/environment';
-import { composite, isLightColor, parseColor, type Rgba } from './color';
+import { composite, isLightColor, lowContrastSeries, parseColor, type Rgba } from './color';
 import { DARK, LIGHT, SERIES_COUNT } from './palette';
 
 export interface ThemeResolution {
@@ -28,6 +28,8 @@ export interface ThemeResolution {
   readonly backdropKnown?: boolean;
   /** Series keys whose author color the browser does not accept as a color; they use their palette slot. */
   readonly invalidColors?: readonly string[];
+  /** Series below 3:1 when the standard palette supplied all concrete paints. */
+  readonly lowContrast?: readonly number[];
 }
 
 const STANDARD_TOKENS = ['axis', 'grid', 'reference', 'muted', 'focus'] as const;
@@ -106,24 +108,7 @@ export interface ThemeBatch {
   readonly ancestorLayers: WeakMap<Element, BackdropLayer>;
   readonly canvas: Map<string, Rgba | null>;
   /** The last standard paint result of this batch (see `standardResolution`). */
-  last?: StandardResult | null;
-}
-
-/**
- * The paints of a standard figure, which depend only on what is compared here: tiles of a dashboard that
- * agree on all of it share one result instead of building the same palette again.
- */
-interface StandardResult {
-  readonly palette: 'light' | 'dark';
-  readonly text: string;
-  readonly background: string;
-  readonly known: boolean;
-  readonly forcedColors: boolean;
-  readonly moreContrast: boolean;
-  readonly count: number;
-  readonly theme: ResolvedTheme;
-  /** The whole result, which every figure that matches keeps as its own (it is never changed). */
-  readonly resolution: ThemeResolution;
+  last?: ThemeResolution | null;
 }
 
 const MEDIA_FORCED = '(forced-colors: active)';
@@ -166,8 +151,8 @@ function bindingsFor(count: number): PaintBindings {
   return bindings;
 }
 
-/** The invalid-color list of every theme whose author colors all parse (or that has none): kept by each chart. */
-const NO_INVALID: readonly string[] = [];
+/** Validated palettes can share their empty invalid-color and contrast lists. */
+const NONE: readonly never[] = [];
 
 function canvasKey(win: Window, scheme: string, batch?: ThemeBatch | null): string {
   const dark = batch?.prefersDark ?? media(win, MEDIA_DARK);
@@ -294,7 +279,7 @@ export function prepareTheme(
     bindings: bindingsFor(seriesKeys.length), prev: previous,
     css: connected ? win.getComputedStyle(element) : undefined, batch: batch ?? null,
     initialBg: '', bgExpr: '', modes: 0,
-    invalid: NO_INVALID, backdrop: null, pending: null,
+    invalid: NONE, backdrop: null, pending: null,
     ready: !connected, checked: false, later: null,
     scheme: previous === 'dark' ? 'dark' : 'light', follows: false,
     bg: paletteRgb(LIGHT.background), known: false,
@@ -408,7 +393,7 @@ export function applyTheme(p: PreparedTheme): void {
     if (own && valid && !valid[i]) (invalid ??= []).push(seriesKeys[i]!);
     setProperty(style, seriesProperty(i), own && (!valid || valid[i]) ? authorBinding(own) : seriesBinding(i), empty);
   }
-  if (valid) p.invalid = invalid ?? NO_INVALID;
+  if (valid) p.invalid = invalid ?? NONE;
   for (let i = written.get(element) ?? 0; i > series.length; i--) style.removeProperty(seriesProperty(i - 1));
   written.set(element, series.length);
   if (p.on) {
@@ -468,7 +453,8 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   if (style) {
     for (let t = 0; t < tokens.length; t++) {
       const token = tokens[t]!;
-      if (style.getPropertyValue(token.property) || style.getPropertyValue(token.fallback).trim() !== token.values[expected]) return null;
+      const value = style.getPropertyValue(token.property) || style.getPropertyValue(token.fallback);
+      if (value.trim() !== token.values[expected]) return null;
     }
     for (let i = 0; i < count; i++) {
       // CSSOM has already substituted both palette variables in the property the marks use.
@@ -482,25 +468,15 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   const batch = p.batch;
   const shareable = batch !== null && connected && !p.checked && !p.bgExpr && inDocumentTree(p.el, p.doc);
   const last = shareable ? batch.last : null;
-  if (last && last.palette === palette && last.text === text && last.background === p.bg && last.known === p.known &&
-      last.forcedColors === p.fc && last.moreContrast === p.mc && last.count === count) {
-    // Everything the result holds agrees: the same bindings (one per count), a connected figure, the same
-    // backdrop knowledge and no invalid color (a standard figure has no author colors). One object serves all.
-    const shared = last.resolution;
-    if (shared.bindings === p.bindings && p.invalid.length === 0 && shared.invalidColors!.length === 0) return shared;
-    return { bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, theme: last.theme };
-  }
+  if (last && last.bindings === p.bindings && last.backdropKnown === p.known && last.theme.scheme === palette &&
+      last.theme.paints.tokens.text === text && last.theme.paints.tokens.background === p.bg &&
+      last.theme.forcedColors === p.fc && last.theme.moreContrast === p.mc && !p.invalid.length && !last.invalidColors!.length) return last;
   const paints = { background: p.bg, text } as Record<PaintToken, string>;
   for (let t = 0; t < tokens.length; t++) paints[tokens[t]!.name] = paletteRgb(tokens[t]!.values[palette]);
   const series = new Array<string>(count);
   for (let i = 0; i < count; i++) series[i] = paletteRgb(defaults.series[i % SERIES_COUNT]![palette]);
-  const resolution = themeResolution(p, paints, series);
-  if (shareable) {
-    batch.last = {
-      palette, text, background: p.bg, known: p.known, forcedColors: p.fc, moreContrast: p.mc, count, theme: resolution.theme,
-      resolution,
-    };
-  }
+  const resolution = themeResolution(p, paints, series, true);
+  if (shareable) batch.last = resolution;
   return resolution;
 }
 
@@ -524,10 +500,16 @@ export function probeTheme(p: PreparedTheme): ThemeResolution {
   return themeResolution(p, tokens, seriesColors);
 }
 
-function themeResolution(p: PreparedTheme, tokens: Record<PaintToken, string>, series: string[]): ThemeResolution {
+function themeResolution(p: PreparedTheme, tokens: Record<PaintToken, string>, series: string[], standard = false): ThemeResolution {
+  const theme = { scheme: p.scheme, forcedColors: p.fc, moreContrast: p.mc, paints: { tokens, series } };
+  // Each verified palette slot meets 3:1 on its own opaque background (decision 0003).
+  let lowContrast: readonly number[] | undefined;
+  if (standard && p.known) {
+    const palette = p.scheme === 'light' ? LIGHT : DARK;
+    lowContrast = p.bg === paletteRgb(palette.background) ? NONE : lowContrastSeries(theme);
+  }
   return {
-    bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid,
-    theme: { scheme: p.scheme, forcedColors: p.fc, moreContrast: p.mc, paints: { tokens, series } },
+    bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, lowContrast, theme,
   };
 }
 
@@ -547,8 +529,13 @@ export function resolveTheme(
   return finalizeTheme(prepared, false)!;
 }
 
+const CLEAR_LAYER: BackdropLayer = { color: null, image: false };
+
 function readBackdropLayer(value: string, image: string, doc: Document, rootScheme?: string): BackdropLayer {
-  return { color: concreteColor(value, doc), image: !!image && image !== 'none', rootScheme };
+  const hasImage = !!image && image !== 'none';
+  // The browser serializes a default transparent background this way. It contributes no layer to composite.
+  if (!hasImage && !rootScheme && value === 'rgba(0, 0, 0, 0)') return CLEAR_LAYER;
+  return { color: concreteColor(value, doc), image: hasImage, rootScheme };
 }
 
 function backdrop(color: Rgba, known: boolean): Backdrop {

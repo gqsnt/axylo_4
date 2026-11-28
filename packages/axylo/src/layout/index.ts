@@ -2,7 +2,7 @@ import type {
   BandScale, ContinuousScale, DiagnosticSink, Layout, PlacedText, Projection, Rect, ResolvedReference,
   TextMeasurer, TextStyle, TickCandidates, XScale,
 } from '../core/contracts';
-import { fitBottom, fitBottomLines, fitLeftCategories, fitValue, messageLines, placeBottomLines, placeText, prepareLabels, wrapText } from './labels';
+import { fitBottom, fitBottomLines, fitLeftCategories, fitLines, fitValue, messageLines, placeLines, placeText, prepareLabels, wrapText } from './labels';
 import type { FittedLabels, Metrics, PreparedLabels } from './labels';
 import { linearScale } from '../scale/linear';
 import { placeReferences } from './references';
@@ -247,7 +247,7 @@ const titleSize = (lines: readonly string[], text: Metrics) => lines.length ? GA
 
 function layoutAxes(
   input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean,
-  measured: number[], bottomMeasured: number[], fit: AxisFit = {}, widths?: Map<string, number>,
+  leftMeasured: number[], bottomMeasured: number[], fit: AxisFit = {}, widths?: Map<string, number>,
 ): Layout {
   const { width, height } = size;
   const horizontal = input.kind === 'bands' && input.horizontal;
@@ -269,7 +269,7 @@ function layoutAxes(
   let leftTitle = NO_TITLE, bottomTitle = NO_TITLE;
   let leftTitleSize = 0, bottomTitleSize = 0;
   let leftFit = NO_LABELS, bottomFit = NO_LABELS;
-  let bottomLineSet = -1, bottomLane = 0;
+  let leftLineSet = -1, leftLane = 0, bottomLineSet = -1, bottomLane = 0;
 
   const fitKey = (
     fitter: 'value' | 'bottom', side: 'left' | 'bottom', role: PlacedText['role'], span: number,
@@ -291,10 +291,21 @@ function layoutAxes(
       leftTitle = lines;
       leftTitleSize = titleSize(lines, text);
       const room = width - 2 * INSET - MIN_WIDTH - leftTitleSize - TICK_GAP;
-      if (leftLabels) leftFit = horizontal
-        ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, room, leftLabels)
-        : rememberedFit(leftLabels, yScale, fitKey('value', 'left', leftRole, height, room, room, true, input.scales.linear === linearScale),
-          () => fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, measured));
+      if (leftLabels) {
+        // Until the margins settle a one-line value axis needs only its widest label.
+        const deferLines = !horizontal && !widths;
+        leftLineSet = deferLines ? fitLines(leftLabels, yScale, 'left', height, room, text.lineHeight / 2, text, leftMeasured) : -1;
+        if (leftLineSet >= 0) {
+          const count = leftLabels.sets[leftLineSet]!.length;
+          leftLane = count ? TICK_GAP + leftMeasured[2 * count]! : 0;
+        } else {
+          leftFit = horizontal
+            ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, room, leftLabels)
+            : rememberedFit(leftLabels, yScale, fitKey('value', 'left', leftRole, height, room, room, true, input.scales.linear === linearScale),
+              () => fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, leftMeasured, !deferLines));
+          leftLane = lane(leftFit);
+        }
+      }
     }
     if (left !== lastLeft) {
       const lines = titleLines(bottomAxis.title, plot.width, text);
@@ -317,15 +328,15 @@ function layoutAxes(
             horizontal ? room : rotatedRoom, horizontal || bottomAxis.mayThin, horizontal && input.scales.linear === linearScale);
           bottomFit = horizontal
             ? rememberedFit(bottomLabels, yScale, key,
-              () => fitValue(bottomCandidates, yScale, 'bottom', width, room, bottomRole, text, bottomLabels, measured))
+              () => fitValue(bottomCandidates, yScale, 'bottom', width, room, bottomRole, text, bottomLabels, bottomMeasured))
             : rememberedFit(bottomLabels, xScale, key, () => fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, room,
-              bottomRole, text, bottomLabels, rotatedRoom, measured, !deferLines));
+              bottomRole, text, bottomLabels, rotatedRoom, bottomMeasured, !deferLines));
           bottomLane = lane(bottomFit);
         }
       }
     }
 
-    const nextLeft = INSET + lane(leftFit) + leftTitleSize;
+    const nextLeft = INSET + leftLane + leftTitleSize;
     const nextBottom = INSET + clearance + bottomLane + bottomTitleSize;
     // A sparser tick set can free space for a denser set on the next pass. If that
     // cycles, keep enough margin for either fit and use the labels at the final ranges.
@@ -339,15 +350,20 @@ function layoutAxes(
         (growMargins && nextLeft <= left && nextBottom <= bottom)) {
       const base = plot.y + plot.height + clearance;
       const texts: PlacedText[] = [];
-      for (const label of leftFit.texts) texts.push(moveText(label, left - TICK_GAP, 0));
+      if (leftLineSet >= 0) {
+        leftFit = placeLines(leftLabels!.sets[leftLineSet]!, 'left', leftRole, text, leftMeasured, leftLineSet > 0, left - TICK_GAP);
+        for (const label of leftFit.texts) texts.push(label);
+      } else {
+        for (const label of leftFit.texts) texts.push(moveText(label, left - TICK_GAP, 0));
+      }
       if (bottomLineSet >= 0) {
-        bottomFit = placeBottomLines(bottomLabels!.sets[bottomLineSet]!, bottomLineSet > 0, base + TICK_GAP, bottomRole, text, bottomMeasured);
+        bottomFit = placeLines(bottomLabels!.sets[bottomLineSet]!, 'bottom', bottomRole, text, bottomMeasured, bottomLineSet > 0, base + TICK_GAP);
         for (const label of bottomFit.texts) texts.push(label);
       } else {
         for (const label of bottomFit.texts) texts.push(moveText(label, 0, base + TICK_GAP));
       }
       if (leftAxis.title && leftTitle.length) {
-        texts.push(placeText(leftTitle, leftAxis.title, left - lane(leftFit) - GAP - leftTitle.length * text.lineHeight / 2,
+        texts.push(placeText(leftTitle, leftAxis.title, left - leftLane - GAP - leftTitle.length * text.lineHeight / 2,
           plot.y + plot.height / 2, 'middle', 'middle', -90, horizontal ? 'title-x' : 'title-y', text));
       }
       if (bottomAxis.title && bottomTitle.length) {
@@ -398,13 +414,15 @@ export function computeLayout(input: LayoutInput, widths?: Map<string, number>):
   }
   if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) return tooSmall(size);
   const text = metrics(input, widths);
+  // No earlier fit used this measurement cache on its first layout. Retain the widths for later frames.
+  if (!widths?.size) widths = undefined;
   const fit: AxisFit = {};
-  const measured: number[] = [];
+  const leftMeasured: number[] = [];
   const bottomMeasured: number[] = [];
   layoutRun++;
-  let layout = layoutAxes(input, size, text, true, measured, bottomMeasured, fit, widths);
+  let layout = layoutAxes(input, size, text, true, leftMeasured, bottomMeasured, fit, widths);
   // Titles may need the space otherwise reserved for ticks at the ends of the left axis.
-  if (layout.kind === 'too-small') return layoutAxes(input, size, text, false, measured, bottomMeasured);
+  if (layout.kind === 'too-small') return layoutAxes(input, size, text, false, leftMeasured, bottomMeasured);
   let chosen = input;
   // Try the value axis first. Only a scatter's numeric x also has coarser domains.
   for (const key of ['y', 'x'] as const) {
@@ -413,7 +431,7 @@ export function computeLayout(input: LayoutInput, widths?: Map<string, number>):
     for (const coarser of axis.coarser ?? []) {
       const candidate = { ...chosen, [key]: { ...axis, ...coarser, coarser: undefined } };
       const next: AxisFit = {};
-      const wider = layoutAxes(candidate, size, text, true, measured, bottomMeasured, next, widths);
+      const wider = layoutAxes(candidate, size, text, true, leftMeasured, bottomMeasured, next, widths);
       if (wider.kind !== 'plot' || next[key] || (key === 'x' && next.y && !fit.y)) continue;
       layout = wider;
       chosen = candidate;

@@ -171,7 +171,8 @@ class DomFigure implements Figure {
     // the figure, so two charts on one target never share them (review 3, finding 10).
     const templates = initialCompact ? compactTemplates ??= new WeakMap() : fullTemplates ??= new WeakMap();
     const template = templates.get(doc);
-    const figure = this.figure = template ? template.cloneNode(true) as HTMLElement : make(doc, 'figure', 'axylo axylo-figure');
+    const figure = this.figure = template ? template.cloneNode(true) as HTMLElement
+      : make(doc, 'figure', initialCompact ? 'axylo axylo-figure axylo-compact' : 'axylo axylo-figure');
     let description: HTMLElement, plot: HTMLElement, message: HTMLElement, note: HTMLElement;
     if (template) {
       if (initialCompact) {
@@ -195,6 +196,8 @@ class DomFigure implements Figure {
       }
       message = plot.firstElementChild as HTMLElement;
     } else {
+      // Give the detached skeleton its mode before the first theme/style read, including on template clones.
+      figure.setAttribute('role', initialCompact ? 'img' : 'group');
       // The description sits before the plot in compact charts and inside the caption in full charts.
       description = element(doc, `description ${HIDDEN}`, 'p');
       plot = element(doc, 'plot');
@@ -207,11 +210,6 @@ class DomFigure implements Figure {
     this.#description = description;
     this.#message = message;
     this.#note = note;
-    figure.id = id;
-    description.id = `${id}-s`;
-    message.id = `${id}-m`;
-    note.id = `${id}-n`;
-
     if (!template) {
       if (initialCompact) figure.append(description, plot, note);
       else {
@@ -227,6 +225,11 @@ class DomFigure implements Figure {
         } else templates.set(doc, null);
       }
     }
+    // These ids belong to the instance. The blueprint can omit them instead of copying them into every clone.
+    figure.id = id;
+    description.id = `${id}-s`;
+    message.id = `${id}-m`;
+    note.id = `${id}-n`;
     if (message.parentNode === plot) {
       plot.insertBefore(parts.marks, message);
       if (parts.text) plot.insertBefore(parts.text, message);
@@ -292,24 +295,25 @@ class DomFigure implements Figure {
     const previous = this.#previous;
     if (previous === model) return false;
     const { compact, title, subtitle, summary, summaryLang, note: noteText, message, messageLang } = model;
-    const modeChanged = previous?.compact !== compact;
-    const headingChanged = modeChanged || !sameTitle(previous!.title, title);
-    const nameChanged = headingChanged || previous!.labelledBy !== model.labelledBy || previous!.name !== model.name;
-    const subtitleChanged = modeChanged || previous!.subtitle !== subtitle;
+    const switched = previous !== null && previous.compact !== compact;
+    const headingChanged = switched || !sameTitle(previous?.title ?? null, title);
+    const nameChanged = !previous || headingChanged || previous.labelledBy !== model.labelledBy || previous.name !== model.name;
+    const subtitleChanged = switched || (previous?.subtitle ?? null) !== subtitle;
     const summaryTextChanged = previous?.summary !== summary;
     const summaryLangChanged = (previous?.summaryLang ?? null) !== (summaryLang ?? null);
     const summarySegments = model.summarySegments ?? null;
     const summarySegmentsChanged = !sameSegments(summarySegments, previous?.summarySegments);
-    const visibilityChanged = modeChanged || previous!.summaryVisible !== model.summaryVisible;
-    const segmentsChanged = modeChanged || !sameSegments(model.noteSegments, previous!.noteSegments);
-    const noteChanged = segmentsChanged || previous!.note !== noteText || previous!.noteLang !== model.noteLang;
-    const messageChanged = previous?.message !== message;
-    const messageLangChanged = previous?.messageLang !== messageLang;
+    // Both skeletons start with an empty hidden note, message and fallback summary.
+    const visibilityChanged = switched || (previous?.summaryVisible ?? false) !== model.summaryVisible;
+    const segmentsChanged = switched || !sameSegments(model.noteSegments, previous?.noteSegments);
+    const noteChanged = segmentsChanged || (previous?.note ?? null) !== noteText || (previous?.noteLang ?? null) !== (model.noteLang ?? null);
+    const messageChanged = (previous?.message ?? null) !== message;
+    const messageLangChanged = (previous?.messageLang ?? null) !== (messageLang ?? null);
     if (!(nameChanged || subtitleChanged || summaryTextChanged || summaryLangChanged || summarySegmentsChanged || visibilityChanged ||
         noteChanged || messageChanged || messageLangChanged)) return false;
     this.#previous = model;
     const { figure, plot } = this, description = this.#description, note = this.#note, status = this.#message;
-    if (modeChanged) {
+    if (!previous || switched) {
       figure.classList.toggle('axylo-compact', compact);
       setAttr(figure, 'role', compact ? 'img' : 'group');
       if (compact) DomFigure.#makeCompact(this, previous);
@@ -323,7 +327,7 @@ class DomFigure implements Figure {
       if (heading) {
         setText(titleNode, heading.text);
         setAttr(titleNode, 'aria-level', String(heading.level));
-        if (modeChanged || previous!.title?.visible !== heading.visible) titleNode.classList.toggle(HIDDEN, !heading.visible);
+        if (switched || (previous ? previous.title?.visible : true) !== heading.visible) titleNode.classList.toggle(HIDDEN, !heading.visible);
       }
       show(titleNode, heading !== null);
     }
@@ -346,17 +350,17 @@ class DomFigure implements Figure {
 
     const lang = summaryLang ?? null;
     if (summarySegments && summarySegments.length > 1) {
-      if (summarySegmentsChanged || modeChanged) description.replaceChildren(...makeRuns(this.#doc, summarySegments));
+      if (summarySegmentsChanged || switched) description.replaceChildren(...makeRuns(this.#doc, summarySegments));
       if (previous || description.hasAttribute('lang')) setAttr(description, 'lang', null);
     } else {
       if (summaryTextChanged || summarySegmentsChanged) {
         if (description.firstElementChild) description.textContent = '';
         setText(description, summary);
       }
-      if ((modeChanged || summaryLangChanged || summarySegmentsChanged) && (previous || lang !== null)) setAttr(description, 'lang', lang);
+      if (switched || summaryLangChanged || summarySegmentsChanged) setAttr(description, 'lang', lang);
     }
     const summaryNode = this.#summary;
-    if (summaryNode && (modeChanged || summaryLangChanged) && (previous || lang !== null)) setAttr(summaryNode, 'lang', lang);
+    if (summaryNode && (switched || summaryLangChanged)) setAttr(summaryNode, 'lang', lang);
     if (summaryNode) {
       const visible = !compact && model.summaryVisible;
       // The description holds the full text. Only the small-plot fallback needs its own sentence.
@@ -402,8 +406,8 @@ class DomFigure implements Figure {
       show(status, message !== null);
     }
     if (messageLangChanged && (previous || messageLang != null)) setAttr(status, 'lang', messageLang ?? null);
-    return visibilityChanged || (model.summaryVisible && summaryTextChanged) ||
-      (!compact && (headingChanged || subtitleChanged || previous!.note !== noteText));
+    return !previous || visibilityChanged || (model.summaryVisible && summaryTextChanged) ||
+      (!compact && (headingChanged || subtitleChanged || previous.note !== noteText));
   }
 
   announce(text: string, lang: string | null = null): void {
@@ -419,6 +423,7 @@ class DomFigure implements Figure {
   // Static helpers can access the private fields without adding an instance brand.
   static #makeCompact(f: DomFigure, previous: FigureModel | null): void {
     const { figure } = f, body = f.#body;
+    if (!body && !f.#controls && !f.#top && !f.#tooltip) return;
     // Preserve focus on the figure when switching a full chart to compact before interaction.prepare runs.
     const active = activeElementOf(f.#doc, figure);
     const hadFocus = containsNode(f.#controls, active) || containsNode(f.#readout, active) ||

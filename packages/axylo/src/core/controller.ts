@@ -608,11 +608,13 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       const viewed = this.view(c, previous);
       // Author code (a getter) destroyed the chart while the call was prepared: nothing is accepted.
       if (this.#destroyed) return;
-      const found = [...c.optionDiagnostics, ...c.dataDiagnostics, ...viewed.viewDiagnostics, ...namingDiagnostics(next)];
-      // While paused the held window is part of the chart: its findings count for strict too (finding 6).
-      const keptHeld = heldAfter ?? (c.frame === previous?.frame ? this.held : null);
-      if (this.#paused && keptHeld) found.push(...keptHeld.dataDiagnostics, ...keptHeld.viewDiagnostics);
-      this.reject(next.strict === true, found, this.#chartName(next), next.onDiagnostic);
+      if (next.strict === true) {
+        const found = [...c.optionDiagnostics, ...c.dataDiagnostics, ...viewed.viewDiagnostics, ...namingDiagnostics(next)];
+        // While paused the held window is part of the chart: its findings count for strict too (finding 6).
+        const keptHeld = heldAfter ?? (c.frame === previous?.frame ? this.held : null);
+        if (this.#paused && keptHeld) found.push(...keptHeld.dataDiagnostics, ...keptHeld.viewDiagnostics);
+        this.reject(true, found, this.#chartName(next), next.onDiagnostic);
+      }
       // Data replaced or bounds changed: a window that no longer ends at the latest x stops following.
       const follow = followsLatest(viewed.view, c.zoom);
       if (c.frame !== previous?.frame) this.held = null;
@@ -773,7 +775,6 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   flush(): void {
     const run = this.#startFrame();
     if (!run) return;
-    // A ready compact plot has no readout strip and no L8 fallback: its readout steps would all pass.
     run.phase1();
     run.phase2();
     // The measure's layout brings style up to date, so the theme's reads after it start no style pass of their
@@ -782,8 +783,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     run.phase3Theme();
     run.phase3Probe();
     run.phase3Measure();
-    if (run.stripless()) run.phase4Init();
-    else readoutSteps(run);
+    readoutSteps(run);
     for (let pass = 0; pass < 4; pass++) {
       if (!run.phase4PassWrite()) break;
       if (run.phase4PassMeasure()) readoutSteps(run);
@@ -835,23 +835,22 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
           case STEP_PHASE1: this.#phase1(f); break;
           case STEP_PHASE2: {
             const a = f.a!;
-            if (f.needsTheme) {
+            if (f.keys) {
               this.#mutate(f);
               if (f.preparedTheme !== null && this.host.themeApply) {
                 countStage(this, 'theme');
                 this.host.themeApply(f.preparedTheme);
-              } else this.resolveTheme(f.keys!, a.options.colors);
+              } else this.resolveTheme(f.keys, a.options.colors);
             }
             const hadStrip = this.#readoutMode, shown = f.shown;
             if (shown.kind !== 'ready' || f.compact || f.tooSmall || a.options.tooltip === false) {
               this.#readoutMode = false; this.#readoutKind = 'floating';
             }
             f.needMeasure = this.#arrange(f) || hadStrip !== this.#readoutMode || this.#sizeDirty || this.#size === null;
-            f.noReadout = shown.kind === 'ready' && f.compact && !f.tooSmall && !this.#readoutMode;
             break;
           }
           case STEP_THEME:
-            if (f.needsTheme && f.preparedTheme !== null && this.host.themeFinish) {
+            if (this.host.themeFinish) {
               const res = this.host.themeFinish(f.preparedTheme, true);
               if (res !== null) this.#applyThemeResolution(res, f.keys!, f.a!.options.colors);
               else f.needsThemeProbe = true;
@@ -859,7 +858,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
             break;
           case STEP_MEASURE: this.#measurePending(f); break;
           case STEP_PROBE:
-            if (f.needsThemeProbe && f.preparedTheme !== null && this.host.themeProbe) {
+            if (this.host.themeProbe) {
               this.#probeWrote = true;
               const res = this.host.themeProbe(f.preparedTheme, this.#probeReport ??= wrote => { this.#probeWrote = wrote; });
               f.needMeasure ||= this.#probeWrote;
@@ -978,9 +977,8 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     return f.discCache;
   }
 
-  #readerFor(f: FrameState, labelsHidden: number, disclosure: Disclosure): ReaderEntry {
+  #readerFor(f: FrameState, labelsHidden: number, disclosure: Disclosure, tag: unknown): ReaderEntry {
     const a = f.a!;
-    const tag = this.composition.reader.stateKey?.();
     const shownBefore = this.drawn;
     if (shownBefore && readerInputsMatch(shownBefore.readerInputs, f, labelsHidden, disclosure, tag)) {
       return { reader: shownBefore.reader, inputs: shownBefore.readerInputs };
@@ -1036,30 +1034,30 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     return f.lastReader = { reader: built, inputs };
   }
 
-  #settleReader(f: FrameState, labelsHidden: number): ReaderEntry {
-    f.currentHidden = labelsHidden;
+  /** Within a frame only disclosure, hidden labels or a composition's own reading can change the reader. */
+  #readerCurrent(f: FrameState, hidden: number): boolean {
+    return f.readerVersion === this.#presentationVersion && f.currentHidden === hidden && !this.composition.reader.stateKey;
+  }
+
+  #settleFigureReader(f: FrameState, labelsHidden: number): void {
     const tag = this.composition.reader.stateKey?.();
     const disclosure = this.#disclosureNow(f);
     const settled = f.settled;
-    if (settled && f.settledHidden === labelsHidden && Object.is(settled.inputs[14], tag) && sameDisclosure(f.settledDisclosure, disclosure)) return settled;
-    let built = this.#readerFor(f, labelsHidden, disclosure);
+    f.readerVersion = f.discVer;
+    if (settled && f.currentHidden === labelsHidden && Object.is(settled.inputs[14], tag) &&
+        settled.inputs[7] === disclosure.omitted && settled.inputs[8] === disclosure.changed) return;
+    f.currentHidden = labelsHidden;
+    let built = this.#readerFor(f, labelsHidden, disclosure, tag);
     // The summary runs author formatters lazily: it is made here, so what they threw on is in the
     // disclosure this settles on, and no reader is built again once writing has started (verification,
     // claims: a throwing value formatter ran again during the figure's write).
     void built.reader.summary;
     const after = this.#disclosureNow(f);
+    f.readerVersion = f.discVer;
     if (!sameDisclosure(after, disclosure)) {
-      built = this.#readerFor(f, labelsHidden, after);
+      built = this.#readerFor(f, labelsHidden, after, this.composition.reader.stateKey?.());
     }
-    f.settledHidden = labelsHidden;
-    f.settledDisclosure = after;
-    return f.settled = built;
-  }
-
-  #settleFigureReader(f: FrameState, hidden: number): void {
-    const settled = this.#settleReader(f, hidden);
-    f.reader = settled.reader;
-    f.readerInputs = settled.inputs;
+    f.settled = built;
   }
 
   #measurePending(f: FrameState): void {
@@ -1071,21 +1069,20 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
   }
 
   #arrangedFor(f: FrameState): boolean {
-    return f.arrangedReader === f.reader && f.arrangedSmall === f.tooSmall && f.arrangedHidden === f.currentHidden &&
+    return f.arrangedReader === f.settled!.reader && f.arrangedSmall === f.tooSmall &&
       sameDisclosure(f.arrangedDisclosure, this.#disclosureNow(f));
   }
 
   #controlsState(f: FrameState) {
-    return controlsStateFor(f, f.reader, f.tooSmall, this.kind, this.#streaming, this.#paused, this.#readoutMode, this.#readoutKind);
+    return controlsStateFor(f, f.settled!.reader, f.tooSmall, this.kind, this.#streaming, this.#paused, this.#readoutMode, this.#readoutKind);
   }
 
   #arrange(f: FrameState): boolean {
     const small = f.tooSmall;
     if (this.#arrangedFor(f) && f.arrangedStrip === this.#readoutMode) return false;
-    const reader = f.reader;
+    const reader = f.settled!.reader;
     f.arrangedReader = reader;
     f.arrangedSmall = small;
-    f.arrangedHidden = f.currentHidden;
     f.arrangedDisclosure = this.#disclosureNow(f);
     f.arrangedStrip = this.#readoutMode;
     countStage(this, 'figure');
@@ -1233,22 +1230,20 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
 
     this.#settleFigureReader(f, hiddenIn(this.drawn?.layout));
     // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
-    void f.reader.summary;
-    void f.reader.note;
+    void f.settled!.reader.summary;
     if (!this.#current(a)) throw ABORT;
 
     // Theme check: read-only preparation when the host supports phased theme resolution.
-    let needsTheme = this.themeDirty || !this.theme || this.#themeSeries === null || this.#themeColors !== a.options.colors;
-    if (needsTheme || view.kind === 'donut') {
-      const keys = f.keys = themeKeys(view);
-      needsTheme ||= !sameKey(this.#themeSeries, keys);
-    } else if (!sameSeriesKeys(view, this.#themeSeries!)) {
+    if (this.themeDirty || !this.theme || this.#themeSeries === null || this.#themeColors !== a.options.colors) {
       f.keys = themeKeys(view);
-      needsTheme = true;
+    } else if (view.kind === 'donut') {
+      const keys = themeKeys(view);
+      if (!sameKey(this.#themeSeries, keys)) f.keys = keys;
+    } else if (!sameSeriesKeys(view, this.#themeSeries)) {
+      f.keys = themeKeys(view);
     }
-    f.needsTheme = needsTheme;
-    if (needsTheme && this.host.themePrepare) {
-      f.preparedTheme = this.host.themePrepare(f.keys!, object(a.options.colors) as Record<string, string>);
+    if (f.keys && this.host.themePrepare) {
+      f.preparedTheme = this.host.themePrepare(f.keys, object(a.options.colors) as Record<string, string>);
     }
 
     // The fallback is only for a plot; a state message is shown in whatever room there is.
@@ -1348,13 +1343,16 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
       return false;
     }
     // Normal: the note says what this layout hides; if that moves the figure, judge the new size.
-    this.#settleFigureReader(f, hiddenIn(result.layout));
-    if (!this.#arrange(f)) {
-      f.layoutDone = true;
-      return false;
+    const hidden = hiddenIn(result.layout);
+    if (!this.#readerCurrent(f, hidden) || f.arrangedStrip !== this.#readoutMode) {
+      this.#settleFigureReader(f, hidden);
+      if (this.#arrange(f)) {
+        f.passAction = 'note-moved';
+        return true;
+      }
     }
-    f.passAction = 'note-moved';
-    return true;
+    f.layoutDone = true;
+    return false;
   }
 
   // Phase 4.1 (per-pass reads): Batched re-measure after pass writes.
@@ -1417,9 +1415,9 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     const layoutDiags = shown.kind === 'ready' && !compact ? this.composition.layout.layoutDiagnostics?.(view, f.axisContext, layout) : undefined;
     this.#setPresentation('layout', layoutDiags?.length ? layoutDiags : EMPTY_DIAGNOSTICS);
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && this.#size !== null && this.#size.width > 0 && this.#size.height > 0);
-    this.#settleFigureReader(f, hidden);
+    if (!this.#readerCurrent(f, hidden)) this.#settleFigureReader(f, hidden);
     if (this.#destroyed) throw ABORT;
-    const reader = f.reader;
+    const { reader, inputs } = f.settled!;
     const formatters = f.formatters;
     const locale = f.locale;
 
@@ -1484,7 +1482,7 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
 
     this.drawn = {
       accepted: a, formatters, formattersKey: f.fKey, locale, style: f.style, fontEpoch: f.layoutEpoch, pixelRatio: ratio,
-      layout, plotLayout: result, scene, lookup, reader, readerInputs: f.readerInputs, paintedTheme,
+      layout, plotLayout: result, scene, lookup, reader, readerInputs: inputs, paintedTheme,
     };
     const { bindings, theme } = this.theme!;
     const committed = Object.assign(this.#controlsState(f), { layout, lookup, bindings, theme, pixelRatio: ratio });
@@ -1547,8 +1545,11 @@ abstract class ChartController implements Controller, ControllerCore, FrameDrive
     this.themeDirty = resolution.resolved === false;
     this.#themeRevision++;
     // When the backdrop could not be determined the background is a guess, so contrast is not judged.
-    const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
-    this.#setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : EMPTY_DIAGNOSTICS);
+    let count = 0;
+    if (resolution.backdropKnown !== false) {
+      for (const i of resolution.lowContrast ?? lowContrastSeries(resolution.theme)) if (i < keys.length) count++;
+    }
+    this.#setPresentation('theme', count ? [createDiagnostic('AX141', 'none', { count }, 'presentation')] : EMPTY_DIAGNOSTICS);
   }
 
   /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */

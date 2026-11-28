@@ -312,7 +312,7 @@ function singleLineFits(
   const startPixel = position(scale, ticks[0]!);
   const endPixel = lastIndex ? position(scale, ticks[lastIndex]!) : startPixel;
   const forward = startPixel <= endPixel;
-  let previousStart = -Infinity, end = -Infinity, unordered = false;
+  let previousStart = -Infinity, end = -Infinity, unordered = false, widest = 0;
   for (let i = 0; i < ticks.length; i++) {
     const index = forward ? i : lastIndex - i;
     const tick = ticks[index]!;
@@ -322,6 +322,7 @@ function singleLineFits(
     const size = bottom ? width : height;
     measured[2 * index] = anchor;
     measured[2 * index + 1] = width;
+    if (width > widest) widest = width;
     const first = anchor - size / 2, last = first + size;
     if (!(first >= -EPSILON && last <= span + EPSILON && (bottom || width <= room + EPSILON))) return false;
     if (first > previousStart || (forward && first === previousStart)) {
@@ -333,6 +334,8 @@ function singleLineFits(
     previousStart = first;
     end = last;
   }
+  // Keep the value axis's depth after its anchor/width pairs for the margin and final placement.
+  if (!bottom) measured[2 * ticks.length] = widest;
   if (!unordered) return true;
 
   // Clamping or an unordered candidate can reverse interval starts. Check those pairs in either order.
@@ -348,38 +351,42 @@ function singleLineFits(
   return true;
 }
 
-function singleLineResult(
-  ticks: readonly Tick[], side: Side, role: Role, metrics: Metrics, measured: number[], remedies: readonly LabelRemedy[],
-  bottomY = 0,
+export function placeLines(
+  ticks: readonly Tick[], side: Side, role: Role, metrics: Metrics, measured: number[], thinned: boolean,
+  offset = 0,
 ): FittedLabels {
   const bottom = side === 'bottom';
   const texts: PlacedText[] = [];
-  let depth = bottom && ticks.length ? Math.max(0, metrics.lineHeight) : 0;
+  const depth = !ticks.length ? 0 : bottom ? Math.max(0, metrics.lineHeight) : measured[2 * ticks.length]!;
   for (let i = 0; i < ticks.length; i++) {
     const { label } = ticks[i]!;
     const anchor = measured[2 * i]!, width = measured[2 * i + 1]!;
-    texts.push(placeText([label], label, bottom ? anchor : 0, bottom ? bottomY : anchor,
+    texts.push(placeText([label], label, bottom ? anchor : offset, bottom ? offset : anchor,
       bottom ? 'middle' : 'end', bottom ? 'top' : 'middle', 0, role, metrics, width));
-    if (!bottom) depth = Math.max(depth, width);
   }
-  return { ticks, texts, depth, remedies };
+  return { ticks, texts, depth, remedies: thinned ? THINNED : NO_REMEDIES };
 }
 
-/** The winning horizontal set, with its anchors and widths left in the caller's scratch array. */
+/** The winning set, with its anchors and widths left in the caller's scratch array. */
+export function fitLines(
+  prepared: PreparedLabels, scale: XScale, side: Side, span: number, room: number, gap: number, metrics: Metrics, measured: number[],
+): number {
+  for (let i = 0; i < prepared.sets.length; i++) {
+    if (singleLineFits(prepared.sets[i]!, scale, side, span, room, gap, metrics, measured)) return i;
+  }
+  return -1;
+}
+
 export function fitBottomLines(
   prepared: PreparedLabels, mayThin: boolean, scale: XScale, span: number, room: number, metrics: Metrics, measured: number[],
 ): number {
-  const gap = mayThin ? 8 : 0;
-  for (let i = 0; i < prepared.sets.length; i++) {
-    if (singleLineFits(prepared.sets[i]!, scale, 'bottom', span, room, gap, metrics, measured)) return i;
-  }
-  return -1;
+  return fitLines(prepared, scale, 'bottom', span, room, mayThin ? 8 : 0, metrics, measured);
 }
 
 export function placeBottomLines(
   ticks: readonly Tick[], thinned: boolean, y: number, role: Role, metrics: Metrics, measured: number[],
 ): FittedLabels {
-  return singleLineResult(ticks, 'bottom', role, metrics, measured, thinned ? THINNED : NO_REMEDIES, y);
+  return placeLines(ticks, 'bottom', role, metrics, measured, thinned, y);
 }
 
 function start(label: Label, side: Side): number {
@@ -496,7 +503,7 @@ export function fitBottom(
   }
 
   const fitted = tryHorizontal ? fitBottomLines(prepared, mayThin, scale, width, room, metrics, measured) : -1;
-  if (fitted >= 0) return placeBottomLines(prepared.sets[fitted]!, fitted > 0, 0, role, metrics, measured);
+  if (fitted >= 0) return placeLines(prepared.sets[fitted]!, 'bottom', role, metrics, measured, fitted > 0);
   ticks = prepared.sets.at(-1) ?? ticks;
   if (prepared.sets.length > 1) remedies.push('thinned');
 
@@ -550,17 +557,13 @@ export function fitLeftCategories(
 
 export function fitValue(
   candidates: TickCandidates, scale: XScale, side: Side, span: number, room: number, role: Role, metrics: Metrics,
-  prepared = prepareLabels(candidates), measured: number[] = [],
+  prepared = prepareLabels(candidates), measured: number[] = [], tryLines = true,
 ): FittedLabels {
   const gap = metrics.lineHeight / 2;
-  let ticks: readonly Tick[] = [];
-  for (let i = 0; i < prepared.sets.length; i++) {
-    ticks = prepared.sets[i]!;
-    if (singleLineFits(ticks, scale, side, span, room, gap, metrics, measured)) {
-      return singleLineResult(ticks, side, role, metrics, measured, i ? THINNED : NO_REMEDIES);
-    }
-  }
+  const index = tryLines ? fitLines(prepared, scale, side, span, room, gap, metrics, measured) : -1;
+  if (index >= 0) return placeLines(prepared.sets[index]!, side, role, metrics, measured, index > 0);
 
+  const ticks = prepared.sets.at(-1) ?? [];
   const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), side, span, [tick.label], 0, role, metrics));
   const sorted = [...labels].sort((a, b) => start(a, side) + extent(a, side) - start(b, side) - extent(b, side));
   const kept = new Set<Label>();
